@@ -1,11 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const SESSION_COOKIE = "tariq_admin_session";
+const USER_COOKIE = "tariq_admin_user";
 const PUBLIC_PATHS = ["/login"];
-const DEFAULT_ADMIN_PASSWORD = "tariq2026";
-const SESSION_PAYLOAD = "tariq-admin-authenticated-v1";
+const FALLBACK_USERNAME = "admin";
+const FALLBACK_PASSWORD = "tariq2026";
+const SESSION_PAYLOAD_PREFIX = "tariq-admin-user-v2:";
 
-async function createSessionToken(password: string): Promise<string> {
+async function createSessionToken(
+  username: string,
+  password: string
+): Promise<string> {
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
     "raw",
@@ -17,7 +22,7 @@ async function createSessionToken(password: string): Promise<string> {
   const signature = await crypto.subtle.sign(
     "HMAC",
     key,
-    encoder.encode(SESSION_PAYLOAD)
+    encoder.encode(`${SESSION_PAYLOAD_PREFIX}${username}`)
   );
   return Array.from(new Uint8Array(signature))
     .map((b) => b.toString(16).padStart(2, "0"))
@@ -33,14 +38,16 @@ function timingSafeEqual(a: string, b: string): boolean {
   return mismatch === 0;
 }
 
-async function fetchDbAdminPassword(): Promise<string | null> {
+async function fetchUserPassword(
+  username: string
+): Promise<{ password: string; role: string } | null> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key || url.includes("your-project")) return null;
 
   try {
     const res = await fetch(
-      `${url}/rest/v1/site_settings?id=eq.1&select=admin_password`,
+      `${url}/rest/v1/admin_users?username=ilike.${encodeURIComponent(username)}&select=username,password,role&limit=1`,
       {
         headers: {
           apikey: key,
@@ -49,39 +56,38 @@ async function fetchDbAdminPassword(): Promise<string | null> {
         cache: "no-store",
       }
     );
-
     if (!res.ok) return null;
-
     const rows = (await res.json()) as Array<{
-      admin_password?: string | null;
+      password?: string;
+      role?: string;
     }>;
-    const pw = rows?.[0]?.admin_password;
-    if (typeof pw === "string" && pw.trim()) return pw.trim();
+    const row = rows?.[0];
+    if (row?.password) {
+      return { password: row.password, role: row.role || "admin" };
+    }
     return null;
   } catch {
     return null;
   }
 }
 
-/** Never throws — always returns a usable password. */
-async function getEffectiveAdminPassword(): Promise<string> {
-  try {
-    const dbPassword = await fetchDbAdminPassword();
-    if (dbPassword) return dbPassword;
-  } catch {
-    // ignore
-  }
-  const fromEnv = process.env.ADMIN_PASSWORD?.trim();
-  return fromEnv || DEFAULT_ADMIN_PASSWORD;
+async function resolvePassword(username: string): Promise<string | null> {
+  const db = await fetchUserPassword(username);
+  if (db?.password) return db.password;
+  if (username.toLowerCase() === FALLBACK_USERNAME) return FALLBACK_PASSWORD;
+  return null;
 }
 
-async function verifySessionToken(
-  token: string | undefined,
-  password: string
-): Promise<boolean> {
-  if (!token || !password) return false;
+async function isAuthenticated(request: NextRequest): Promise<boolean> {
+  const token = request.cookies.get(SESSION_COOKIE)?.value;
+  const username = request.cookies.get(USER_COOKIE)?.value;
+  if (!token || !username) return false;
+
+  const password = await resolvePassword(username);
+  if (!password) return false;
+
   try {
-    const expected = await createSessionToken(password);
+    const expected = await createSessionToken(username, password);
     return timingSafeEqual(token, expected);
   } catch {
     return false;
@@ -99,10 +105,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const password = await getEffectiveAdminPassword();
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
-  const authenticated = await verifySessionToken(token, password);
-
+  const authenticated = await isAuthenticated(request);
   const isPublic = PUBLIC_PATHS.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`)
   );

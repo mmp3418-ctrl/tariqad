@@ -1,41 +1,48 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { Megaphone, Plus, Power, Trash2 } from "lucide-react";
-import type { Announcement } from "@/lib/types";
+import { Megaphone, Pencil, Plus, Trash2 } from "lucide-react";
+import type { Announcement, AnnouncementKind } from "@/lib/types";
+import {
+  ANNOUNCEMENT_KIND_LABELS,
+  ANNOUNCEMENT_KIND_STYLES,
+} from "@/lib/constants";
 import {
   createAnnouncement,
   deleteAnnouncement,
   getAnnouncements,
   toggleAnnouncement,
+  updateAnnouncement,
 } from "@/app/(dashboard)/announcements/actions";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { Textarea } from "@/components/ui/input";
+import { Select, Textarea } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { ConfirmDialog, EmptyState, PageLoader } from "@/components/ui/loading";
 import { useToast } from "@/components/ui/toast";
+
+const emptyForm = {
+  message_ar: "",
+  message_en: "",
+  is_active: true,
+  kind: "update" as AnnouncementKind,
+};
 
 export function AnnouncementsManager() {
   const { success, error } = useToast();
   const [items, setItems] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<Announcement | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [form, setForm] = useState(emptyForm);
   const [pending, startTransition] = useTransition();
-  const [form, setForm] = useState({
-    message_ar: "",
-    message_en: "",
-    is_active: true,
-  });
 
   const load = useCallback(async () => {
     setLoading(true);
     const result = await getAnnouncements();
-    if (result.success) {
-      setItems(result.data ?? []);
-    } else {
-      error(result.error);
-    }
+    if (result.success) setItems(result.data ?? []);
+    else error(result.error);
     setLoading(false);
   }, [error]);
 
@@ -43,18 +50,35 @@ export function AnnouncementsManager() {
     void load();
   }, [load]);
 
-  function handleCreate(e: React.FormEvent) {
+  function openCreate() {
+    setEditing(null);
+    setForm(emptyForm);
+    setModalOpen(true);
+  }
+
+  function openEdit(item: Announcement) {
+    setEditing(item);
+    setForm({
+      message_ar: item.message_ar,
+      message_en: item.message_en,
+      is_active: item.is_active,
+      kind: item.kind || "update",
+    });
+    setModalOpen(true);
+  }
+
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     startTransition(async () => {
-      const result = await createAnnouncement(form);
+      const result = editing
+        ? await updateAnnouncement(editing.id, form)
+        : await createAnnouncement(form);
       if (result.success) {
         success(result.message ?? "تم الحفظ");
         setModalOpen(false);
-        setForm({ message_ar: "", message_en: "", is_active: true });
+        setEditing(null);
         await load();
-      } else {
-        error(result.error);
-      }
+      } else error(result.error);
     });
   }
 
@@ -64,9 +88,7 @@ export function AnnouncementsManager() {
       if (result.success) {
         success(result.message ?? "تم التحديث");
         await load();
-      } else {
-        error(result.error);
-      }
+      } else error(result.error);
     });
   }
 
@@ -78,14 +100,14 @@ export function AnnouncementsManager() {
         success(result.message ?? "تم الحذف");
         setDeleteId(null);
         await load();
-      } else {
-        error(result.error);
-      }
+      } else error(result.error);
     });
   }
 
+  const previewStyles = ANNOUNCEMENT_KIND_STYLES[form.kind];
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-x-hidden">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="mb-1 flex items-center gap-2 text-teal-700">
@@ -96,10 +118,10 @@ export function AnnouncementsManager() {
             إدارة الإعلانات
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            أضف وعدّل الإعلانات الظاهرة على المنصة
+            معاينة حية، أنواع الأولوية، وتفعيل فوري
           </p>
         </div>
-        <Button onClick={() => setModalOpen(true)}>
+        <Button onClick={openCreate}>
           <Plus className="h-4 w-4" />
           إعلان جديد
         </Button>
@@ -113,74 +135,105 @@ export function AnnouncementsManager() {
           description="أضف أول إعلان ليظهر للطلاب على المنصة"
         />
       ) : (
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>الرسالة (عربي)</th>
-                <th>الرسالة (إنجليزي)</th>
-                <th>الحالة</th>
-                <th>التاريخ</th>
-                <th>إجراءات</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => (
-                <tr key={item.id}>
-                  <td className="max-w-xs">
-                    <p className="line-clamp-2 font-medium">{item.message_ar}</p>
-                  </td>
-                  <td className="max-w-xs">
-                    <p className="line-clamp-2 text-slate-500" dir="ltr">
-                      {item.message_en || "—"}
-                    </p>
-                  </td>
-                  <td>
-                    <span
-                      className={`badge ${item.is_active ? "badge-success" : "badge-muted"}`}
-                    >
-                      {item.is_active ? "نشط" : "متوقف"}
-                    </span>
-                  </td>
-                  <td className="whitespace-nowrap text-slate-500">
-                    {new Date(item.created_at).toLocaleDateString("ar-LY")}
-                  </td>
-                  <td>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleToggle(item)}
-                        disabled={pending}
-                        title={item.is_active ? "إيقاف" : "تفعيل"}
+        <div className="grid gap-4">
+          {items.map((item) => {
+            const kind = item.kind || "update";
+            const styles = ANNOUNCEMENT_KIND_STYLES[kind];
+            return (
+              <article
+                key={item.id}
+                className={`overflow-hidden rounded-2xl border bg-gradient-to-l ${styles.soft} shadow-sm`}
+              >
+                <div className={`h-1.5 w-full ${styles.bar}`} />
+                <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`badge ${styles.badge}`}>
+                        {ANNOUNCEMENT_KIND_LABELS[kind]}
+                      </span>
+                      <span
+                        className={`badge ${item.is_active ? "badge-success" : "badge-muted"}`}
                       >
-                        <Power
-                          className={`h-4 w-4 ${item.is_active ? "text-emerald-600" : "text-slate-400"}`}
-                        />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setDeleteId(item.id)}
-                        disabled={pending}
-                      >
-                        <Trash2 className="h-4 w-4 text-rose-600" />
-                      </Button>
+                        {item.is_active ? "نشط" : "متوقف"}
+                      </span>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <p className="text-base font-semibold leading-relaxed text-slate-900">
+                      {item.message_ar}
+                    </p>
+                    {item.message_en && (
+                      <p className="text-sm text-slate-500" dir="ltr">
+                        {item.message_en}
+                      </p>
+                    )}
+                    <p className="text-xs text-slate-400">
+                      {new Date(item.created_at).toLocaleString("ar-LY")}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    <Switch
+                      checked={item.is_active}
+                      onChange={() => handleToggle(item)}
+                      disabled={pending}
+                      label={item.is_active ? "مفعّل" : "متوقف"}
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => openEdit(item)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setDeleteId(item.id)}
+                    >
+                      <Trash2 className="h-4 w-4 text-rose-600" />
+                    </Button>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
 
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title="إضافة إعلان جديد"
+        title={editing ? "تعديل الإعلان" : "إضافة إعلان جديد"}
+        size="lg"
       >
-        <form onSubmit={handleCreate} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div
+            className={`overflow-hidden rounded-2xl border bg-gradient-to-l ${previewStyles.soft}`}
+          >
+            <div className={`h-1.5 ${previewStyles.bar}`} />
+            <div className="space-y-2 p-4">
+              <span className={`badge ${previewStyles.badge}`}>
+                {ANNOUNCEMENT_KIND_LABELS[form.kind]}
+              </span>
+              <p className="text-sm font-semibold text-slate-800">
+                {form.message_ar || "معاينة نص الإعلان ستظهر هنا..."}
+              </p>
+            </div>
+          </div>
+
+          <Select
+            label="نوع الإعلان"
+            name="kind"
+            value={form.kind}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                kind: e.target.value as AnnouncementKind,
+              }))
+            }
+          >
+            <option value="alert">تنبيه</option>
+            <option value="update">تحديث</option>
+            <option value="important">هام</option>
+          </Select>
           <Textarea
             label="نص الإعلان (عربي)"
             name="message_ar"
@@ -189,17 +242,15 @@ export function AnnouncementsManager() {
             onChange={(e) =>
               setForm((f) => ({ ...f, message_ar: e.target.value }))
             }
-            placeholder="اكتب نص الإعلان بالعربية..."
           />
           <Textarea
             label="نص الإعلان (إنجليزي)"
             name="message_en"
+            dir="ltr"
             value={form.message_en}
             onChange={(e) =>
               setForm((f) => ({ ...f, message_en: e.target.value }))
             }
-            placeholder="Announcement text in English..."
-            dir="ltr"
           />
           <label className="flex items-center gap-2 text-sm text-slate-700">
             <input
@@ -208,11 +259,11 @@ export function AnnouncementsManager() {
               onChange={(e) =>
                 setForm((f) => ({ ...f, is_active: e.target.checked }))
               }
-              className="h-4 w-4 rounded border-slate-300 text-teal-700 focus:ring-teal-600"
+              className="h-4 w-4 rounded border-slate-300 text-teal-700"
             />
             تفعيل الإعلان فوراً
           </label>
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex justify-end gap-2">
             <Button
               type="button"
               variant="secondary"
@@ -221,7 +272,7 @@ export function AnnouncementsManager() {
               إلغاء
             </Button>
             <Button type="submit" loading={pending}>
-              حفظ الإعلان
+              حفظ
             </Button>
           </div>
         </form>
@@ -230,7 +281,7 @@ export function AnnouncementsManager() {
       <ConfirmDialog
         open={!!deleteId}
         title="حذف الإعلان"
-        message="هل أنت متأكد من حذف هذا الإعلان؟ لا يمكن التراجع عن هذا الإجراء."
+        message="هل أنت متأكد من حذف هذا الإعلان؟"
         onCancel={() => setDeleteId(null)}
         onConfirm={handleDelete}
         loading={pending}

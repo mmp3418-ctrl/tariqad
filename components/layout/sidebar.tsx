@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BookOpen,
   CalendarDays,
+  FileText,
   GraduationCap,
   LogOut,
   Megaphone,
   Menu,
+  PlayCircle,
   Settings,
+  Users,
   X,
 } from "lucide-react";
 import { useState } from "react";
@@ -19,12 +21,14 @@ import { logoutAction } from "@/app/login/actions";
 const ICONS = {
   Megaphone,
   GraduationCap,
-  BookOpen,
+  FileText,
+  PlayCircle,
   CalendarDays,
+  Users,
   Settings,
 } as const;
 
-export function Sidebar() {
+export function Sidebar({ username }: { username?: string }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -33,7 +37,7 @@ export function Sidebar() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed right-4 top-4 z-40 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm lg:hidden"
+        className="fixed right-3 top-3 z-40 rounded-xl border border-slate-200/80 bg-white/90 p-2.5 shadow-sm backdrop-blur lg:hidden"
         aria-label="فتح القائمة"
       >
         <Menu className="h-5 w-5 text-slate-700" />
@@ -42,21 +46,28 @@ export function Sidebar() {
       {open && (
         <button
           type="button"
-          className="fixed inset-0 z-40 bg-slate-900/40 lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-900/45 lg:hidden"
           aria-label="إغلاق القائمة"
           onClick={() => setOpen(false)}
         />
       )}
 
       <aside
-        className={`fixed inset-y-0 right-0 z-50 flex w-72 flex-col bg-sidebar text-white transition-transform duration-300 lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 right-0 z-50 flex w-[min(18rem,88vw)] flex-col bg-sidebar text-white shadow-2xl transition-transform duration-300 lg:static lg:w-72 lg:translate-x-0 lg:shadow-none ${
           open ? "translate-x-0" : "translate-x-full lg:translate-x-0"
         }`}
       >
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-5">
-          <div>
+          <div className="min-w-0">
             <p className="text-xs font-medium text-teal-200/80">لوحة التحكم</p>
-            <h1 className="text-xl font-extrabold tracking-tight">منصة طارق</h1>
+            <h1 className="truncate text-xl font-extrabold tracking-tight">
+              منصة طارق
+            </h1>
+            {username && (
+              <p className="mt-1 truncate text-xs text-teal-100/70">
+                مرحباً، {username}
+              </p>
+            )}
           </div>
           <button
             type="button"

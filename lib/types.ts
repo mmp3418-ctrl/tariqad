@@ -1,21 +1,8 @@
 export type GradeStage = "primary" | "preparatory" | "secondary";
-export type ResourceType = "pdf" | "playlist";
-export type BadgeColor =
-  | "teal"
-  | "blue"
-  | "amber"
-  | "rose"
-  | "violet"
-  | "emerald"
-  | "slate";
-export type ResourceIconType =
-  | "file-text"
-  | "book-open"
-  | "video"
-  | "youtube"
-  | "link"
-  | "graduation-cap"
-  | "notebook";
+export type ResourceType = "pdf" | "video";
+export type AdminRole = "admin" | "helper";
+export type AnnouncementKind = "alert" | "update" | "important";
+
 export type SocialIconKey =
   | "facebook"
   | "instagram"
@@ -23,15 +10,27 @@ export type SocialIconKey =
   | "twitter"
   | "tiktok"
   | "linkedin"
+  | "snapchat"
   | "telegram"
   | "whatsapp"
   | "globe";
+
+export interface AdminUser {
+  id: string;
+  username: string;
+  password: string;
+  role: AdminRole;
+  created_at: string;
+}
+
+export type AdminUserPublic = Omit<AdminUser, "password">;
 
 export interface Announcement {
   id: string;
   message_ar: string;
   message_en: string;
   is_active: boolean;
+  kind: AnnouncementKind;
   created_at: string;
 }
 
@@ -56,8 +55,9 @@ export interface Resource {
   url: string;
   description_ar: string | null;
   description_en: string | null;
-  badge_color: BadgeColor;
-  icon_type: ResourceIconType;
+  badge_color: string;
+  icon_type: string;
+  cover_image_url: string | null;
 }
 
 export type ResourceWithGrade = Resource & {
@@ -71,6 +71,7 @@ export interface TeacherSchedule {
   period_number: number;
   class_name: string;
   subject: string;
+  is_active: boolean;
 }
 
 export interface SocialLink {
@@ -78,6 +79,7 @@ export interface SocialLink {
   platform: string;
   url: string;
   icon: SocialIconKey;
+  custom_icon_url?: string | null;
 }
 
 export interface SiteSettings {
@@ -87,7 +89,6 @@ export interface SiteSettings {
   whatsapp_number: string | null;
   telegram_link: string | null;
   social_links: SocialLink[];
-  /** Never returned to the client UI — used only by auth server logic. */
   admin_password?: string | null;
   updated_at: string;
 }
@@ -95,3 +96,8 @@ export interface SiteSettings {
 export type ActionResult<T = undefined> =
   | { success: true; data?: T; message?: string }
   | { success: false; error: string };
+
+export type SessionUser = {
+  username: string;
+  role: AdminRole;
+};

@@ -5,70 +5,61 @@ import { supabase } from "@/lib/supabase";
 import { requireAuth } from "@/lib/action-helpers";
 import type {
   ActionResult,
-  BadgeColor,
-  ResourceIconType,
   ResourceType,
   ResourceWithGrade,
 } from "@/lib/types";
 
-export type ResourceInput = {
+export type MediaInput = {
   grade_id: string;
   type: ResourceType;
   title_ar: string;
-  title_en: string;
   subject_ar: string;
-  subject_en: string;
-  term: string;
   url: string;
   description_ar: string;
-  description_en: string;
-  badge_color: BadgeColor;
-  icon_type: ResourceIconType;
+  badge_color: string;
+  icon_type: string;
+  cover_image_url: string;
 };
 
-function toPayload(input: ResourceInput) {
+function toPayload(input: MediaInput) {
   return {
     grade_id: input.grade_id,
     type: input.type,
     title_ar: input.title_ar.trim(),
-    title_en: input.title_en.trim(),
+    title_en: "",
     subject_ar: input.subject_ar.trim(),
-    subject_en: input.subject_en.trim(),
-    term: input.term.trim() || null,
+    subject_en: "",
+    term: null,
     url: input.url.trim(),
     description_ar: input.description_ar.trim() || null,
-    description_en: input.description_en.trim() || null,
-    badge_color: input.badge_color,
-    icon_type: input.icon_type,
+    description_en: null,
+    badge_color: input.badge_color || "#0f766e",
+    icon_type: input.icon_type || "file-text",
+    cover_image_url: input.cover_image_url.trim() || null,
   };
 }
 
-export async function getResources(
-  gradeId?: string
+export async function getMediaByType(
+  type: ResourceType
 ): Promise<ActionResult<ResourceWithGrade[]>> {
   const authError = await requireAuth<ResourceWithGrade[]>();
   if (authError) return authError;
 
-  let query = supabase
+  // Include legacy playlist rows when loading videos
+  const types = type === "video" ? ["video", "playlist"] : ["pdf"];
+
+  const { data, error } = await supabase
     .from("resources")
     .select("*, grades(id, title_ar, title_en, stage)")
+    .in("type", types)
     .order("subject_ar", { ascending: true });
 
-  if (gradeId) {
-    query = query.eq("grade_id", gradeId);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    return { success: false, error: error.message };
-  }
-
+  if (error) return { success: false, error: error.message };
   return { success: true, data: (data as ResourceWithGrade[]) ?? [] };
 }
 
-export async function createResource(
-  input: ResourceInput
+export async function createMedia(
+  input: MediaInput
 ): Promise<ActionResult<ResourceWithGrade>> {
   const authError = await requireAuth<ResourceWithGrade>();
   if (authError) return authError;
@@ -77,7 +68,7 @@ export async function createResource(
     return { success: false, error: "يجب اختيار الصف الدراسي" };
   }
   if (!input.title_ar.trim() || !input.url.trim()) {
-    return { success: false, error: "العنوان والرابط مطلوبان" };
+    return { success: false, error: "العنوان والرابط/الملف مطلوبان" };
   }
 
   const { data, error } = await supabase
@@ -86,30 +77,25 @@ export async function createResource(
     .select("*, grades(id, title_ar, title_en, stage)")
     .single();
 
-  if (error) {
-    return { success: false, error: error.message };
-  }
-
-  revalidatePath("/resources");
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/notes");
+  revalidatePath("/videos");
   return {
     success: true,
     data: data as ResourceWithGrade,
-    message: "تم إضافة المذكرة بنجاح",
+    message: "تم الحفظ بنجاح",
   };
 }
 
-export async function updateResource(
+export async function updateMedia(
   id: string,
-  input: ResourceInput
+  input: MediaInput
 ): Promise<ActionResult<ResourceWithGrade>> {
   const authError = await requireAuth<ResourceWithGrade>();
   if (authError) return authError;
 
-  if (!input.grade_id) {
-    return { success: false, error: "يجب اختيار الصف الدراسي" };
-  }
-  if (!input.title_ar.trim() || !input.url.trim()) {
-    return { success: false, error: "العنوان والرابط مطلوبان" };
+  if (!input.grade_id || !input.title_ar.trim() || !input.url.trim()) {
+    return { success: false, error: "الحقول الأساسية مطلوبة" };
   }
 
   const { data, error } = await supabase
@@ -119,28 +105,23 @@ export async function updateResource(
     .select("*, grades(id, title_ar, title_en, stage)")
     .single();
 
-  if (error) {
-    return { success: false, error: error.message };
-  }
-
-  revalidatePath("/resources");
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/notes");
+  revalidatePath("/videos");
   return {
     success: true,
     data: data as ResourceWithGrade,
-    message: "تم تحديث المذكرة بنجاح",
+    message: "تم التحديث بنجاح",
   };
 }
 
-export async function deleteResource(id: string): Promise<ActionResult> {
+export async function deleteMedia(id: string): Promise<ActionResult> {
   const authError = await requireAuth();
   if (authError) return authError;
 
   const { error } = await supabase.from("resources").delete().eq("id", id);
-
-  if (error) {
-    return { success: false, error: error.message };
-  }
-
-  revalidatePath("/resources");
-  return { success: true, message: "تم حذف المذكرة" };
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/notes");
+  revalidatePath("/videos");
+  return { success: true, message: "تم الحذف" };
 }

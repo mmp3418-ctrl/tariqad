@@ -1,5 +1,5 @@
-import { ResourcesManager } from "@/components/resources/resources-manager";
+import { redirect } from "next/navigation";
 
-export default function ResourcesPage() {
-  return <ResourcesManager />;
+export default function LegacyResourcesPage() {
+  redirect("/notes");
 }

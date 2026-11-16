@@ -1,62 +1,28 @@
 # لوحة تحكم منصة طارق (tariq-admin)
 
-لوحة إدارة عربية RTL مبنية بـ **Next.js App Router** و **Supabase** لإدارة الإعلانات، الصفوف، المذكرات، وجداول المعلمين.
+لوحة إدارة عربية RTL متجاوبة بالكامل — Next.js App Router + Supabase.
 
-## التشغيل السريع
+## التشغيل
 
-1. انسخ المتغيرات البيئية:
+1. عبّئ `.env.local` بمفاتيح Supabase.
+2. نفّذ `supabase/schema.sql` في SQL Editor.
+3. أنشئ bucket عام باسم `platform-assets` في Storage.
+4. `npm install && npm run dev`
 
-```bash
-cp .env.example .env.local
-```
+## الدخول
 
-2. عبّئ القيم في `.env.local`:
-
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `ADMIN_PASSWORD`
-
-3. نفّذ مخطط قاعدة البيانات من `supabase/schema.sql` داخل Supabase SQL Editor.
-
-4. شغّل المشروع:
-
-```bash
-npm install
-npm run dev
-```
-
-افتح [http://localhost:3000](http://localhost:3000) وسجّل الدخول بكلمة `ADMIN_PASSWORD`.
+- جدول `admin_users` (username / password / role)
+- احتياطي عند تعذر قاعدة البيانات: `admin` / `tariq2026`
 
 ## الوحدات
 
 | المسار | الوظيفة |
 |--------|---------|
-| `/login` | دخول محمي بكلمة مرور المشرف (جلسة Cookie) |
-| `/announcements` | CRUD الإعلانات + تفعيل/إيقاف |
-| `/grades` | CRUD الصفوف + تعبئة المنهج الليبي الافتراضي |
-| `/resources` | CRUD المذكرات/الشروحات مع فلتر الصف |
-| `/schedules` | إدارة جداول المعلمين (شبكة أسبوعية + قائمة) |
-| `/settings` | إعدادات الموقع: الشعار، التواصل، السوشيال |
-
-## الأمان
-
-- كلمة مرور اللوحة تُقرأ من `site_settings.admin_password` (id = 1).
-- إذا كانت فارغة/null يتم الرجوع إلى `ADMIN_PASSWORD` أو الافتراضي `tariq2026`.
-- يمكن تغيير كلمة المرور من تبويب **إعدادات الموقع**.
-- الجلسة cookie باسم `tariq_admin_session` (httpOnly) موقّعة بـ HMAC من كلمة المرور الفعلية.
-- `middleware.ts` يحمي كل مسارات اللوحة ويعيد التوجيه لـ `/login`.
-
-## البنية
-
-```
-app/
-  login/                 # صفحة الدخول + Server Actions
-  (dashboard)/           # الصفحات المحمية
-lib/
-  supabase.ts            # عميل Supabase
-  auth.ts                # جلسات المشرف
-  types.ts               # أنواع الجداول
-  constants.ts           # تسميات + بذرة المنهج الليبي
-components/              # واجهات الوحدات ومكوّنات UI
-supabase/schema.sql      # مخطط الجداول والسياسات
-```
+| `/login` | دخول باسم مستخدم + كلمة مرور |
+| `/announcements` | إعلانات مع معاينة وأنواع أولوية |
+| `/grades` | صفوف مبسطة (اسم + مرحلة) |
+| `/notes` | مذكرات PDF + رفع ملفات |
+| `/videos` | شروحات مرئية (يوتيوب) |
+| `/schedules` | جداول مع تفعيل/إيقاف فوري |
+| `/users` | المشرفون والصلاحيات |
+| `/settings` | شعار، تواصل، سوشيال |

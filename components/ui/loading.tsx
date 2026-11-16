@@ -51,7 +51,7 @@ export function ConfirmDialog({
         onClick={onCancel}
         aria-label="إلغاء"
       />
-      <div className="relative z-10 w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+      <div className="relative z-10 w-full max-w-[95vw] rounded-2xl bg-white p-5 shadow-2xl sm:max-w-md sm:p-6">
         <h3 className="text-lg font-bold text-slate-900">{title}</h3>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">{message}</p>
         <div className="mt-6 flex items-center justify-end gap-2">

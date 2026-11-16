@@ -3,10 +3,9 @@
 import { redirect } from "next/navigation";
 import type { ActionResult } from "@/lib/types";
 import {
-  clearSessionCookie,
-  getEffectiveAdminPassword,
-  setSessionCookie,
-  verifyAdminPassword,
+  authenticateCredentials,
+  clearSessionCookies,
+  setSessionCookies,
 } from "@/lib/auth";
 
 export async function loginAction(
@@ -14,27 +13,25 @@ export async function loginAction(
   formData: FormData
 ): Promise<ActionResult> {
   try {
+    const username = String(formData.get("username") ?? "");
     const password = String(formData.get("password") ?? "");
     const next = String(formData.get("next") ?? "/announcements");
 
-    if (!password.trim()) {
-      return { success: false, error: "يرجى إدخال كلمة المرور" };
+    if (!username.trim() || !password) {
+      return { success: false, error: "يرجى إدخال اسم المستخدم وكلمة المرور" };
     }
 
-    // DB password → env ADMIN_PASSWORD → "tariq2026" (never blocks on missing env)
-    const isValid = await verifyAdminPassword(password);
-    if (!isValid) {
-      return { success: false, error: "كلمة المرور غير صحيحة" };
+    const user = await authenticateCredentials(username, password);
+    if (!user) {
+      return { success: false, error: "بيانات الدخول غير صحيحة" };
     }
 
-    const effective = await getEffectiveAdminPassword();
-    await setSessionCookie(effective);
+    await setSessionCookies(user);
 
     const safeNext =
       next.startsWith("/") && !next.startsWith("//") ? next : "/announcements";
     redirect(safeNext);
   } catch (err) {
-    // Next.js redirect() throws a special error — rethrow it
     if (
       err &&
       typeof err === "object" &&
@@ -44,8 +41,7 @@ export async function loginAction(
     ) {
       throw err;
     }
-
-    console.error("[tariq-admin] loginAction error:", err);
+    console.error("[tariq-admin] loginAction:", err);
     return {
       success: false,
       error: "تعذر تسجيل الدخول حالياً. حاول مرة أخرى.",
@@ -54,6 +50,6 @@ export async function loginAction(
 }
 
 export async function logoutAction(): Promise<void> {
-  await clearSessionCookie();
+  await clearSessionCookies();
   redirect("/login");
 }

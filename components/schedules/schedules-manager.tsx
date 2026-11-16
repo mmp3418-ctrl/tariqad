@@ -16,11 +16,13 @@ import {
   deleteSchedule,
   getSchedules,
   getTeacherNames,
+  toggleScheduleActive,
   updateSchedule,
 } from "@/app/(dashboard)/schedules/actions";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Input, Select } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { ConfirmDialog, EmptyState, PageLoader } from "@/components/ui/loading";
 import { useToast } from "@/components/ui/toast";
 
@@ -30,6 +32,7 @@ const emptyForm = {
   period_number: 1,
   class_name: "",
   subject: "",
+  is_active: true,
 };
 
 type ViewMode = "table" | "grid";
@@ -49,19 +52,14 @@ export function SchedulesManager() {
 
   const loadTeachers = useCallback(async () => {
     const result = await getTeacherNames();
-    if (result.success) {
-      setTeachers(result.data ?? []);
-    }
+    if (result.success) setTeachers(result.data ?? []);
   }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
     const result = await getSchedules(teacherFilter || undefined);
-    if (result.success) {
-      setItems(result.data ?? []);
-    } else {
-      error(result.error);
-    }
+    if (result.success) setItems(result.data ?? []);
+    else error(result.error);
     setLoading(false);
   }, [teacherFilter, error]);
 
@@ -100,6 +98,7 @@ export function SchedulesManager() {
       period_number: item.period_number,
       class_name: item.class_name,
       subject: item.subject,
+      is_active: item.is_active ?? true,
     });
     setModalOpen(true);
   }
@@ -110,15 +109,23 @@ export function SchedulesManager() {
       const result = editing
         ? await updateSchedule(editing.id, form)
         : await createSchedule(form);
-
       if (result.success) {
         success(result.message ?? "تم الحفظ");
         setModalOpen(false);
         setEditing(null);
         await Promise.all([load(), loadTeachers()]);
-      } else {
-        error(result.error);
-      }
+      } else error(result.error);
+    });
+  }
+
+  function handleToggle(item: TeacherSchedule) {
+    startTransition(async () => {
+      const next = !(item.is_active ?? true);
+      const result = await toggleScheduleActive(item.id, next);
+      if (result.success) {
+        success(result.message ?? "تم التحديث");
+        await load();
+      } else error(result.error);
     });
   }
 
@@ -130,14 +137,12 @@ export function SchedulesManager() {
         success(result.message ?? "تم الحذف");
         setDeleteId(null);
         await Promise.all([load(), loadTeachers()]);
-      } else {
-        error(result.error);
-      }
+      } else error(result.error);
     });
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-x-hidden">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <div className="mb-1 flex items-center gap-2 text-teal-700">
@@ -148,7 +153,7 @@ export function SchedulesManager() {
             إدارة الجداول الدراسية
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            حصص أسبوعية حسب اليوم والحصة والمعلم
+            فعّل أو أوقف ظهور أي حصة على موقع الطلاب بنقرة واحدة
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -156,10 +161,10 @@ export function SchedulesManager() {
             <button
               type="button"
               onClick={() => setViewMode("grid")}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${
                 viewMode === "grid"
                   ? "bg-teal-700 text-white"
-                  : "text-slate-600 hover:bg-slate-50"
+                  : "text-slate-600"
               }`}
             >
               <LayoutGrid className="h-3.5 w-3.5" />
@@ -168,10 +173,10 @@ export function SchedulesManager() {
             <button
               type="button"
               onClick={() => setViewMode("table")}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${
                 viewMode === "table"
                   ? "bg-teal-700 text-white"
-                  : "text-slate-600 hover:bg-slate-50"
+                  : "text-slate-600"
               }`}
             >
               <List className="h-3.5 w-3.5" />
@@ -185,7 +190,7 @@ export function SchedulesManager() {
         </div>
       </header>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="glass-card p-4">
         <Select
           label="تصفية حسب المعلم"
           name="teacher_filter"
@@ -199,11 +204,6 @@ export function SchedulesManager() {
             </option>
           ))}
         </Select>
-        {teacherFilter === "" && viewMode === "grid" && (
-          <p className="mt-2 text-xs text-slate-500">
-            اختر معلماً لعرض شبكته الأسبوعية بوضوح، أو أضف حصة جديدة مباشرة.
-          </p>
-        )}
       </div>
 
       {loading ? (
@@ -244,36 +244,47 @@ export function SchedulesManager() {
                           (i) =>
                             i.day_of_week === day && i.period_number === period
                         );
-
                     return (
                       <td
                         key={`${day}-${period}`}
                         className="border-b border-l border-slate-100 p-1.5 last:border-l-0"
                       >
                         {cell ? (
-                          <button
-                            type="button"
-                            onClick={() => openEdit(cell)}
-                            className="w-full rounded-xl bg-teal-50 px-2 py-2 text-right transition hover:bg-teal-100"
+                          <div
+                            className={`rounded-xl p-2 text-right ${
+                              cell.is_active === false
+                                ? "bg-slate-100 opacity-70"
+                                : "bg-teal-50"
+                            }`}
                           >
-                            <p className="text-xs font-bold text-teal-900">
-                              {cell.subject}
-                            </p>
-                            <p className="text-[11px] text-teal-700/80">
-                              {cell.class_name}
-                            </p>
-                            {!teacherFilter && (
-                              <p className="mt-0.5 text-[10px] text-slate-500">
-                                {cell.teacher_name}
+                            <button
+                              type="button"
+                              onClick={() => openEdit(cell)}
+                              className="w-full text-right"
+                            >
+                              <p className="text-xs font-bold text-teal-900">
+                                {cell.subject}
                               </p>
-                            )}
-                          </button>
+                              <p className="text-[11px] text-teal-700/80">
+                                {cell.class_name}
+                              </p>
+                            </button>
+                            <div className="mt-2 flex justify-end">
+                              <Switch
+                                checked={cell.is_active !== false}
+                                onChange={() => handleToggle(cell)}
+                                disabled={pending}
+                                label={
+                                  cell.is_active === false ? "إيقاف" : "تفعيل"
+                                }
+                              />
+                            </div>
+                          </div>
                         ) : (
                           <button
                             type="button"
                             onClick={() => openCreate(day, period)}
-                            className="flex h-14 w-full items-center justify-center rounded-xl border border-dashed border-transparent text-slate-300 transition hover:border-slate-200 hover:bg-slate-50 hover:text-slate-500"
-                            title="إضافة حصة"
+                            className="flex h-14 w-full items-center justify-center rounded-xl text-slate-300 hover:bg-slate-50 hover:text-slate-500"
                           >
                             <Plus className="h-4 w-4" />
                           </button>
@@ -287,48 +298,40 @@ export function SchedulesManager() {
           </table>
         </div>
       ) : (
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>المعلم</th>
-                <th>اليوم</th>
-                <th>الحصة</th>
-                <th>الفصل</th>
-                <th>المادة</th>
-                <th>إجراءات</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => (
-                <tr key={item.id}>
-                  <td className="font-medium">{item.teacher_name}</td>
-                  <td>{DAY_LABELS[item.day_of_week]}</td>
-                  <td>{item.period_number}</td>
-                  <td>{item.class_name}</td>
-                  <td>{item.subject}</td>
-                  <td>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => openEdit(item)}
-                      >
-                        <Pencil className="h-4 w-4 text-slate-600" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setDeleteId(item.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-rose-600" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="grid gap-3">
+          {items.map((item) => (
+            <article key={item.id} className="glass-card p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="font-bold text-slate-900">
+                    {item.teacher_name} · {item.subject}
+                  </p>
+                  <p className="text-sm text-slate-500">
+                    {DAY_LABELS[item.day_of_week]} · الحصة {item.period_number}{" "}
+                    · {item.class_name}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Switch
+                    checked={item.is_active !== false}
+                    onChange={() => handleToggle(item)}
+                    disabled={pending}
+                    label={item.is_active === false ? "متوقف" : "مفعّل"}
+                  />
+                  <Button size="sm" variant="ghost" onClick={() => openEdit(item)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setDeleteId(item.id)}
+                  >
+                    <Trash2 className="h-4 w-4 text-rose-600" />
+                  </Button>
+                </div>
+              </div>
+            </article>
+          ))}
         </div>
       )}
 
@@ -357,7 +360,6 @@ export function SchedulesManager() {
             <Select
               label="اليوم"
               name="day_of_week"
-              required
               value={form.day_of_week}
               onChange={(e) =>
                 setForm((f) => ({
@@ -375,7 +377,6 @@ export function SchedulesManager() {
             <Select
               label="رقم الحصة"
               name="period_number"
-              required
               value={form.period_number}
               onChange={(e) =>
                 setForm((f) => ({
@@ -396,7 +397,6 @@ export function SchedulesManager() {
             name="class_name"
             required
             value={form.class_name}
-            placeholder="مثال: 7أ"
             onChange={(e) =>
               setForm((f) => ({ ...f, class_name: e.target.value }))
             }
@@ -406,12 +406,22 @@ export function SchedulesManager() {
             name="subject"
             required
             value={form.subject}
-            placeholder="مثال: الرياضيات"
             onChange={(e) =>
               setForm((f) => ({ ...f, subject: e.target.value }))
             }
           />
-          <div className="flex flex-wrap justify-between gap-2 pt-2">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={form.is_active}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, is_active: e.target.checked }))
+              }
+              className="h-4 w-4 rounded border-slate-300 text-teal-700"
+            />
+            تفعيل الظهور على موقع الطلاب
+          </label>
+          <div className="flex flex-wrap justify-between gap-2">
             {editing ? (
               <Button
                 type="button"
@@ -436,7 +446,7 @@ export function SchedulesManager() {
                 إلغاء
               </Button>
               <Button type="submit" loading={pending}>
-                {editing ? "حفظ التعديلات" : "إضافة الحصة"}
+                حفظ
               </Button>
             </div>
           </div>
@@ -446,7 +456,7 @@ export function SchedulesManager() {
       <ConfirmDialog
         open={!!deleteId}
         title="حذف الحصة"
-        message="هل أنت متأكد من حذف هذه الحصة من الجدول؟"
+        message="هل أنت متأكد من حذف هذه الحصة؟"
         onCancel={() => setDeleteId(null)}
         onConfirm={handleDelete}
         loading={pending}
