@@ -6,6 +6,14 @@ import { requireAuth } from "@/lib/action-helpers";
 import { LIBYAN_GRADES_SEED, slugify } from "@/lib/constants";
 import type { ActionResult, Grade, GradeStage } from "@/lib/types";
 
+function revalidateGradePaths() {
+  revalidatePath("/grades");
+  revalidatePath("/units");
+  revalidatePath("/notes");
+  revalidatePath("/videos");
+  revalidatePath("/teacher-space");
+}
+
 export async function getGrades(): Promise<ActionResult<Grade[]>> {
   const authError = await requireAuth<Grade[]>();
   if (authError) return authError;
@@ -33,6 +41,7 @@ export async function createGrade(input: {
   stage: GradeStage;
   title_ar: string;
   title_en?: string;
+  is_coming_soon?: boolean;
 }): Promise<ActionResult<Grade>> {
   const authError = await requireAuth<Grade>();
   if (authError) return authError;
@@ -54,14 +63,13 @@ export async function createGrade(input: {
       title_en,
       slug,
       sort_order,
+      is_coming_soon: input.is_coming_soon ?? false,
     })
     .select()
     .single();
 
   if (error) return { success: false, error: error.message };
-  revalidatePath("/grades");
-  revalidatePath("/notes");
-  revalidatePath("/videos");
+  revalidateGradePaths();
   return {
     success: true,
     data: data as Grade,
@@ -75,6 +83,7 @@ export async function updateGrade(
     stage: GradeStage;
     title_ar: string;
     title_en?: string;
+    is_coming_soon?: boolean;
   }
 ): Promise<ActionResult<Grade>> {
   const authError = await requireAuth<Grade>();
@@ -94,19 +103,38 @@ export async function updateGrade(
       title_ar,
       title_en,
       slug: slugify(title_ar) || `grade-${id.slice(0, 8)}`,
+      is_coming_soon: input.is_coming_soon ?? false,
     })
     .eq("id", id)
     .select()
     .single();
 
   if (error) return { success: false, error: error.message };
-  revalidatePath("/grades");
-  revalidatePath("/notes");
-  revalidatePath("/videos");
+  revalidateGradePaths();
   return {
     success: true,
     data: data as Grade,
     message: "تم تحديث الصف بنجاح",
+  };
+}
+
+export async function toggleGradeComingSoon(
+  id: string,
+  is_coming_soon: boolean
+): Promise<ActionResult> {
+  const authError = await requireAuth();
+  if (authError) return authError;
+
+  const { error } = await supabase
+    .from("grades")
+    .update({ is_coming_soon })
+    .eq("id", id);
+
+  if (error) return { success: false, error: error.message };
+  revalidateGradePaths();
+  return {
+    success: true,
+    message: is_coming_soon ? "تم تعليم الصف كـ قريباً" : "تم إلغاء قريباً",
   };
 }
 
@@ -116,9 +144,7 @@ export async function deleteGrade(id: string): Promise<ActionResult> {
 
   const { error } = await supabase.from("grades").delete().eq("id", id);
   if (error) return { success: false, error: error.message };
-  revalidatePath("/grades");
-  revalidatePath("/notes");
-  revalidatePath("/videos");
+  revalidateGradePaths();
   return { success: true, message: "تم حذف الصف" };
 }
 
@@ -146,7 +172,7 @@ export async function seedLibyanGrades(): Promise<
     .select();
 
   if (error) return { success: false, error: error.message };
-  revalidatePath("/grades");
+  revalidateGradePaths();
   return {
     success: true,
     data: { count: data?.length ?? 0 },

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Cairo } from "next/font/google";
 import { ToastProvider } from "@/components/ui/toast";
+import { BRAND_AR, BRAND_EN } from "@/lib/constants";
 import "./globals.css";
 
 const cairo = Cairo({
@@ -11,8 +12,12 @@ const cairo = Cairo({
 });
 
 export const metadata: Metadata = {
-  title: "لوحة تحكم منصة طارق",
-  description: "لوحة إدارة منصة طارق التعليمية",
+  title: {
+    default: `لوحة تحكم ${BRAND_AR}`,
+    template: `%s | ${BRAND_AR}`,
+  },
+  description: `${BRAND_AR} — ${BRAND_EN} Admin Dashboard`,
+  applicationName: BRAND_AR,
 };
 
 export default function RootLayout({

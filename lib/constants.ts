@@ -2,14 +2,47 @@ import type {
   AnnouncementKind,
   Grade,
   GradeStage,
+  ResourceCategory,
   SocialIconKey,
+  TeacherSpaceCategory,
 } from "./types";
+
+/** Locked brand names — Arabic / English */
+export const BRAND_AR = "منصة طارق";
+export const BRAND_EN = "Tariq Hub";
 
 export const STAGE_LABELS: Record<GradeStage, string> = {
   primary: "ابتدائي",
   preparatory: "إعدادي",
   secondary: "ثانوي",
 };
+
+export const RESOURCE_CATEGORY_OPTIONS: {
+  value: ResourceCategory;
+  label: string;
+  labelEn: string;
+}[] = [
+  { value: "classbook", label: "كتاب حصة", labelEn: "Coursebook" },
+  { value: "workbook", label: "كتاب واجب", labelEn: "Workbook" },
+  { value: "vocabulary", label: "المفردات", labelEn: "Vocabulary" },
+  { value: "grammar", label: "شرح القواعد", labelEn: "Grammar Explanation" },
+  {
+    value: "questions",
+    label: "أسئلة",
+    labelEn: "Unit Questions/Exercises",
+  },
+];
+
+export const TEACHER_SPACE_CATEGORIES: {
+  value: TeacherSpaceCategory;
+  label: string;
+}[] = [
+  { value: "lesson_prep", label: "تحضير الدروس" },
+  { value: "worksheets", label: "أوراق العمل" },
+  { value: "question_banks", label: "بنوك الأسئلة" },
+  { value: "grammar_summaries", label: "ملخصات قواعد" },
+  { value: "classroom_guide", label: "دليل إدارة الصف" },
+];
 
 export const ANNOUNCEMENT_KIND_LABELS: Record<AnnouncementKind, string> = {
   alert: "تنبيه",
@@ -105,26 +138,28 @@ export const SOCIAL_ICON_OPTIONS: {
 export const NAV_ITEMS = [
   { href: "/announcements", label: "الإعلانات", icon: "Megaphone" },
   { href: "/grades", label: "الصفوف الدراسية", icon: "GraduationCap" },
+  { href: "/units", label: "الوحدات والدروس", icon: "Layers" },
   { href: "/notes", label: "المذكرات والملخصات", icon: "FileText" },
   { href: "/videos", label: "الشروحات المرئية", icon: "PlayCircle" },
+  { href: "/teacher-space", label: "مساحة المعلم", icon: "Briefcase" },
   { href: "/schedules", label: "جداول المعلمين", icon: "CalendarDays" },
   { href: "/users", label: "المشرفون والصلاحيات", icon: "Users" },
   { href: "/settings", label: "إعدادات الموقع", icon: "Settings" },
 ] as const;
 
 export const LIBYAN_GRADES_SEED: Omit<Grade, "id">[] = [
-  { stage: "primary", title_ar: "الصف الأول الابتدائي", title_en: "Grade 1 Primary", slug: "primary-1", sort_order: 1 },
-  { stage: "primary", title_ar: "الصف الثاني الابتدائي", title_en: "Grade 2 Primary", slug: "primary-2", sort_order: 2 },
-  { stage: "primary", title_ar: "الصف الثالث الابتدائي", title_en: "Grade 3 Primary", slug: "primary-3", sort_order: 3 },
-  { stage: "primary", title_ar: "الصف الرابع الابتدائي", title_en: "Grade 4 Primary", slug: "primary-4", sort_order: 4 },
-  { stage: "primary", title_ar: "الصف الخامس الابتدائي", title_en: "Grade 5 Primary", slug: "primary-5", sort_order: 5 },
-  { stage: "primary", title_ar: "الصف السادس الابتدائي", title_en: "Grade 6 Primary", slug: "primary-6", sort_order: 6 },
-  { stage: "preparatory", title_ar: "الصف السابع الإعدادي", title_en: "Grade 7 Preparatory", slug: "preparatory-7", sort_order: 7 },
-  { stage: "preparatory", title_ar: "الصف الثامن الإعدادي", title_en: "Grade 8 Preparatory", slug: "preparatory-8", sort_order: 8 },
-  { stage: "preparatory", title_ar: "الصف التاسع الإعدادي", title_en: "Grade 9 Preparatory", slug: "preparatory-9", sort_order: 9 },
-  { stage: "secondary", title_ar: "السنة الأولى ثانوي", title_en: "Secondary Year 1", slug: "secondary-1", sort_order: 10 },
-  { stage: "secondary", title_ar: "السنة الثانية ثانوي", title_en: "Secondary Year 2", slug: "secondary-2", sort_order: 11 },
-  { stage: "secondary", title_ar: "السنة الثالثة ثانوي", title_en: "Secondary Year 3", slug: "secondary-3", sort_order: 12 },
+  { stage: "primary", title_ar: "الصف الأول الابتدائي", title_en: "Grade 1 Primary", slug: "primary-1", sort_order: 1, is_coming_soon: false },
+  { stage: "primary", title_ar: "الصف الثاني الابتدائي", title_en: "Grade 2 Primary", slug: "primary-2", sort_order: 2, is_coming_soon: false },
+  { stage: "primary", title_ar: "الصف الثالث الابتدائي", title_en: "Grade 3 Primary", slug: "primary-3", sort_order: 3, is_coming_soon: false },
+  { stage: "primary", title_ar: "الصف الرابع الابتدائي", title_en: "Grade 4 Primary", slug: "primary-4", sort_order: 4, is_coming_soon: false },
+  { stage: "primary", title_ar: "الصف الخامس الابتدائي", title_en: "Grade 5 Primary", slug: "primary-5", sort_order: 5, is_coming_soon: false },
+  { stage: "primary", title_ar: "الصف السادس الابتدائي", title_en: "Grade 6 Primary", slug: "primary-6", sort_order: 6, is_coming_soon: false },
+  { stage: "preparatory", title_ar: "الصف السابع الإعدادي", title_en: "Grade 7 Preparatory", slug: "preparatory-7", sort_order: 7, is_coming_soon: false },
+  { stage: "preparatory", title_ar: "الصف الثامن الإعدادي", title_en: "Grade 8 Preparatory", slug: "preparatory-8", sort_order: 8, is_coming_soon: false },
+  { stage: "preparatory", title_ar: "الصف التاسع الإعدادي", title_en: "Grade 9 Preparatory", slug: "preparatory-9", sort_order: 9, is_coming_soon: false },
+  { stage: "secondary", title_ar: "السنة الأولى ثانوي", title_en: "Secondary Year 1", slug: "secondary-1", sort_order: 10, is_coming_soon: false },
+  { stage: "secondary", title_ar: "السنة الثانية ثانوي", title_en: "Secondary Year 2", slug: "secondary-2", sort_order: 11, is_coming_soon: false },
+  { stage: "secondary", title_ar: "السنة الثالثة ثانوي", title_en: "Secondary Year 3", slug: "secondary-3", sort_order: 12, is_coming_soon: false },
 ];
 
 export function slugify(value: string): string {

@@ -2,14 +2,23 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { ExternalLink, Pencil, Plus, Trash2 } from "lucide-react";
-import type { Grade, ResourceType, ResourceWithGrade } from "@/lib/types";
+import type {
+  Grade,
+  Lesson,
+  ResourceCategory,
+  ResourceType,
+  ResourceWithGrade,
+  Unit,
+} from "@/lib/types";
 import {
   CARD_COLOR_PRESETS,
   NOTE_ICON_OPTIONS,
+  RESOURCE_CATEGORY_OPTIONS,
   STAGE_LABELS,
   VIDEO_ICON_OPTIONS,
 } from "@/lib/constants";
 import { getGrades } from "@/app/(dashboard)/grades/actions";
+import { getUnitsByGrade } from "@/app/(dashboard)/units/actions";
 import {
   createMedia,
   deleteMedia,
@@ -26,31 +35,20 @@ import { useToast } from "@/components/ui/toast";
 
 type Mode = "notes" | "videos";
 
-const COPY: Record<
-  Mode,
-  {
-    eyebrow: string;
-    title: string;
-    subtitle: string;
-    addLabel: string;
-    icon: typeof Plus;
-  }
-> = {
+const COPY = {
   notes: {
     eyebrow: "المذكرات والملخصات",
     title: "إدارة المذكرات PDF",
-    subtitle: "رفع ملفات PDF مع غلاف وألوان وأيقونات البطاقة",
+    subtitle: "صف → وحدة → درس + تصنيف المادة + قريباً",
     addLabel: "مذكرة جديدة",
-    icon: Plus,
   },
   videos: {
     eyebrow: "الشروحات المرئية",
     title: "إدارة الشروحات المرئية",
-    subtitle: "روابط يوتيوب مع تخصيص بطاقة العرض",
+    subtitle: "صف → وحدة → درس + تصنيف المادة + قريباً",
     addLabel: "شرح جديد",
-    icon: Plus,
   },
-};
+} as const;
 
 export function MediaManager({ mode }: { mode: Mode }) {
   const type: ResourceType = mode === "notes" ? "pdf" : "video";
@@ -60,7 +58,8 @@ export function MediaManager({ mode }: { mode: Mode }) {
 
   const [items, setItems] = useState<ResourceWithGrade[]>([]);
   const [grades, setGrades] = useState<Grade[]>([]);
-  const [stageFilter, setStageFilter] = useState("");
+  const [units, setUnits] = useState<Unit[]>([]);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
   const [gradeFilter, setGradeFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -68,48 +67,43 @@ export function MediaManager({ mode }: { mode: Mode }) {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const [form, setForm] = useState<{
-    grade_id: string;
-    stage: string;
-    title_ar: string;
-    subject_ar: string;
-    url: string;
-    description_ar: string;
-    badge_color: string;
-    icon_type: string;
-    cover_image_url: string;
-  }>({
+  const [form, setForm] = useState({
     grade_id: "",
-    stage: "",
+    unit_id: "",
+    lesson_id: "",
     title_ar: "",
     subject_ar: "",
     url: "",
     description_ar: "",
-    badge_color: CARD_COLOR_PRESETS[0],
-    icon_type: iconOptions[0],
+    badge_color: CARD_COLOR_PRESETS[0] as string,
+    icon_type: iconOptions[0] as string,
     cover_image_url: "",
+    resource_category: "" as ResourceCategory | "",
+    is_coming_soon: false,
   });
 
-  const filteredGrades = useMemo(
-    () =>
-      stageFilter
-        ? grades.filter((g) => g.stage === stageFilter)
-        : grades,
-    [grades, stageFilter]
-  );
-
   const visibleItems = useMemo(() => {
-    let list = items;
-    if (gradeFilter) list = list.filter((i) => i.grade_id === gradeFilter);
-    else if (stageFilter) {
-      list = list.filter((i) => i.grades?.stage === stageFilter);
-    }
-    return list;
-  }, [items, gradeFilter, stageFilter]);
+    if (!gradeFilter) return items;
+    return items.filter((i) => i.grade_id === gradeFilter);
+  }, [items, gradeFilter]);
 
   const loadGrades = useCallback(async () => {
     const result = await getGrades();
     if (result.success) setGrades(result.data ?? []);
+  }, []);
+
+  const loadUnitsForGrade = useCallback(async (gradeId: string) => {
+    if (!gradeId) {
+      setUnits([]);
+      setLessons([]);
+      return;
+    }
+    const result = await getUnitsByGrade(gradeId);
+    if (result.success) {
+      const list = result.data ?? [];
+      setUnits(list);
+      setLessons(list.flatMap((u) => u.lessons ?? []));
+    }
   }, []);
 
   const load = useCallback(async () => {
@@ -128,11 +122,21 @@ export function MediaManager({ mode }: { mode: Mode }) {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    void loadUnitsForGrade(form.grade_id);
+  }, [form.grade_id, loadUnitsForGrade]);
+
+  const formLessons = useMemo(
+    () => lessons.filter((l) => l.unit_id === form.unit_id),
+    [lessons, form.unit_id]
+  );
+
   function openCreate() {
     setEditing(null);
     setForm({
-      grade_id: gradeFilter || filteredGrades[0]?.id || "",
-      stage: stageFilter || filteredGrades[0]?.stage || "",
+      grade_id: gradeFilter || grades[0]?.id || "",
+      unit_id: "",
+      lesson_id: "",
       title_ar: "",
       subject_ar: "",
       url: "",
@@ -140,6 +144,8 @@ export function MediaManager({ mode }: { mode: Mode }) {
       badge_color: CARD_COLOR_PRESETS[0],
       icon_type: iconOptions[0],
       cover_image_url: "",
+      resource_category: "",
+      is_coming_soon: false,
     });
     setModalOpen(true);
   }
@@ -148,7 +154,8 @@ export function MediaManager({ mode }: { mode: Mode }) {
     setEditing(item);
     setForm({
       grade_id: item.grade_id,
-      stage: item.grades?.stage || "",
+      unit_id: item.unit_id ?? "",
+      lesson_id: item.lesson_id ?? "",
       title_ar: item.title_ar,
       subject_ar: item.subject_ar,
       url: item.url,
@@ -156,6 +163,8 @@ export function MediaManager({ mode }: { mode: Mode }) {
       badge_color: item.badge_color || CARD_COLOR_PRESETS[0],
       icon_type: item.icon_type || iconOptions[0],
       cover_image_url: item.cover_image_url ?? "",
+      resource_category: item.resource_category ?? "",
+      is_coming_soon: item.is_coming_soon ?? false,
     });
     setModalOpen(true);
   }
@@ -163,17 +172,7 @@ export function MediaManager({ mode }: { mode: Mode }) {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     startTransition(async () => {
-      const payload = {
-        grade_id: form.grade_id,
-        type,
-        title_ar: form.title_ar,
-        subject_ar: form.subject_ar,
-        url: form.url,
-        description_ar: form.description_ar,
-        badge_color: form.badge_color,
-        icon_type: form.icon_type,
-        cover_image_url: form.cover_image_url,
-      };
+      const payload = { ...form, type };
       const result = editing
         ? await updateMedia(editing.id, payload)
         : await createMedia(payload);
@@ -198,6 +197,9 @@ export function MediaManager({ mode }: { mode: Mode }) {
     });
   }
 
+  const categoryLabel = (value: string | null | undefined) =>
+    RESOURCE_CATEGORY_OPTIONS.find((c) => c.value === value)?.label ?? "—";
+
   const PreviewIcon = MEDIA_ICONS[form.icon_type] ?? MEDIA_ICONS["file-text"];
 
   return (
@@ -216,21 +218,7 @@ export function MediaManager({ mode }: { mode: Mode }) {
         </Button>
       </header>
 
-      <div className="glass-card grid gap-3 p-4 sm:grid-cols-2">
-        <Select
-          label="تصفية بالمرحلة"
-          name="stage_filter"
-          value={stageFilter}
-          onChange={(e) => {
-            setStageFilter(e.target.value);
-            setGradeFilter("");
-          }}
-        >
-          <option value="">كل المراحل</option>
-          <option value="primary">{STAGE_LABELS.primary}</option>
-          <option value="preparatory">{STAGE_LABELS.preparatory}</option>
-          <option value="secondary">{STAGE_LABELS.secondary}</option>
-        </Select>
+      <div className="glass-card p-4">
         <Select
           label="تصفية بالصف"
           name="grade_filter"
@@ -238,7 +226,7 @@ export function MediaManager({ mode }: { mode: Mode }) {
           onChange={(e) => setGradeFilter(e.target.value)}
         >
           <option value="">كل الصفوف</option>
-          {filteredGrades.map((g) => (
+          {grades.map((g) => (
             <option key={g.id} value={g.id}>
               {g.title_ar}
             </option>
@@ -247,14 +235,11 @@ export function MediaManager({ mode }: { mode: Mode }) {
       </div>
 
       {grades.length === 0 && !loading ? (
-        <EmptyState
-          title="أضف صفوفاً دراسية أولاً"
-          description="يجب إنشاء الصفوف قبل إضافة المحتوى"
-        />
+        <EmptyState title="أضف صفوفاً دراسية أولاً" />
       ) : loading ? (
         <PageLoader />
       ) : visibleItems.length === 0 ? (
-        <EmptyState title="لا يوجد محتوى بعد" description="أضف عنصراً جديداً للبدء" />
+        <EmptyState title="لا يوجد محتوى بعد" />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {visibleItems.map((item) => {
@@ -282,15 +267,21 @@ export function MediaManager({ mode }: { mode: Mode }) {
                   </div>
                 )}
                 <div className="space-y-2 p-4">
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="badge badge-info">
+                      {categoryLabel(item.resource_category)}
+                    </span>
+                    {item.is_coming_soon && (
+                      <span className="badge badge-warning">قريباً</span>
+                    )}
+                  </div>
                   <h3 className="font-bold text-slate-900">{item.title_ar}</h3>
-                  {item.description_ar && (
-                    <p className="line-clamp-2 text-sm text-slate-500">
-                      {item.description_ar}
-                    </p>
-                  )}
                   <p className="text-xs text-slate-500">
-                    {item.grades?.title_ar} ·{" "}
-                    {item.grades ? STAGE_LABELS[item.grades.stage] : "—"}
+                    {item.grades?.title_ar}
+                    {item.units?.title_ar ? ` · ${item.units.title_ar}` : ""}
+                    {item.lessons?.title_ar
+                      ? ` · ${item.lessons.title_ar}`
+                      : ""}
                   </p>
                   <div className="flex gap-2 pt-2">
                     <a
@@ -327,46 +318,89 @@ export function MediaManager({ mode }: { mode: Mode }) {
         size="xl"
       >
         <form onSubmit={handleSubmit} className="space-y-4 overflow-x-hidden">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <Select
-              label="المرحلة"
-              name="stage"
-              value={form.stage}
-              onChange={(e) => {
-                const stage = e.target.value;
-                const first = grades.find((g) => g.stage === stage);
-                setForm((f) => ({
-                  ...f,
-                  stage,
-                  grade_id: first?.id || "",
-                }));
-              }}
-            >
-              <option value="">اختر المرحلة</option>
-              <option value="primary">{STAGE_LABELS.primary}</option>
-              <option value="preparatory">{STAGE_LABELS.preparatory}</option>
-              <option value="secondary">{STAGE_LABELS.secondary}</option>
-            </Select>
-            <Select
-              label="الصف الدراسي"
+              label="الصف"
               name="grade_id"
               required
               value={form.grade_id}
               onChange={(e) =>
-                setForm((f) => ({ ...f, grade_id: e.target.value }))
+                setForm((f) => ({
+                  ...f,
+                  grade_id: e.target.value,
+                  unit_id: "",
+                  lesson_id: "",
+                }))
               }
             >
               <option value="" disabled>
                 اختر الصف
               </option>
-              {grades
-                .filter((g) => !form.stage || g.stage === form.stage)
-                .map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.title_ar}
-                  </option>
-                ))}
+              {grades.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.title_ar} — {STAGE_LABELS[g.stage]}
+                </option>
+              ))}
             </Select>
+            <Select
+              label="الوحدة"
+              name="unit_id"
+              value={form.unit_id}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  unit_id: e.target.value,
+                  lesson_id: "",
+                }))
+              }
+            >
+              <option value="">بدون / اختر لاحقاً</option>
+              {units.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.title_ar}
+                </option>
+              ))}
+            </Select>
+            <Select
+              label="الدرس (اختياري)"
+              name="lesson_id"
+              value={form.lesson_id}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, lesson_id: e.target.value }))
+              }
+            >
+              <option value="">بدون درس</option>
+              {formLessons.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.title_ar}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <Select
+            label="تصنيف المادة"
+            name="resource_category"
+            required
+            value={form.resource_category}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                resource_category: e.target.value as ResourceCategory | "",
+              }))
+            }
+          >
+            <option value="" disabled>
+              اختر التصنيف
+            </option>
+            {RESOURCE_CATEGORY_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label} — {opt.labelEn}
+              </option>
+            ))}
+          </Select>
+
+          <div className="grid gap-4 sm:grid-cols-2">
             <Input
               label="العنوان"
               name="title_ar"
@@ -405,7 +439,6 @@ export function MediaManager({ mode }: { mode: Mode }) {
                 preview="file"
                 onUploaded={(url) => setForm((f) => ({ ...f, url }))}
                 onClear={() => setForm((f) => ({ ...f, url: "" }))}
-                hint="ارفع المذكرة مباشرة إلى مساحة التخزين"
               />
               <Input
                 label="أو الصق رابط PDF"
@@ -422,7 +455,6 @@ export function MediaManager({ mode }: { mode: Mode }) {
               type="url"
               required
               dir="ltr"
-              placeholder="https://youtube.com/..."
               value={form.url}
               onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
             />
@@ -439,6 +471,18 @@ export function MediaManager({ mode }: { mode: Mode }) {
             onClear={() => setForm((f) => ({ ...f, cover_image_url: "" }))}
           />
 
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <input
+              type="checkbox"
+              checked={form.is_coming_soon}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, is_coming_soon: e.target.checked }))
+              }
+              className="h-4 w-4 rounded border-slate-300 text-teal-700"
+            />
+            تعليم كـ «قريباً»
+          </label>
+
           <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
             <div className="mb-3 flex items-center gap-3">
               <div
@@ -447,13 +491,8 @@ export function MediaManager({ mode }: { mode: Mode }) {
               >
                 {PreviewIcon && <PreviewIcon className="h-5 w-5" />}
               </div>
-              <div>
-                <p className="text-sm font-bold text-slate-800">تخصيص البطاقة</p>
-                <p className="text-xs text-slate-500">اللون والأيقونة</p>
-              </div>
+              <p className="text-sm font-bold text-slate-800">تخصيص البطاقة</p>
             </div>
-
-            <p className="mb-2 text-sm font-medium text-slate-700">لون البطاقة</p>
             <div className="mb-3 flex flex-wrap gap-2">
               {CARD_COLOR_PRESETS.map((color) => (
                 <button
@@ -466,7 +505,6 @@ export function MediaManager({ mode }: { mode: Mode }) {
                       : "ring-transparent"
                   }`}
                   style={{ backgroundColor: color }}
-                  aria-label={color}
                 />
               ))}
               <input
@@ -475,25 +513,21 @@ export function MediaManager({ mode }: { mode: Mode }) {
                 onChange={(e) =>
                   setForm((f) => ({ ...f, badge_color: e.target.value }))
                 }
-                className="h-8 w-10 cursor-pointer rounded border border-slate-200 bg-white"
-                title="لون مخصص"
+                className="h-8 w-10 cursor-pointer rounded border border-slate-200"
               />
             </div>
-
-            <p className="mb-2 text-sm font-medium text-slate-700">الأيقونة</p>
             <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
               {iconOptions.map((key) => {
                 const Icon = MEDIA_ICONS[key];
-                const active = form.icon_type === key;
                 return (
                   <button
                     key={key}
                     type="button"
                     onClick={() => setForm((f) => ({ ...f, icon_type: key }))}
-                    className={`flex h-11 items-center justify-center rounded-xl border transition ${
-                      active
+                    className={`flex h-11 items-center justify-center rounded-xl border ${
+                      form.icon_type === key
                         ? "border-teal-700 bg-teal-50 text-teal-800"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        : "border-slate-200 bg-white text-slate-600"
                     }`}
                   >
                     {Icon && <Icon className="h-5 w-5" />}

@@ -3,6 +3,20 @@ export type ResourceType = "pdf" | "video";
 export type AdminRole = "admin" | "helper";
 export type AnnouncementKind = "alert" | "update" | "important";
 
+export type ResourceCategory =
+  | "classbook"
+  | "workbook"
+  | "vocabulary"
+  | "grammar"
+  | "questions";
+
+export type TeacherSpaceCategory =
+  | "lesson_prep"
+  | "worksheets"
+  | "question_banks"
+  | "grammar_summaries"
+  | "classroom_guide";
+
 export type SocialIconKey =
   | "facebook"
   | "instagram"
@@ -41,11 +55,34 @@ export interface Grade {
   title_en: string;
   slug: string;
   sort_order: number;
+  is_coming_soon: boolean;
 }
+
+export interface Unit {
+  id: string;
+  grade_id: string;
+  title_ar: string;
+  title_en: string;
+  sort_order: number;
+  is_coming_soon: boolean;
+}
+
+export interface Lesson {
+  id: string;
+  unit_id: string;
+  title_ar: string;
+  title_en: string;
+  sort_order: number;
+  is_coming_soon: boolean;
+}
+
+export type UnitWithLessons = Unit & { lessons?: Lesson[] };
 
 export interface Resource {
   id: string;
   grade_id: string;
+  unit_id: string | null;
+  lesson_id: string | null;
   type: ResourceType;
   title_ar: string;
   title_en: string;
@@ -58,10 +95,14 @@ export interface Resource {
   badge_color: string;
   icon_type: string;
   cover_image_url: string | null;
+  resource_category: ResourceCategory | null;
+  is_coming_soon: boolean;
 }
 
 export type ResourceWithGrade = Resource & {
   grades?: Pick<Grade, "id" | "title_ar" | "title_en" | "stage"> | null;
+  units?: Pick<Unit, "id" | "title_ar"> | null;
+  lessons?: Pick<Lesson, "id" | "title_ar"> | null;
 };
 
 export interface TeacherSchedule {
@@ -72,6 +113,20 @@ export interface TeacherSchedule {
   class_name: string;
   subject: string;
   is_active: boolean;
+}
+
+export interface TeacherSpaceItem {
+  id: string;
+  category: TeacherSpaceCategory;
+  title_ar: string;
+  title_en: string;
+  description_ar: string | null;
+  url: string;
+  grade_id: string | null;
+  is_coming_soon: boolean;
+  sort_order: number;
+  created_at: string;
+  grades?: Pick<Grade, "id" | "title_ar"> | null;
 }
 
 export interface SocialLink {
@@ -89,6 +144,9 @@ export interface SiteSettings {
   whatsapp_number: string | null;
   telegram_link: string | null;
   social_links: SocialLink[];
+  hero_subtitle_ar: string | null;
+  hero_subtitle_en: string | null;
+  book_year_label: string | null;
   admin_password?: string | null;
   updated_at: string;
 }

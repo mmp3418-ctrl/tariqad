@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Briefcase,
   CalendarDays,
   FileText,
   GraduationCap,
+  Layers,
   LogOut,
   Megaphone,
   Menu,
@@ -15,14 +17,16 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
-import { NAV_ITEMS } from "@/lib/constants";
+import { BRAND_AR, BRAND_EN, NAV_ITEMS } from "@/lib/constants";
 import { logoutAction } from "@/app/login/actions";
 
 const ICONS = {
   Megaphone,
   GraduationCap,
+  Layers,
   FileText,
   PlayCircle,
+  Briefcase,
   CalendarDays,
   Users,
   Settings,
@@ -61,8 +65,11 @@ export function Sidebar({ username }: { username?: string }) {
           <div className="min-w-0">
             <p className="text-xs font-medium text-teal-200/80">لوحة التحكم</p>
             <h1 className="truncate text-xl font-extrabold tracking-tight">
-              منصة طارق
+              {BRAND_AR}
             </h1>
+            <p className="mt-0.5 truncate text-[11px] text-teal-100/60" dir="ltr">
+              {BRAND_EN}
+            </p>
             {username && (
               <p className="mt-1 truncate text-xs text-teal-100/70">
                 مرحباً، {username}

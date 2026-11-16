@@ -9,17 +9,20 @@ import {
   deleteGrade,
   getGrades,
   seedLibyanGrades,
+  toggleGradeComingSoon,
   updateGrade,
 } from "@/app/(dashboard)/grades/actions";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Input, Select } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { ConfirmDialog, EmptyState, PageLoader } from "@/components/ui/loading";
 import { useToast } from "@/components/ui/toast";
 
 const emptyForm = {
   title_ar: "",
   stage: "primary" as GradeStage,
+  is_coming_soon: false,
 };
 
 export function GradesManager() {
@@ -52,7 +55,11 @@ export function GradesManager() {
 
   function openEdit(grade: Grade) {
     setEditing(grade);
-    setForm({ title_ar: grade.title_ar, stage: grade.stage });
+    setForm({
+      title_ar: grade.title_ar,
+      stage: grade.stage,
+      is_coming_soon: grade.is_coming_soon ?? false,
+    });
     setModalOpen(true);
   }
 
@@ -105,7 +112,7 @@ export function GradesManager() {
             إدارة الصفوف والمراحل
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            أدخل اسم الصف ثم اختر مرحلته — بدون تعقيدات تقنية
+            اسم الصف + المرحلة + خيار «قريباً»
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -136,9 +143,14 @@ export function GradesManager() {
                   <p className="truncate text-base font-bold text-slate-900">
                     {item.title_ar}
                   </p>
-                  <span className="badge badge-info mt-2">
-                    {STAGE_LABELS[item.stage]}
-                  </span>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <span className="badge badge-info">
+                      {STAGE_LABELS[item.stage]}
+                    </span>
+                    {item.is_coming_soon && (
+                      <span className="badge badge-warning">قريباً</span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex shrink-0 gap-1">
                   <Button
@@ -157,6 +169,22 @@ export function GradesManager() {
                   </Button>
                 </div>
               </div>
+              <div className="mt-3 flex justify-end border-t border-slate-100 pt-3">
+                <Switch
+                  checked={item.is_coming_soon ?? false}
+                  onChange={(v) =>
+                    startTransition(async () => {
+                      const r = await toggleGradeComingSoon(item.id, v);
+                      if (r.success) {
+                        success(r.message ?? "تم");
+                        await load();
+                      } else error(r.error);
+                    })
+                  }
+                  disabled={pending}
+                  label="قريباً"
+                />
+              </div>
             </article>
           ))}
         </div>
@@ -168,14 +196,11 @@ export function GradesManager() {
         title={editing ? "تعديل الصف" : "إضافة صف دراسي"}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-500">
-            الخطوة 1: أدخل اسم الصف — الخطوة 2: اختر المرحلة التعليمية
-          </div>
           <Input
             label="1. الصف الدراسي"
             name="title_ar"
             required
-            placeholder="مثال: الأول الثانوي، الشهادة الإعدادية"
+            placeholder="مثال: الأول الثانوي"
             value={form.title_ar}
             onChange={(e) =>
               setForm((f) => ({ ...f, title_ar: e.target.value }))
@@ -197,6 +222,17 @@ export function GradesManager() {
             <option value="preparatory">{STAGE_LABELS.preparatory}</option>
             <option value="secondary">{STAGE_LABELS.secondary}</option>
           </Select>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={form.is_coming_soon}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, is_coming_soon: e.target.checked }))
+              }
+              className="h-4 w-4 rounded border-slate-300 text-teal-700"
+            />
+            تعليم كـ «قريباً»
+          </label>
           <div className="flex justify-end gap-2">
             <Button
               type="button"
@@ -215,7 +251,7 @@ export function GradesManager() {
       <ConfirmDialog
         open={!!deleteId}
         title="حذف الصف"
-        message="سيتم حذف الصف وجميع المذكرات/الشروحات المرتبطة به."
+        message="سيتم حذف الصف وجميع الوحدات/المذكرات المرتبطة به."
         onCancel={() => setDeleteId(null)}
         onConfirm={handleDelete}
         loading={pending}

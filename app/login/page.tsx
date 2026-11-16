@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { BRAND_AR, BRAND_EN } from "@/lib/constants";
 import { LoginForm } from "./login-form";
 
 function LoginFallback() {
@@ -38,10 +39,13 @@ export default function LoginPage({
             ط
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
-            منصة طارق
+            {BRAND_AR}
           </h1>
+          <p className="mt-1 text-sm font-medium text-teal-800/70" dir="ltr">
+            {BRAND_EN}
+          </p>
           <p className="mt-2 text-sm text-slate-600">
-            لوحة تحكم المشرف — أدخل كلمة المرور للمتابعة
+            لوحة تحكم المشرف — أدخل بيانات الدخول للمتابعة
           </p>
         </div>
 

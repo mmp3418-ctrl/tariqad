@@ -25,8 +25,9 @@ import {
   getSiteSettings,
   updateSiteSettings,
 } from "@/app/(dashboard)/settings/actions";
+import { BRAND_AR, BRAND_EN } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, Textarea } from "@/components/ui/input";
 import { FileUpload } from "@/components/ui/file-upload";
 import { PageLoader } from "@/components/ui/loading";
 import { useToast } from "@/components/ui/toast";
@@ -67,6 +68,9 @@ export function SettingsManager() {
     whatsapp_number: "",
     telegram_link: "",
     social_links: [] as SocialLink[],
+    hero_subtitle_ar: "",
+    hero_subtitle_en: "",
+    book_year_label: "",
   });
 
   const load = useCallback(async () => {
@@ -80,6 +84,9 @@ export function SettingsManager() {
         whatsapp_number: data.whatsapp_number ?? "",
         telegram_link: data.telegram_link ?? "",
         social_links: data.social_links ?? [],
+        hero_subtitle_ar: data.hero_subtitle_ar ?? "",
+        hero_subtitle_en: data.hero_subtitle_en ?? "",
+        book_year_label: data.book_year_label ?? "",
       });
     } else if (!result.success) error(result.error);
     setLoading(false);
@@ -122,6 +129,9 @@ export function SettingsManager() {
             whatsapp_number: result.data.whatsapp_number ?? "",
             telegram_link: result.data.telegram_link ?? "",
             social_links: result.data.social_links ?? [],
+            hero_subtitle_ar: result.data.hero_subtitle_ar ?? "",
+            hero_subtitle_en: result.data.hero_subtitle_en ?? "",
+            book_year_label: result.data.book_year_label ?? "",
           });
         }
       } else error(result.error);
@@ -141,11 +151,51 @@ export function SettingsManager() {
           الهوية والتواصل
         </h2>
         <p className="mt-1 text-sm text-slate-500">
-          شعار المنصة، أرقام التواصل، وروابط السوشيال ميديا
+          {BRAND_AR} / {BRAND_EN} — الشعار، الصفحة الرئيسية، والتواصل
         </p>
       </header>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        <section className="glass-card space-y-4 p-4 sm:p-6">
+          <div>
+            <h3 className="text-base font-bold text-slate-900">
+              محتوى الصفحة الرئيسية والكتاب
+            </h3>
+            <p className="mt-1 text-xs text-slate-500">
+              الاسم ثابت: {BRAND_AR} (عربي) · {BRAND_EN} (English)
+            </p>
+          </div>
+          <Textarea
+            label="نص المقدمة (عربي) — hero_subtitle_ar"
+            name="hero_subtitle_ar"
+            value={form.hero_subtitle_ar}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, hero_subtitle_ar: e.target.value }))
+            }
+            placeholder="منصتك التعليمية الشاملة للمنهج الليبي"
+          />
+          <Textarea
+            label="Intro text (English) — hero_subtitle_en"
+            name="hero_subtitle_en"
+            dir="ltr"
+            value={form.hero_subtitle_en}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, hero_subtitle_en: e.target.value }))
+            }
+            placeholder="Your complete educational hub..."
+          />
+          <Input
+            label="سنة الكتاب على الغلاف — book_year_label"
+            name="book_year_label"
+            dir="ltr"
+            placeholder="2026 - 2027"
+            value={form.book_year_label}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, book_year_label: e.target.value }))
+            }
+          />
+        </section>
+
         <section className="glass-card space-y-4 p-4 sm:p-6">
           <h3 className="text-base font-bold text-slate-900">الشعار</h3>
           <FileUpload

@@ -6,7 +6,7 @@ import { requireAuth } from "@/lib/action-helpers";
 import type { ActionResult, SiteSettings, SocialLink } from "@/lib/types";
 
 const PUBLIC_SETTINGS_SELECT =
-  "id, logo_url, phone_number, whatsapp_number, telegram_link, social_links, updated_at";
+  "id, logo_url, phone_number, whatsapp_number, telegram_link, social_links, hero_subtitle_ar, hero_subtitle_en, book_year_label, updated_at";
 
 function normalizeSocialLinks(raw: unknown): SocialLink[] {
   if (!Array.isArray(raw)) return [];
@@ -36,6 +36,9 @@ function toPublic(row: SiteSettings): SiteSettings {
     whatsapp_number: row.whatsapp_number,
     telegram_link: row.telegram_link,
     social_links: normalizeSocialLinks(row.social_links),
+    hero_subtitle_ar: row.hero_subtitle_ar ?? null,
+    hero_subtitle_en: row.hero_subtitle_en ?? null,
+    book_year_label: row.book_year_label ?? null,
     updated_at: row.updated_at,
   };
 }
@@ -55,7 +58,14 @@ export async function getSiteSettings(): Promise<ActionResult<SiteSettings>> {
   if (!data) {
     const { data: created, error: insertError } = await supabase
       .from("site_settings")
-      .insert({ id: 1, social_links: [] })
+      .insert({
+        id: 1,
+        social_links: [],
+        hero_subtitle_ar: "منصتك التعليمية الشاملة للمنهج الليبي",
+        hero_subtitle_en:
+          "Your complete educational hub for the Libyan curriculum",
+        book_year_label: "2026 - 2027",
+      })
       .select(PUBLIC_SETTINGS_SELECT)
       .single();
     if (insertError) return { success: false, error: insertError.message };
@@ -71,6 +81,9 @@ export async function updateSiteSettings(input: {
   whatsapp_number: string;
   telegram_link: string;
   social_links: SocialLink[];
+  hero_subtitle_ar: string;
+  hero_subtitle_en: string;
+  book_year_label: string;
 }): Promise<ActionResult<SiteSettings>> {
   const authError = await requireAuth<SiteSettings>();
   if (authError) return authError;
@@ -100,6 +113,9 @@ export async function updateSiteSettings(input: {
         whatsapp_number: input.whatsapp_number.trim() || null,
         telegram_link: input.telegram_link.trim() || null,
         social_links,
+        hero_subtitle_ar: input.hero_subtitle_ar.trim() || null,
+        hero_subtitle_en: input.hero_subtitle_en.trim() || null,
+        book_year_label: input.book_year_label.trim() || null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "id" }
