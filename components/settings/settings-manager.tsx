@@ -6,6 +6,7 @@ import {
   AtSign,
   Camera,
   Globe,
+  KeyRound,
   MessageCircle,
   Music2,
   Plus,
@@ -20,6 +21,7 @@ import {
 import type { SiteSettings, SocialIconKey, SocialLink } from "@/lib/types";
 import { SOCIAL_ICON_OPTIONS } from "@/lib/constants";
 import {
+  changeAdminPassword,
   getSiteSettings,
   updateSiteSettings,
 } from "@/app/(dashboard)/settings/actions";
@@ -57,12 +59,18 @@ export function SettingsManager() {
   const { success, error } = useToast();
   const [loading, setLoading] = useState(true);
   const [pending, startTransition] = useTransition();
+  const [passwordPending, startPasswordTransition] = useTransition();
   const [form, setForm] = useState({
     logo_url: "",
     phone_number: "",
     whatsapp_number: "",
     telegram_link: "",
     social_links: [] as SocialLink[],
+  });
+  const [passwordForm, setPasswordForm] = useState({
+    current_password: "",
+    new_password: "",
+    confirm_password: "",
   });
 
   const load = useCallback(async () => {
@@ -124,6 +132,23 @@ export function SettingsManager() {
     });
   }
 
+  function handlePasswordSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    startPasswordTransition(async () => {
+      const result = await changeAdminPassword(passwordForm);
+      if (result.success) {
+        success(result.message ?? "تم تغيير كلمة المرور بنجاح");
+        setPasswordForm({
+          current_password: "",
+          new_password: "",
+          confirm_password: "",
+        });
+      } else {
+        error(result.error);
+      }
+    });
+  }
+
   if (loading) {
     return <PageLoader label="جاري تحميل إعدادات الموقع..." />;
   }
@@ -139,7 +164,7 @@ export function SettingsManager() {
           إعدادات الموقع الهوية والتواصل
         </h2>
         <p className="mt-1 text-sm text-slate-500">
-          تحكم كامل في الشعار، أرقام التواصل، التيليجرام، وروابط السوشيال ميديا
+          تحكم كامل في الشعار، التواصل، السوشيال، وكلمة مرور لوحة التحكم
         </p>
       </header>
 
@@ -318,6 +343,78 @@ export function SettingsManager() {
           </Button>
         </div>
       </form>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="mb-4 flex items-start gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
+            <KeyRound className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-slate-900">
+              تغيير كلمة المرور
+            </h3>
+            <p className="mt-0.5 text-sm text-slate-500">
+              تُحفظ كلمة المرور في قاعدة البيانات وتُستخدم لتسجيل الدخول إلى لوحة
+              التحكم
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handlePasswordSubmit} className="space-y-4">
+          <Input
+            label="كلمة المرور الحالية"
+            name="current_password"
+            type="password"
+            required
+            autoComplete="current-password"
+            value={passwordForm.current_password}
+            onChange={(e) =>
+              setPasswordForm((f) => ({
+                ...f,
+                current_password: e.target.value,
+              }))
+            }
+          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              label="كلمة المرور الجديدة"
+              name="new_password"
+              type="password"
+              required
+              minLength={6}
+              autoComplete="new-password"
+              value={passwordForm.new_password}
+              onChange={(e) =>
+                setPasswordForm((f) => ({
+                  ...f,
+                  new_password: e.target.value,
+                }))
+              }
+            />
+            <Input
+              label="تأكيد كلمة المرور الجديدة"
+              name="confirm_password"
+              type="password"
+              required
+              minLength={6}
+              autoComplete="new-password"
+              value={passwordForm.confirm_password}
+              onChange={(e) =>
+                setPasswordForm((f) => ({
+                  ...f,
+                  confirm_password: e.target.value,
+                }))
+              }
+            />
+          </div>
+          <div className="flex justify-end pt-1">
+            <Button type="submit" loading={passwordPending}>
+              <KeyRound className="h-4 w-4" />
+              تحديث كلمة المرور
+            </Button>
+          </div>
+        </form>
+      </section>
     </div>
   );
 }

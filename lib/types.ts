@@ -87,6 +87,8 @@ export interface SiteSettings {
   whatsapp_number: string | null;
   telegram_link: string | null;
   social_links: SocialLink[];
+  /** Never returned to the client UI — used only by auth server logic. */
+  admin_password?: string | null;
   updated_at: string;
 }
 

@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const SESSION_COOKIE = "tariq_admin_session";
 const PUBLIC_PATHS = ["/login"];
+const DEFAULT_ADMIN_PASSWORD = "tariq2026";
+const SESSION_PAYLOAD = "tariq-admin-authenticated-v1";
 
 async function createSessionToken(password: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -15,7 +17,7 @@ async function createSessionToken(password: string): Promise<string> {
   const signature = await crypto.subtle.sign(
     "HMAC",
     key,
-    encoder.encode("tariq-admin-authenticated-v1")
+    encoder.encode(SESSION_PAYLOAD)
   );
   return Array.from(new Uint8Array(signature))
     .map((b) => b.toString(16).padStart(2, "0"))
@@ -31,9 +33,45 @@ function timingSafeEqual(a: string, b: string): boolean {
   return mismatch === 0;
 }
 
+async function fetchDbAdminPassword(): Promise<string | null> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+
+  try {
+    const res = await fetch(
+      `${url}/rest/v1/site_settings?id=eq.1&select=admin_password`,
+      {
+        headers: {
+          apikey: key,
+          Authorization: `Bearer ${key}`,
+        },
+        cache: "no-store",
+      }
+    );
+
+    if (!res.ok) return null;
+
+    const rows = (await res.json()) as Array<{
+      admin_password?: string | null;
+    }>;
+    const pw = rows?.[0]?.admin_password;
+    if (typeof pw === "string" && pw.trim()) return pw.trim();
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function getEffectiveAdminPassword(): Promise<string> {
+  const dbPassword = await fetchDbAdminPassword();
+  if (dbPassword) return dbPassword;
+  return process.env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
+}
+
 async function verifySessionToken(
   token: string | undefined,
-  password: string | undefined
+  password: string
 ): Promise<boolean> {
   if (!token || !password) return false;
   try {
@@ -55,7 +93,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const password = process.env.ADMIN_PASSWORD;
+  const password = await getEffectiveAdminPassword();
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const authenticated = await verifySessionToken(token, password);
 

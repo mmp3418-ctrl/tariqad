@@ -68,11 +68,14 @@ create table if not exists public.site_settings (
   whatsapp_number text,
   telegram_link text,
   social_links jsonb not null default '[]'::jsonb,
+  admin_password text,
   updated_at timestamptz not null default now()
 );
 
-insert into public.site_settings (id, logo_url, phone_number, whatsapp_number, telegram_link, social_links)
-values (1, null, null, null, null, '[]'::jsonb)
+alter table public.site_settings add column if not exists admin_password text;
+
+insert into public.site_settings (id, logo_url, phone_number, whatsapp_number, telegram_link, social_links, admin_password)
+values (1, null, null, null, null, '[]'::jsonb, null)
 on conflict (id) do nothing;
 
 -- RLS

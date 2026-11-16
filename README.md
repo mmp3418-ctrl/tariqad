@@ -40,8 +40,10 @@ npm run dev
 
 ## الأمان
 
-- الجلسة تُخزَّن في cookie باسم `tariq_admin_session` (httpOnly).
-- القيمة توقيع HMAC مشتق من `ADMIN_PASSWORD`.
+- كلمة مرور اللوحة تُقرأ من `site_settings.admin_password` (id = 1).
+- إذا كانت فارغة/null يتم الرجوع إلى `ADMIN_PASSWORD` أو الافتراضي `tariq2026`.
+- يمكن تغيير كلمة المرور من تبويب **إعدادات الموقع**.
+- الجلسة cookie باسم `tariq_admin_session` (httpOnly) موقّعة بـ HMAC من كلمة المرور الفعلية.
 - `middleware.ts` يحمي كل مسارات اللوحة ويعيد التوجيه لـ `/login`.
 
 ## البنية

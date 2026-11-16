@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import type { ActionResult } from "@/lib/types";
 import {
   clearSessionCookie,
+  getEffectiveAdminPassword,
   setSessionCookie,
   verifyAdminPassword,
 } from "@/lib/auth";
@@ -19,18 +20,12 @@ export async function loginAction(
     return { success: false, error: "يرجى إدخال كلمة المرور" };
   }
 
-  if (!process.env.ADMIN_PASSWORD) {
-    return {
-      success: false,
-      error: "لم يتم ضبط ADMIN_PASSWORD في متغيرات البيئة",
-    };
-  }
-
-  if (!verifyAdminPassword(password)) {
+  if (!(await verifyAdminPassword(password))) {
     return { success: false, error: "كلمة المرور غير صحيحة" };
   }
 
-  await setSessionCookie();
+  const effective = await getEffectiveAdminPassword();
+  await setSessionCookie(effective);
 
   const safeNext =
     next.startsWith("/") && !next.startsWith("//") ? next : "/announcements";

@@ -3,7 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { supabase } from "@/lib/supabase";
 import { requireAuth } from "@/lib/action-helpers";
+import {
+  getEffectiveAdminPassword,
+  setSessionCookie,
+  verifyAdminPassword,
+} from "@/lib/auth";
 import type { ActionResult, SiteSettings, SocialLink } from "@/lib/types";
+
+const PUBLIC_SETTINGS_SELECT =
+  "id, logo_url, phone_number, whatsapp_number, telegram_link, social_links, updated_at";
 
 const DEFAULT_SETTINGS: SiteSettings = {
   id: 1,
@@ -35,13 +43,25 @@ function normalizeSocialLinks(raw: unknown): SocialLink[] {
     }));
 }
 
+function toPublicSettings(row: SiteSettings): SiteSettings {
+  return {
+    id: row.id,
+    logo_url: row.logo_url,
+    phone_number: row.phone_number,
+    whatsapp_number: row.whatsapp_number,
+    telegram_link: row.telegram_link,
+    social_links: normalizeSocialLinks(row.social_links),
+    updated_at: row.updated_at,
+  };
+}
+
 export async function getSiteSettings(): Promise<ActionResult<SiteSettings>> {
   const authError = await requireAuth<SiteSettings>();
   if (authError) return authError;
 
   const { data, error } = await supabase
     .from("site_settings")
-    .select("*")
+    .select(PUBLIC_SETTINGS_SELECT)
     .eq("id", 1)
     .maybeSingle();
 
@@ -59,32 +79,27 @@ export async function getSiteSettings(): Promise<ActionResult<SiteSettings>> {
         whatsapp_number: null,
         telegram_link: null,
         social_links: [],
+        admin_password: null,
       })
-      .select()
+      .select(PUBLIC_SETTINGS_SELECT)
       .single();
 
     if (insertError) {
       return { success: false, error: insertError.message };
     }
 
-    const row = created as SiteSettings;
     return {
       success: true,
-      data: {
+      data: toPublicSettings({
         ...DEFAULT_SETTINGS,
-        ...row,
-        social_links: normalizeSocialLinks(row.social_links),
-      },
+        ...(created as SiteSettings),
+      }),
     };
   }
 
-  const row = data as SiteSettings;
   return {
     success: true,
-    data: {
-      ...row,
-      social_links: normalizeSocialLinks(row.social_links),
-    },
+    data: toPublicSettings(data as SiteSettings),
   };
 }
 
@@ -104,7 +119,6 @@ export async function updateSiteSettings(input: {
 
   for (const link of social_links) {
     try {
-      // Validate absolute URL
       new URL(link.url);
     } catch {
       return {
@@ -127,21 +141,99 @@ export async function updateSiteSettings(input: {
   const { data, error } = await supabase
     .from("site_settings")
     .upsert(payload, { onConflict: "id" })
-    .select()
+    .select(PUBLIC_SETTINGS_SELECT)
     .single();
 
   if (error) {
     return { success: false, error: error.message };
   }
 
-  const row = data as SiteSettings;
   revalidatePath("/settings");
   return {
     success: true,
-    data: {
-      ...row,
-      social_links: normalizeSocialLinks(row.social_links),
-    },
+    data: toPublicSettings(data as SiteSettings),
     message: "تم حفظ إعدادات الموقع بنجاح",
   };
+}
+
+export async function changeAdminPassword(input: {
+  current_password: string;
+  new_password: string;
+  confirm_password: string;
+}): Promise<ActionResult> {
+  const authError = await requireAuth();
+  if (authError) return authError;
+
+  const current = input.current_password;
+  const next = input.new_password.trim();
+  const confirm = input.confirm_password;
+
+  if (!current || !next || !confirm) {
+    return { success: false, error: "جميع حقول كلمة المرور مطلوبة" };
+  }
+
+  if (next.length < 6) {
+    return {
+      success: false,
+      error: "كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل",
+    };
+  }
+
+  if (next !== confirm) {
+    return {
+      success: false,
+      error: "كلمة المرور الجديدة وتأكيدها غير متطابقتين",
+    };
+  }
+
+  if (!(await verifyAdminPassword(current))) {
+    return { success: false, error: "كلمة المرور الحالية غير صحيحة" };
+  }
+
+  // Ensure the settings row exists, then update password only
+  const { data: existing, error: existingError } = await supabase
+    .from("site_settings")
+    .select("id")
+    .eq("id", 1)
+    .maybeSingle();
+
+  if (existingError) {
+    return { success: false, error: existingError.message };
+  }
+
+  if (!existing) {
+    const { error: insertError } = await supabase.from("site_settings").insert({
+      id: 1,
+      logo_url: null,
+      phone_number: null,
+      whatsapp_number: null,
+      telegram_link: null,
+      social_links: [],
+      admin_password: next,
+      updated_at: new Date().toISOString(),
+    });
+
+    if (insertError) {
+      return { success: false, error: insertError.message };
+    }
+  } else {
+    const { error: updateError } = await supabase
+      .from("site_settings")
+      .update({
+        admin_password: next,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", 1);
+
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+  }
+
+  // Keep the admin logged in under the new password
+  const effective = await getEffectiveAdminPassword();
+  await setSessionCookie(effective);
+
+  revalidatePath("/settings");
+  return { success: true, message: "تم تغيير كلمة المرور بنجاح" };
 }
