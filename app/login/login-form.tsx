@@ -19,8 +19,13 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
     }
   }, [state, error]);
 
+  const showInlineError =
+    state &&
+    !state.success &&
+    state.error === "كلمة المرور غير صحيحة";
+
   return (
-    <form action={formAction} className="space-y-5">
+    <form action={formAction} className="space-y-5" noValidate>
       <input type="hidden" name="next" value={nextPath} />
 
       <label className="flex flex-col gap-1.5">
@@ -32,16 +37,20 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
             name="password"
             required
             autoFocus
+            disabled={pending}
             autoComplete="current-password"
             placeholder="أدخل كلمة مرور المسؤول"
-            className="w-full rounded-xl border border-slate-200 bg-white py-3 pr-10 pl-4 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/20"
+            className="w-full rounded-xl border border-slate-200 bg-white py-3 pr-10 pl-4 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/20 disabled:opacity-70"
           />
         </div>
       </label>
 
-      {state && !state.success && (
-        <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-          {state.error}
+      {showInlineError && (
+        <p
+          className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"
+          role="alert"
+        >
+          كلمة المرور غير صحيحة
         </p>
       )}
 

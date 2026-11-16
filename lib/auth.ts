@@ -14,33 +14,42 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(left, right);
 }
 
-/** Env fallback when DB password is empty/null. */
+/**
+ * Always returns a usable password — never throws.
+ * Order: env ADMIN_PASSWORD → hard default "tariq2026"
+ */
 export function getFallbackAdminPassword(): string {
-  return process.env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
+  const fromEnv = process.env.ADMIN_PASSWORD?.trim();
+  if (fromEnv) return fromEnv;
+  return DEFAULT_ADMIN_PASSWORD;
 }
 
 /**
- * Effective admin password:
+ * Effective admin password — never throws, never blocks login.
  * 1) site_settings.admin_password (id = 1) when non-empty
  * 2) else process.env.ADMIN_PASSWORD || "tariq2026"
  */
 export async function getEffectiveAdminPassword(): Promise<string> {
   try {
-    const { data, error } = await supabase
-      .from("site_settings")
-      .select("admin_password")
-      .eq("id", 1)
-      .maybeSingle();
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+    // Skip DB when env still has placeholder URL
+    if (url && !url.includes("your-project")) {
+      const { data, error } = await supabase
+        .from("site_settings")
+        .select("admin_password")
+        .eq("id", 1)
+        .maybeSingle();
 
-    if (!error && data) {
-      const dbPassword = (data as { admin_password?: string | null })
-        .admin_password;
-      if (typeof dbPassword === "string" && dbPassword.trim()) {
-        return dbPassword.trim();
+      if (!error && data) {
+        const dbPassword = (data as { admin_password?: string | null })
+          .admin_password;
+        if (typeof dbPassword === "string" && dbPassword.trim().length > 0) {
+          return dbPassword.trim();
+        }
       }
     }
   } catch {
-    // Fall through to env/default
+    // Network / schema / client failures → fallback
   }
 
   return getFallbackAdminPassword();
@@ -64,11 +73,13 @@ export function verifySessionToken(
 }
 
 export async function verifyAdminPassword(password: string): Promise<boolean> {
+  if (!password) return false;
   try {
     const expected = await getEffectiveAdminPassword();
     return safeEqual(password, expected);
   } catch {
-    return false;
+    // Absolute last resort: compare against hard default
+    return safeEqual(password, DEFAULT_ADMIN_PASSWORD);
   }
 }
 
@@ -90,8 +101,12 @@ export async function clearSessionCookie(): Promise<void> {
 }
 
 export async function isAuthenticated(): Promise<boolean> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
-  const password = await getEffectiveAdminPassword();
-  return verifySessionToken(token, password);
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get(SESSION_COOKIE)?.value;
+    const password = await getEffectiveAdminPassword();
+    return verifySessionToken(token, password);
+  } catch {
+    return false;
+  }
 }

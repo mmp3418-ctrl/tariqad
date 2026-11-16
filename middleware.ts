@@ -36,7 +36,7 @@ function timingSafeEqual(a: string, b: string): boolean {
 async function fetchDbAdminPassword(): Promise<string | null> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) return null;
+  if (!url || !key || url.includes("your-project")) return null;
 
   try {
     const res = await fetch(
@@ -63,10 +63,16 @@ async function fetchDbAdminPassword(): Promise<string | null> {
   }
 }
 
+/** Never throws — always returns a usable password. */
 async function getEffectiveAdminPassword(): Promise<string> {
-  const dbPassword = await fetchDbAdminPassword();
-  if (dbPassword) return dbPassword;
-  return process.env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
+  try {
+    const dbPassword = await fetchDbAdminPassword();
+    if (dbPassword) return dbPassword;
+  } catch {
+    // ignore
+  }
+  const fromEnv = process.env.ADMIN_PASSWORD?.trim();
+  return fromEnv || DEFAULT_ADMIN_PASSWORD;
 }
 
 async function verifySessionToken(
