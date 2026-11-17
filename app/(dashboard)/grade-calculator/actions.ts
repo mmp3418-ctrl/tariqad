@@ -3,78 +3,146 @@
 import { revalidatePath } from "next/cache";
 import { supabase } from "@/lib/supabase";
 import { requireAuth } from "@/lib/action-helpers";
+import { insertFlexible, updateFlexible } from "@/lib/supabase-write";
+import {
+  normalizeRelatedTitle,
+  normalizeResourceRow,
+} from "@/lib/schema-compat";
 import type {
   ActionResult,
   GradeCalculatorTool,
   GradeRecord,
 } from "@/lib/types";
 
-const TOOL_SELECT =
-  "id, title_ar, description_ar, url, grade_id, unit_id, max_score, is_active, is_coming_soon, created_at, grades(id, title_ar), units(id, title_ar)";
+const TOOL_SELECTS = [
+  "*, grades(id, title), units(id, title)",
+  "*, grades(id, title_ar), units(id, title_ar)",
+  "*",
+];
 
-const RECORD_SELECT =
-  "id, student_name, grade_id, unit_id, score, max_score, notes, created_at, grades(id, title_ar), units(id, title_ar)";
+const RECORD_SELECTS = [
+  "*, grades(id, title), units(id, title)",
+  "*, grades(id, title_ar), units(id, title_ar)",
+  "*",
+];
 
 function revalidate() {
   revalidatePath("/grade-calculator");
   revalidatePath("/teacher-space");
 }
 
+function normalizeTool(row: Record<string, unknown>): GradeCalculatorTool {
+  const base = normalizeResourceRow(row);
+  const grades = normalizeRelatedTitle(row.grades);
+  const units = normalizeRelatedTitle(row.units);
+  return {
+    id: String(base.id),
+    title_ar: base.title_ar,
+    description_ar: base.description_ar,
+    url: base.url,
+    grade_id: (base.grade_id as string | null) ?? null,
+    unit_id: (base.unit_id as string | null) ?? null,
+    max_score: Number(base.max_score ?? 100),
+    is_active: base.is_active !== false,
+    is_coming_soon: Boolean(base.is_coming_soon),
+    created_at: String(base.created_at ?? new Date().toISOString()),
+    grades: grades ? { id: grades.id, title_ar: grades.title_ar } : null,
+    units: units ? { id: units.id, title_ar: units.title_ar } : null,
+  };
+}
+
+function normalizeRecord(row: Record<string, unknown>): GradeRecord {
+  const grades = normalizeRelatedTitle(row.grades);
+  const units = normalizeRelatedTitle(row.units);
+  return {
+    id: String(row.id),
+    student_name: String(row.student_name ?? ""),
+    grade_id: String(row.grade_id ?? ""),
+    unit_id: String(row.unit_id ?? ""),
+    score: Number(row.score ?? 0),
+    max_score: Number(row.max_score ?? 100),
+    notes: (row.notes as string | null) ?? null,
+    created_at: String(row.created_at ?? new Date().toISOString()),
+    grades: grades ? { id: grades.id, title_ar: grades.title_ar } : null,
+    units: units ? { id: units.id, title_ar: units.title_ar } : null,
+  };
+}
+
 const GRADE_TOOL_PRESET = {
-  title_ar: "أداة جمع الدرجات",
-  description_ar: "أداة جاهزة لجمع درجات الطلاب",
-  url: "#",
+  title: "أداة جمع الدرجات",
+  description: "أداة جاهزة لجمع درجات الطلاب",
+  file_url: "#",
   max_score: 100,
 };
 
 export async function ensureGradeCalculatorPresets(): Promise<
   ActionResult<GradeCalculatorTool[]>
 > {
-  const authError = await requireAuth<GradeCalculatorTool[]>();
-  if (authError) return authError;
+  try {
+    const authError = await requireAuth<GradeCalculatorTool[]>();
+    if (authError) return authError;
 
-  const { data: existing, error: listError } = await supabase
-    .from("grade_calculator_tools")
-    .select("id")
-    .limit(1);
-
-  if (listError) return { success: false, error: listError.message };
-
-  if (!existing?.length) {
-    const { error: insertError } = await supabase
+    const { data: existing, error: listError } = await supabase
       .from("grade_calculator_tools")
-      .insert({
-        title_ar: GRADE_TOOL_PRESET.title_ar,
-        description_ar: GRADE_TOOL_PRESET.description_ar,
-        url: GRADE_TOOL_PRESET.url,
-        grade_id: null,
-        unit_id: null,
-        max_score: GRADE_TOOL_PRESET.max_score,
-        is_active: true,
-        is_coming_soon: false,
-      });
-    if (insertError) return { success: false, error: insertError.message };
-  }
+      .select("id")
+      .limit(1);
 
-  return getGradeCalculatorTools();
+    if (listError) return { success: false, error: listError.message };
+
+    if (!existing?.length) {
+      const { error: insertError } = await insertFlexible(
+        "grade_calculator_tools",
+        {
+          title: GRADE_TOOL_PRESET.title,
+          description: GRADE_TOOL_PRESET.description,
+          file_url: GRADE_TOOL_PRESET.file_url,
+          grade_id: null,
+          unit_id: null,
+          max_score: GRADE_TOOL_PRESET.max_score,
+          is_active: true,
+          is_coming_soon: false,
+        }
+      );
+      if (insertError) return { success: false, error: insertError };
+    }
+
+    return getGradeCalculatorTools();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[grade-calculator] ensurePresets:", err);
+    return { success: false, error: message };
+  }
 }
 
 export async function getGradeCalculatorTools(): Promise<
   ActionResult<GradeCalculatorTool[]>
 > {
-  const authError = await requireAuth<GradeCalculatorTool[]>();
-  if (authError) return authError;
+  try {
+    const authError = await requireAuth<GradeCalculatorTool[]>();
+    if (authError) return authError;
 
-  const { data, error } = await supabase
-    .from("grade_calculator_tools")
-    .select(TOOL_SELECT)
-    .order("created_at", { ascending: false });
-
-  if (error) return { success: false, error: error.message };
-  return {
-    success: true,
-    data: (data as unknown as GradeCalculatorTool[]) ?? [],
-  };
+    let lastError: string | null = null;
+    for (const select of TOOL_SELECTS) {
+      const { data, error } = await supabase
+        .from("grade_calculator_tools")
+        .select(select)
+        .order("created_at", { ascending: false });
+      if (!error) {
+        return {
+          success: true,
+          data: ((data as unknown as Record<string, unknown>[]) ?? []).map(
+            normalizeTool
+          ),
+        };
+      }
+      lastError = error.message;
+    }
+    return { success: false, error: lastError ?? "فشل الجلب" };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[grade-calculator] getTools:", err);
+    return { success: false, error: message };
+  }
 }
 
 export async function updateGradeCalculatorTool(
@@ -86,32 +154,37 @@ export async function updateGradeCalculatorTool(
     max_score: number;
   }
 ): Promise<ActionResult<GradeCalculatorTool>> {
-  const authError = await requireAuth<GradeCalculatorTool>();
-  if (authError) return authError;
+  try {
+    const authError = await requireAuth<GradeCalculatorTool>();
+    if (authError) return authError;
 
-  if (!input.title_ar.trim() || !input.url.trim()) {
-    return { success: false, error: "العنوان والرابط مطلوبان" };
+    if (!input.title_ar.trim() || !input.url.trim()) {
+      return { success: false, error: "العنوان والرابط مطلوبان" };
+    }
+
+    const { data, error } = await updateFlexible<Record<string, unknown>>(
+      "grade_calculator_tools",
+      id,
+      {
+        title: input.title_ar.trim(),
+        description: input.description_ar.trim() || null,
+        file_url: input.url.trim(),
+        max_score: Number(input.max_score) || 100,
+      }
+    );
+
+    if (error || !data) return { success: false, error: error ?? "فشل التحديث" };
+    revalidate();
+    return {
+      success: true,
+      data: normalizeTool(data),
+      message: "تم التحديث",
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[grade-calculator] updateTool:", err);
+    return { success: false, error: message };
   }
-
-  const { data, error } = await supabase
-    .from("grade_calculator_tools")
-    .update({
-      title_ar: input.title_ar.trim(),
-      description_ar: input.description_ar.trim() || null,
-      url: input.url.trim(),
-      max_score: Number(input.max_score) || 100,
-    })
-    .eq("id", id)
-    .select(TOOL_SELECT)
-    .single();
-
-  if (error) return { success: false, error: error.message };
-  revalidate();
-  return {
-    success: true,
-    data: data as unknown as GradeCalculatorTool,
-    message: "تم التحديث",
-  };
 }
 
 export async function toggleGradeCalculatorActive(
@@ -158,23 +231,36 @@ export async function getGradeRecords(filters?: {
   grade_id?: string;
   unit_id?: string;
 }): Promise<ActionResult<GradeRecord[]>> {
-  const authError = await requireAuth<GradeRecord[]>();
-  if (authError) return authError;
+  try {
+    const authError = await requireAuth<GradeRecord[]>();
+    if (authError) return authError;
 
-  let query = supabase
-    .from("grade_records")
-    .select(RECORD_SELECT)
-    .order("created_at", { ascending: false });
+    let lastError: string | null = null;
+    for (const select of RECORD_SELECTS) {
+      let query = supabase
+        .from("grade_records")
+        .select(select)
+        .order("created_at", { ascending: false });
+      if (filters?.grade_id) query = query.eq("grade_id", filters.grade_id);
+      if (filters?.unit_id) query = query.eq("unit_id", filters.unit_id);
 
-  if (filters?.grade_id) query = query.eq("grade_id", filters.grade_id);
-  if (filters?.unit_id) query = query.eq("unit_id", filters.unit_id);
-
-  const { data, error } = await query;
-  if (error) return { success: false, error: error.message };
-  return {
-    success: true,
-    data: (data as unknown as GradeRecord[]) ?? [],
-  };
+      const { data, error } = await query;
+      if (!error) {
+        return {
+          success: true,
+          data: ((data as unknown as Record<string, unknown>[]) ?? []).map(
+            normalizeRecord
+          ),
+        };
+      }
+      lastError = error.message;
+    }
+    return { success: false, error: lastError ?? "فشل الجلب" };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[grade-calculator] getRecords:", err);
+    return { success: false, error: message };
+  }
 }
 
 export async function createGradeRecord(input: {
@@ -185,36 +271,41 @@ export async function createGradeRecord(input: {
   max_score: number;
   notes: string;
 }): Promise<ActionResult<GradeRecord>> {
-  const authError = await requireAuth<GradeRecord>();
-  if (authError) return authError;
+  try {
+    const authError = await requireAuth<GradeRecord>();
+    if (authError) return authError;
 
-  if (!input.grade_id || !input.unit_id) {
-    return { success: false, error: "الصف والوحدة مطلوبان" };
+    if (!input.grade_id || !input.unit_id) {
+      return { success: false, error: "الصف والوحدة مطلوبان" };
+    }
+    if (!input.student_name.trim()) {
+      return { success: false, error: "اسم الطالب مطلوب" };
+    }
+
+    const { data, error } = await insertFlexible<Record<string, unknown>>(
+      "grade_records",
+      {
+        student_name: input.student_name.trim(),
+        grade_id: input.grade_id,
+        unit_id: input.unit_id,
+        score: Number(input.score) || 0,
+        max_score: Number(input.max_score) || 100,
+        notes: input.notes.trim() || null,
+      }
+    );
+
+    if (error || !data) return { success: false, error: error ?? "فشل الحفظ" };
+    revalidate();
+    return {
+      success: true,
+      data: normalizeRecord(data),
+      message: "تم تسجيل الدرجة",
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[grade-calculator] createRecord:", err);
+    return { success: false, error: message };
   }
-  if (!input.student_name.trim()) {
-    return { success: false, error: "اسم الطالب مطلوب" };
-  }
-
-  const { data, error } = await supabase
-    .from("grade_records")
-    .insert({
-      student_name: input.student_name.trim(),
-      grade_id: input.grade_id,
-      unit_id: input.unit_id,
-      score: Number(input.score) || 0,
-      max_score: Number(input.max_score) || 100,
-      notes: input.notes.trim() || null,
-    })
-    .select(RECORD_SELECT)
-    .single();
-
-  if (error) return { success: false, error: error.message };
-  revalidate();
-  return {
-    success: true,
-    data: data as unknown as GradeRecord,
-    message: "تم تسجيل الدرجة",
-  };
 }
 
 export async function updateGradeRecord(
@@ -228,30 +319,35 @@ export async function updateGradeRecord(
     notes: string;
   }
 ): Promise<ActionResult<GradeRecord>> {
-  const authError = await requireAuth<GradeRecord>();
-  if (authError) return authError;
+  try {
+    const authError = await requireAuth<GradeRecord>();
+    if (authError) return authError;
 
-  const { data, error } = await supabase
-    .from("grade_records")
-    .update({
-      student_name: input.student_name.trim(),
-      grade_id: input.grade_id,
-      unit_id: input.unit_id,
-      score: Number(input.score) || 0,
-      max_score: Number(input.max_score) || 100,
-      notes: input.notes.trim() || null,
-    })
-    .eq("id", id)
-    .select(RECORD_SELECT)
-    .single();
+    const { data, error } = await updateFlexible<Record<string, unknown>>(
+      "grade_records",
+      id,
+      {
+        student_name: input.student_name.trim(),
+        grade_id: input.grade_id,
+        unit_id: input.unit_id,
+        score: Number(input.score) || 0,
+        max_score: Number(input.max_score) || 100,
+        notes: input.notes.trim() || null,
+      }
+    );
 
-  if (error) return { success: false, error: error.message };
-  revalidate();
-  return {
-    success: true,
-    data: data as unknown as GradeRecord,
-    message: "تم تحديث الدرجة",
-  };
+    if (error || !data) return { success: false, error: error ?? "فشل التحديث" };
+    revalidate();
+    return {
+      success: true,
+      data: normalizeRecord(data),
+      message: "تم تحديث الدرجة",
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[grade-calculator] updateRecord:", err);
+    return { success: false, error: message };
+  }
 }
 
 export async function deleteGradeRecord(id: string): Promise<ActionResult> {

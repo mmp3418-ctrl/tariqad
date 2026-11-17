@@ -4,7 +4,9 @@ export function PageLoader({ label = "جاري التحميل..." }: { label?: s
   return (
     <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 text-slate-600 dark:text-slate-400">
       <span className="h-9 w-9 animate-spin rounded-full border-[3px] border-teal-700 border-t-transparent dark:border-teal-400" />
-      <p className="text-sm font-medium">{label}</p>
+      <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
+        {label}
+      </p>
     </div>
   );
 }
@@ -50,14 +52,14 @@ export function ConfirmDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md">
       <button
         type="button"
         className="absolute inset-0 cursor-default"
         onClick={onCancel}
         aria-label="إلغاء"
       />
-      <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+      <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
         <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
           {title}
         </h3>

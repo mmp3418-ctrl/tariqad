@@ -10,7 +10,7 @@ const OPTIONAL_FK_KEYS = [
   "cover_image_url",
 ] as const;
 
-/** Empty strings break uuid FK columns — coerce to null. */
+/** Empty strings break uuid / nullable text columns — coerce to null. */
 export function sanitizeUuidFields<T extends Row>(row: T): T {
   const next = { ...row };
   for (const key of Object.keys(next)) {
@@ -19,9 +19,11 @@ export function sanitizeUuidFields<T extends Row>(row: T): T {
       if (
         key.endsWith("_id") ||
         key === "cover_image_url" ||
+        key === "description" ||
         key === "description_ar" ||
         key === "description_en" ||
-        key === "file_url"
+        key === "file_url" ||
+        key === "url"
       ) {
         (next as Row)[key] = null;
       }
@@ -42,11 +44,10 @@ function missingColumnName(message: string): string | null {
     const match = message.match(pattern) ?? lower.match(pattern);
     if (match?.[1]) return match[1];
   }
-  if (lower.includes("schema cache") && lower.includes("column")) {
-    const quoted = message.match(/['"]([a-z0-9_]+)['"]/i);
-    if (quoted?.[1]) return quoted[1];
-  }
-  if (lower.includes("does not exist") && lower.includes("column")) {
+  if (
+    (lower.includes("schema cache") || lower.includes("does not exist")) &&
+    lower.includes("column")
+  ) {
     const quoted = message.match(/['"]([a-z0-9_]+)['"]/i);
     if (quoted?.[1]) return quoted[1];
   }
@@ -66,18 +67,39 @@ function applyMissingColumnFix(current: Row, errorMessage: string): boolean {
   const missing = missingColumnName(errorMessage);
   if (!missing) return false;
 
-  if (remapMissingWriteColumn(current, missing)) return true;
+  if (remapMissingWriteColumn(current, missing)) {
+    console.warn(
+      `[supabase-write] remapped/stripped missing column "${missing}"`,
+      { keys: Object.keys(current) }
+    );
+    return true;
+  }
 
   if (missing in current) {
     delete current[missing];
+    console.warn(`[supabase-write] stripped missing column "${missing}"`);
     return true;
   }
   return false;
 }
 
+function logAttempt(
+  op: string,
+  table: string,
+  attempt: number,
+  payload: Row,
+  errorMessage?: string
+) {
+  console.info(`[supabase-write] ${op} ${table} attempt=${attempt}`, {
+    keys: Object.keys(payload),
+    error: errorMessage ?? null,
+  });
+}
+
 /**
- * Insert with progressive stripping / alias remapping of unknown columns
- * and empty FKs so forms keep working across schema drift.
+ * Insert against the live schema. On missing-column / FK drift, remap or
+ * strip and retry. Always returns the last Supabase error text (never a
+ * vague “تعذر الحفظ” without detail).
  */
 export async function insertFlexible<T = Row>(
   table: string,
@@ -85,46 +107,67 @@ export async function insertFlexible<T = Row>(
   select = "*"
 ): Promise<{ data: T | null; error: string | null }> {
   let current = sanitizeUuidFields({ ...payload });
+  let lastError = "فشل الحفظ";
 
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    const { data, error } = await supabase
-      .from(table)
-      .insert(current)
-      .select(select)
-      .single();
+  try {
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      logAttempt("insert", table, attempt, current);
+      const { data, error } = await supabase
+        .from(table)
+        .insert(current)
+        .select(select)
+        .single();
 
-    if (!error) return { data: data as T, error: null };
+      if (!error) {
+        console.info(`[supabase-write] insert ${table} ok`, {
+          id: (data as unknown as Row)?.id,
+        });
+        return { data: data as unknown as T, error: null };
+      }
 
-    if (applyMissingColumnFix(current, error.message)) continue;
+      lastError = error.message;
+      console.error(`[supabase-write] insert ${table} failed:`, error.message, {
+        keys: Object.keys(current),
+      });
 
-    if (isForeignKeyError(error.message)) {
-      let changed = false;
-      for (const key of OPTIONAL_FK_KEYS) {
-        if (key in current && current[key] != null) {
-          if (key === "lesson_id" || key === "cover_image_url") {
-            current[key] = null;
-            changed = true;
+      if (applyMissingColumnFix(current, error.message)) continue;
+
+      if (isForeignKeyError(error.message)) {
+        let changed = false;
+        for (const key of OPTIONAL_FK_KEYS) {
+          if (key in current && current[key] != null) {
+            if (key === "lesson_id" || key === "cover_image_url") {
+              current[key] = null;
+              changed = true;
+            }
           }
         }
+        if (changed) continue;
       }
-      if (changed) continue;
-    }
 
-    if (
-      attempt === 0 &&
-      select.includes("(") &&
-      (error.message.includes("relationship") ||
-        error.message.toLowerCase().includes("column"))
-    ) {
-      const bare = await supabase.from(table).insert(current).select("*").single();
-      if (!bare.error) return { data: bare.data as T, error: null };
-      if (applyMissingColumnFix(current, bare.error.message)) continue;
-    }
+      if (
+        select.includes("(") &&
+        (error.message.includes("relationship") ||
+          error.message.toLowerCase().includes("column"))
+      ) {
+        const bare = await supabase
+          .from(table)
+          .insert(current)
+          .select("*")
+          .single();
+        if (!bare.error) return { data: bare.data as unknown as T, error: null };
+        lastError = bare.error.message;
+        if (applyMissingColumnFix(current, bare.error.message)) continue;
+      }
 
-    return { data: null, error: error.message };
+      return { data: null, error: lastError };
+    }
+  } catch (err) {
+    lastError = err instanceof Error ? err.message : String(err);
+    console.error(`[supabase-write] insert ${table} exception:`, err);
   }
 
-  return { data: null, error: "تعذر الحفظ بعد عدة محاولات" };
+  return { data: null, error: lastError };
 }
 
 export async function updateFlexible<T = Row>(
@@ -134,46 +177,62 @@ export async function updateFlexible<T = Row>(
   select = "*"
 ): Promise<{ data: T | null; error: string | null }> {
   let current = sanitizeUuidFields({ ...payload });
+  let lastError = "فشل التحديث";
 
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    const { data, error } = await supabase
-      .from(table)
-      .update(current)
-      .eq("id", id)
-      .select(select)
-      .single();
-
-    if (!error) return { data: data as T, error: null };
-
-    if (applyMissingColumnFix(current, error.message)) continue;
-
-    if (isForeignKeyError(error.message)) {
-      if ("lesson_id" in current && current.lesson_id != null) {
-        current.lesson_id = null;
-        continue;
-      }
-    }
-
-    if (
-      attempt === 0 &&
-      select.includes("(") &&
-      (error.message.includes("relationship") ||
-        error.message.toLowerCase().includes("column"))
-    ) {
-      const bare = await supabase
+  try {
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      logAttempt("update", table, attempt, current);
+      const { data, error } = await supabase
         .from(table)
         .update(current)
         .eq("id", id)
-        .select("*")
+        .select(select)
         .single();
-      if (!bare.error) return { data: bare.data as T, error: null };
-      if (applyMissingColumnFix(current, bare.error.message)) continue;
-    }
 
-    return { data: null, error: error.message };
+      if (!error) {
+        console.info(`[supabase-write] update ${table} ok`, { id });
+        return { data: data as unknown as T, error: null };
+      }
+
+      lastError = error.message;
+      console.error(`[supabase-write] update ${table} failed:`, error.message, {
+        id,
+        keys: Object.keys(current),
+      });
+
+      if (applyMissingColumnFix(current, error.message)) continue;
+
+      if (isForeignKeyError(error.message)) {
+        if ("lesson_id" in current && current.lesson_id != null) {
+          current.lesson_id = null;
+          continue;
+        }
+      }
+
+      if (
+        select.includes("(") &&
+        (error.message.includes("relationship") ||
+          error.message.toLowerCase().includes("column"))
+      ) {
+        const bare = await supabase
+          .from(table)
+          .update(current)
+          .eq("id", id)
+          .select("*")
+          .single();
+        if (!bare.error) return { data: bare.data as unknown as T, error: null };
+        lastError = bare.error.message;
+        if (applyMissingColumnFix(current, bare.error.message)) continue;
+      }
+
+      return { data: null, error: lastError };
+    }
+  } catch (err) {
+    lastError = err instanceof Error ? err.message : String(err);
+    console.error(`[supabase-write] update ${table} exception:`, err);
   }
 
-  return { data: null, error: "تعذر التحديث بعد عدة محاولات" };
+  return { data: null, error: lastError };
 }
 
 export { missingColumnName };

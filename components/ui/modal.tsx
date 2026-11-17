@@ -44,7 +44,7 @@ export function Modal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md">
       <button
         type="button"
         className="absolute inset-0 cursor-default"
@@ -57,7 +57,7 @@ export function Modal({
         aria-labelledby="modal-title"
         className={`relative z-10 flex w-full max-h-[90vh] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900 ${sizes[size]}`}
       >
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800 sm:px-5 sm:py-4">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-6 py-4 dark:border-slate-800">
           <h2
             id="modal-title"
             className="min-w-0 truncate text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg"
@@ -73,7 +73,7 @@ export function Modal({
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-4 sm:p-5">
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-6">
           {children}
         </div>
       </div>

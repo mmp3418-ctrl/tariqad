@@ -25,62 +25,84 @@ create table if not exists public.announcements (
 );
 alter table public.announcements add column if not exists kind text not null default 'update';
 
--- Grades
+-- Grades (canonical: title + order_index; title_ar/sort_order kept for legacy)
 create table if not exists public.grades (
   id uuid primary key default gen_random_uuid(),
   stage text not null check (stage in ('primary', 'preparatory', 'secondary')),
-  title_ar text not null,
+  title text not null,
+  title_ar text,
   title_en text not null default '',
-  slug text not null unique,
+  slug text unique,
+  order_index integer not null default 0,
   sort_order integer not null default 0,
   is_coming_soon boolean not null default false
 );
+alter table public.grades add column if not exists title text;
+alter table public.grades add column if not exists title_ar text;
+alter table public.grades add column if not exists order_index integer not null default 0;
 alter table public.grades add column if not exists is_coming_soon boolean not null default false;
 
 -- Units
 create table if not exists public.units (
   id uuid primary key default gen_random_uuid(),
   grade_id uuid not null references public.grades (id) on delete cascade,
-  title_ar text not null,
+  title text not null,
+  title_ar text,
   title_en text not null default '',
+  order_index integer not null default 0,
   sort_order integer not null default 0,
   is_coming_soon boolean not null default false
 );
+alter table public.units add column if not exists title text;
+alter table public.units add column if not exists order_index integer not null default 0;
 create index if not exists units_grade_id_idx on public.units (grade_id);
 
 -- Lessons
 create table if not exists public.lessons (
   id uuid primary key default gen_random_uuid(),
   unit_id uuid not null references public.units (id) on delete cascade,
-  title_ar text not null,
+  title text not null,
+  title_ar text,
   title_en text not null default '',
+  order_index integer not null default 0,
   sort_order integer not null default 0,
   is_coming_soon boolean not null default false
 );
+alter table public.lessons add column if not exists title text;
+alter table public.lessons add column if not exists order_index integer not null default 0;
 create index if not exists lessons_unit_id_idx on public.lessons (unit_id);
 
--- Resources (notes=pdf, videos=video)
+-- Resources (notes=pdf, videos=video) — canonical file column is file_url
 create table if not exists public.resources (
   id uuid primary key default gen_random_uuid(),
   grade_id uuid not null references public.grades (id) on delete cascade,
   unit_id uuid references public.units (id) on delete set null,
   lesson_id uuid references public.lessons (id) on delete set null,
   type text not null check (type in ('pdf', 'video', 'playlist')),
-  title_ar text not null,
+  title text not null,
+  title_ar text,
   title_en text not null default '',
   subject_ar text not null default '',
   subject_en text not null default '',
   term text,
-  url text not null,
+  file_url text not null,
+  url text,
+  description text,
   description_ar text,
   description_en text,
   badge_color text not null default '#0f766e',
   icon_type text not null default 'file-text',
   cover_image_url text,
   resource_category text,
+  order_index integer not null default 0,
+  sort_order integer not null default 0,
   is_coming_soon boolean not null default false
 );
 
+alter table public.resources add column if not exists title text;
+alter table public.resources add column if not exists file_url text;
+alter table public.resources add column if not exists description text;
+alter table public.resources add column if not exists order_index integer not null default 0;
 alter table public.resources add column if not exists description_ar text;
 alter table public.resources add column if not exists description_en text;
 alter table public.resources add column if not exists badge_color text not null default '#0f766e';
@@ -131,17 +153,25 @@ create table if not exists public.teacher_resources (
   category text not null check (category in (
     'lesson_prep', 'worksheets', 'question_banks', 'grammar_summaries', 'classroom_guide'
   )),
-  title_ar text not null,
+  title text not null,
+  title_ar text,
   title_en text not null default '',
+  description text,
   description_ar text,
-  url text not null,
+  file_url text not null,
+  url text,
   grade_id uuid references public.grades (id) on delete set null,
   unit_id uuid references public.units (id) on delete set null,
   is_active boolean not null default true,
   is_coming_soon boolean not null default false,
+  order_index integer not null default 0,
   sort_order integer not null default 0,
   created_at timestamptz not null default now()
 );
+alter table public.teacher_resources add column if not exists title text;
+alter table public.teacher_resources add column if not exists file_url text;
+alter table public.teacher_resources add column if not exists description text;
+alter table public.teacher_resources add column if not exists order_index integer not null default 0;
 
 -- Legacy alias table (kept for older installs; prefer teacher_resources)
 create table if not exists public.teacher_space_items (
@@ -239,7 +269,8 @@ values (
 )
 on conflict (id) do nothing;
 
--- Storage bucket note: create public bucket "platform-assets" in Dashboard
+-- Storage bucket note: create PUBLIC bucket "uploads" in Dashboard
+-- (legacy installs may still use "platform-assets"; the app tries both)
 
 -- RLS
 alter table public.admin_users enable row level security;

@@ -43,7 +43,7 @@ export function FileUpload({
     startTransition(async () => {
       const result = await uploadPlatformAsset(fd);
       if (result.success && result.data) {
-        onUploaded(result.data.url);
+        onUploaded(result.data.file_url || result.data.url);
         success(result.message ?? "تم الرفع");
       } else if (!result.success) {
         error(result.error);

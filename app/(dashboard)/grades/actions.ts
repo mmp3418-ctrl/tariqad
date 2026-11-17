@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { supabase } from "@/lib/supabase";
 import { requireAuth } from "@/lib/action-helpers";
 import { insertFlexible, updateFlexible } from "@/lib/supabase-write";
-import { normalizeTitleFields } from "@/lib/schema-compat";
+import {
+  normalizeTitleFields,
+  pickOrder,
+  toGradeWritePayload,
+} from "@/lib/schema-compat";
 import { LIBYAN_GRADES_SEED, slugify } from "@/lib/constants";
 import type { ActionResult, Grade, GradeStage } from "@/lib/types";
 
@@ -24,47 +28,61 @@ function normalizeGrade(row: Record<string, unknown>): Grade {
     title_ar: titled.title_ar,
     title_en: titled.title_en,
     slug: String(titled.slug ?? titled.title_ar ?? titled.id),
-    sort_order: Number(titled.sort_order ?? 0),
+    sort_order: pickOrder(titled),
     is_coming_soon: Boolean(titled.is_coming_soon),
   };
 }
 
 export async function getGrades(): Promise<ActionResult<Grade[]>> {
-  const authError = await requireAuth<Grade[]>();
-  if (authError) return authError;
+  try {
+    const authError = await requireAuth<Grade[]>();
+    if (authError) return authError;
 
-  const ordered = await supabase
-    .from("grades")
-    .select("*")
-    .order("sort_order", { ascending: true });
+    for (const orderKey of ["order_index", "sort_order"] as const) {
+      const ordered = await supabase
+        .from("grades")
+        .select("*")
+        .order(orderKey, { ascending: true });
+      if (!ordered.error) {
+        return {
+          success: true,
+          data: ((ordered.data as Record<string, unknown>[]) ?? []).map(
+            normalizeGrade
+          ),
+        };
+      }
+    }
 
-  if (!ordered.error) {
+    const bare = await supabase.from("grades").select("*");
+    if (bare.error) {
+      console.error("[grades] getGrades:", bare.error.message);
+      return { success: false, error: bare.error.message };
+    }
+
     return {
       success: true,
-      data: ((ordered.data as Record<string, unknown>[]) ?? []).map(
-        normalizeGrade
-      ),
+      data: ((bare.data as Record<string, unknown>[]) ?? []).map(normalizeGrade),
     };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[grades] getGrades exception:", err);
+    return { success: false, error: message };
   }
-
-  // sort_order may be missing — fall back to unordered *
-  const bare = await supabase.from("grades").select("*");
-  if (bare.error) return { success: false, error: bare.error.message };
-
-  return {
-    success: true,
-    data: ((bare.data as Record<string, unknown>[]) ?? []).map(normalizeGrade),
-  };
 }
 
-async function nextSortOrder(): Promise<number> {
-  const { data } = await supabase
-    .from("grades")
-    .select("sort_order")
-    .order("sort_order", { ascending: false })
-    .limit(1);
-  const max = (data as { sort_order: number }[] | null)?.[0]?.sort_order ?? 0;
-  return max + 1;
+async function nextOrderIndex(): Promise<number> {
+  for (const key of ["order_index", "sort_order"] as const) {
+    const { data, error } = await supabase
+      .from("grades")
+      .select(key)
+      .order(key, { ascending: false })
+      .limit(1);
+    if (!error) {
+      const row = (data as Record<string, number>[] | null)?.[0];
+      return (row?.[key] ?? 0) + 1;
+    }
+  }
+  return 1;
 }
 
 export async function createGrade(input: {
@@ -73,37 +91,45 @@ export async function createGrade(input: {
   title_en?: string;
   is_coming_soon?: boolean;
 }): Promise<ActionResult<Grade>> {
-  const authError = await requireAuth<Grade>();
-  if (authError) return authError;
+  try {
+    const authError = await requireAuth<Grade>();
+    if (authError) return authError;
 
-  if (!input.title_ar.trim()) {
-    return { success: false, error: "اسم الصف مطلوب" };
-  }
-
-  const title_ar = input.title_ar.trim();
-  const title_en = (input.title_en || title_ar).trim();
-  const slug = `${slugify(title_ar)}-${Date.now().toString(36)}`;
-  const sort_order = await nextSortOrder();
-
-  const { data, error } = await insertFlexible<Record<string, unknown>>(
-    "grades",
-    {
-      stage: input.stage,
-      title_ar,
-      title_en,
-      slug,
-      sort_order,
-      is_coming_soon: input.is_coming_soon ?? false,
+    if (!input.title_ar.trim()) {
+      return { success: false, error: "اسم الصف مطلوب" };
     }
-  );
 
-  if (error || !data) return { success: false, error: error ?? "فشل الحفظ" };
-  revalidateGradePaths();
-  return {
-    success: true,
-    data: normalizeGrade(data),
-    message: "تم إضافة الصف بنجاح",
-  };
+    const title = input.title_ar.trim();
+    const order_index = await nextOrderIndex();
+    const payload = toGradeWritePayload({
+      stage: input.stage,
+      title,
+      slug: `${slugify(title)}-${Date.now().toString(36)}`,
+      order_index,
+      is_coming_soon: input.is_coming_soon ?? false,
+    });
+
+    const { data, error } = await insertFlexible<Record<string, unknown>>(
+      "grades",
+      payload
+    );
+
+    if (error || !data) {
+      console.error("[grades] createGrade:", error);
+      return { success: false, error: error ?? "فشل الحفظ" };
+    }
+
+    revalidateGradePaths();
+    return {
+      success: true,
+      data: normalizeGrade(data),
+      message: "تم إضافة الصف بنجاح",
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[grades] createGrade exception:", err);
+    return { success: false, error: message };
+  }
 }
 
 export async function updateGrade(
@@ -115,96 +141,142 @@ export async function updateGrade(
     is_coming_soon?: boolean;
   }
 ): Promise<ActionResult<Grade>> {
-  const authError = await requireAuth<Grade>();
-  if (authError) return authError;
+  try {
+    const authError = await requireAuth<Grade>();
+    if (authError) return authError;
 
-  if (!input.title_ar.trim()) {
-    return { success: false, error: "اسم الصف مطلوب" };
-  }
-
-  const title_ar = input.title_ar.trim();
-  const title_en = (input.title_en || title_ar).trim();
-
-  const { data, error } = await updateFlexible<Record<string, unknown>>(
-    "grades",
-    id,
-    {
-      stage: input.stage,
-      title_ar,
-      title_en,
-      slug: slugify(title_ar) || `grade-${id.slice(0, 8)}`,
-      is_coming_soon: input.is_coming_soon ?? false,
+    if (!input.title_ar.trim()) {
+      return { success: false, error: "اسم الصف مطلوب" };
     }
-  );
 
-  if (error || !data) return { success: false, error: error ?? "فشل التحديث" };
-  revalidateGradePaths();
-  return {
-    success: true,
-    data: normalizeGrade(data),
-    message: "تم تحديث الصف بنجاح",
-  };
+    const title = input.title_ar.trim();
+    const payload = toGradeWritePayload({
+      stage: input.stage,
+      title,
+      slug: slugify(title) || `grade-${id.slice(0, 8)}`,
+      is_coming_soon: input.is_coming_soon ?? false,
+    });
+    // Don't overwrite order on edit
+    delete payload.order_index;
+
+    const { data, error } = await updateFlexible<Record<string, unknown>>(
+      "grades",
+      id,
+      payload
+    );
+
+    if (error || !data) {
+      console.error("[grades] updateGrade:", error);
+      return { success: false, error: error ?? "فشل التحديث" };
+    }
+
+    revalidateGradePaths();
+    return {
+      success: true,
+      data: normalizeGrade(data),
+      message: "تم تحديث الصف بنجاح",
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[grades] updateGrade exception:", err);
+    return { success: false, error: message };
+  }
 }
 
 export async function toggleGradeComingSoon(
   id: string,
   is_coming_soon: boolean
 ): Promise<ActionResult> {
-  const authError = await requireAuth();
-  if (authError) return authError;
+  try {
+    const authError = await requireAuth();
+    if (authError) return authError;
 
-  const { error } = await supabase
-    .from("grades")
-    .update({ is_coming_soon })
-    .eq("id", id);
+    const { error } = await supabase
+      .from("grades")
+      .update({ is_coming_soon })
+      .eq("id", id);
 
-  if (error) return { success: false, error: error.message };
-  revalidateGradePaths();
-  return {
-    success: true,
-    message: is_coming_soon ? "تم تعليم الصف كـ قريباً" : "تم إلغاء قريباً",
-  };
+    if (error) {
+      console.error("[grades] toggleComingSoon:", error.message);
+      return { success: false, error: error.message };
+    }
+    revalidateGradePaths();
+    return {
+      success: true,
+      message: is_coming_soon ? "تم تعليم الصف كـ قريباً" : "تم إلغاء قريباً",
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[grades] toggleComingSoon exception:", err);
+    return { success: false, error: message };
+  }
 }
 
 export async function deleteGrade(id: string): Promise<ActionResult> {
-  const authError = await requireAuth();
-  if (authError) return authError;
+  try {
+    const authError = await requireAuth();
+    if (authError) return authError;
 
-  const { error } = await supabase.from("grades").delete().eq("id", id);
-  if (error) return { success: false, error: error.message };
-  revalidateGradePaths();
-  return { success: true, message: "تم حذف الصف" };
+    const { error } = await supabase.from("grades").delete().eq("id", id);
+    if (error) {
+      console.error("[grades] deleteGrade:", error.message);
+      return { success: false, error: error.message };
+    }
+    revalidateGradePaths();
+    return { success: true, message: "تم حذف الصف" };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[grades] deleteGrade exception:", err);
+    return { success: false, error: message };
+  }
 }
 
 export async function seedLibyanGrades(): Promise<
   ActionResult<{ count: number }>
 > {
-  const authError = await requireAuth<{ count: number }>();
-  if (authError) return authError;
+  try {
+    const authError = await requireAuth<{ count: number }>();
+    if (authError) return authError;
 
-  const { count, error: countError } = await supabase
-    .from("grades")
-    .select("*", { count: "exact", head: true });
+    const { count, error: countError } = await supabase
+      .from("grades")
+      .select("*", { count: "exact", head: true });
 
-  if (countError) return { success: false, error: countError.message };
-  if ((count ?? 0) > 0) {
+    if (countError) return { success: false, error: countError.message };
+    if ((count ?? 0) > 0) {
+      return {
+        success: false,
+        error:
+          "الجدول يحتوي على صفوف بالفعل. احذفها أولاً إن أردت إعادة التعبئة.",
+      };
+    }
+
+    let inserted = 0;
+    for (const seed of LIBYAN_GRADES_SEED) {
+      const payload = toGradeWritePayload({
+        stage: seed.stage,
+        title: seed.title_ar,
+        slug: seed.slug,
+        order_index: seed.sort_order,
+        is_coming_soon: seed.is_coming_soon,
+      });
+      const { error } = await insertFlexible("grades", payload);
+      if (error) {
+        console.error("[grades] seed item failed:", error, payload);
+        return { success: false, error };
+      }
+      inserted += 1;
+    }
+
+    revalidateGradePaths();
     return {
-      success: false,
-      error: "الجدول يحتوي على صفوف بالفعل. احذفها أولاً إن أردت إعادة التعبئة.",
+      success: true,
+      data: { count: inserted },
+      message: `تم تعبئة ${inserted} صف من المنهج الليبي`,
     };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[grades] seedLibyanGrades exception:", err);
+    return { success: false, error: message };
   }
-
-  let inserted = 0;
-  for (const seed of LIBYAN_GRADES_SEED) {
-    const { error } = await insertFlexible("grades", { ...seed });
-    if (error) return { success: false, error };
-    inserted += 1;
-  }
-
-  revalidateGradePaths();
-  return {
-    success: true,
-    data: { count: inserted },
-    message: `تم تعبئة ${inserted} صف من المنهج الليبي`,
-  };
 }
