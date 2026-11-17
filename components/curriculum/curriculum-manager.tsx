@@ -287,10 +287,10 @@ export function CurriculumManager() {
             <Layers className="h-5 w-5 shrink-0" />
             <span className="text-sm font-semibold">الوحدات والمواد</span>
           </div>
-          <h2 className="text-2xl font-extrabold text-[var(--foreground)]">
+          <h2 className="text-2xl font-extrabold text-slate-900 dark:text-slate-100">
             الوحدات والدروس والمذكرات
           </h2>
-          <p className="mt-1 text-sm text-[var(--muted)]">
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400 ">
             إدارة الوحدة ودروسها وملفاتها من نافذة واحدةحدة
           </p>
         </div>
@@ -331,10 +331,10 @@ export function CurriculumManager() {
             <article key={unit.id} className="glass-card overflow-hidden">
               <div className="flex flex-wrap items-start justify-between gap-3 p-4">
                 <div className="min-w-0">
-                  <p className="font-bold text-[var(--foreground)]">
+                  <p className="font-bold text-slate-900 dark:text-slate-100">
                     {unit.title_ar}
                   </p>
-                  <p className="mt-1 text-xs text-[var(--muted)]">
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400 ">
                     {(unit.lessons ?? []).length} درس
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
@@ -371,12 +371,12 @@ export function CurriculumManager() {
                 </div>
               </div>
               {(unit.lessons ?? []).length > 0 && (
-                <div className="border-t border-[var(--border)] bg-[var(--surface-muted)]/50 px-4 py-3">
+                <div className="border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 px-4 py-3">
                   <ul className="space-y-1.5">
                     {(unit.lessons ?? []).map((lesson) => (
                       <li
                         key={lesson.id}
-                        className="flex items-center justify-between gap-2 text-sm text-[var(--foreground)]"
+                        className="flex items-center justify-between gap-2 text-sm text-slate-900 dark:text-slate-100"
                       >
                         <span className="truncate">{lesson.title_ar}</span>
                         {lesson.is_coming_soon && (
@@ -407,12 +407,12 @@ export function CurriculumManager() {
               value={unitTitle}
               onChange={(e) => setUnitTitle(e.target.value)}
             />
-            <label className="flex items-center gap-2 text-sm text-[var(--foreground)]">
+            <label className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100">
               <input
                 type="checkbox"
                 checked={unitComingSoon}
                 onChange={(e) => setUnitComingSoon(e.target.checked)}
-                className="h-4 w-4 rounded border-[var(--border)] text-teal-700"
+                className="h-4 w-4 rounded border-slate-200 dark:border-slate-800 text-teal-700"
               />
               تعليم الوحدة كـ «قريباً»
             </label>
@@ -425,15 +425,15 @@ export function CurriculumManager() {
 
           {editingUnit && (
             <>
-              <section className="space-y-3 rounded-2xl border border-[var(--border)] p-4">
-                <h3 className="font-bold text-[var(--foreground)]">الدروس</h3>
+              <section className="space-y-3 rounded-2xl border border-slate-200 dark:border-slate-800 p-4">
+                <h3 className="font-bold text-slate-900 dark:text-slate-100">الدروس</h3>
                 <div className="space-y-2">
                   {lessons.map((lesson) => (
                     <div
                       key={lesson.id}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[var(--surface-muted)] px-3 py-2"
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 dark:bg-slate-800 px-3 py-2"
                     >
-                      <span className="text-sm font-medium text-[var(--foreground)]">
+                      <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
                         {lesson.title_ar}
                       </span>
                       <div className="flex items-center gap-2">
@@ -500,8 +500,8 @@ export function CurriculumManager() {
                 </div>
               </section>
 
-              <section className="space-y-3 rounded-2xl border border-[var(--border)] p-4">
-                <h3 className="flex items-center gap-2 font-bold text-[var(--foreground)]">
+              <section className="space-y-3 rounded-2xl border border-slate-200 dark:border-slate-800 p-4">
+                <h3 className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
                   <FileText className="h-4 w-4" />
                   المذكرات والملخصات
                 </h3>
@@ -509,13 +509,13 @@ export function CurriculumManager() {
                   {notes.map((note) => (
                     <div
                       key={note.id}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[var(--surface-muted)] px-3 py-2"
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 dark:bg-slate-800 px-3 py-2"
                     >
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-[var(--foreground)]">
+                        <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
                           {note.title_ar}
                         </p>
-                        <p className="text-xs text-[var(--muted)]">
+                        <p className="text-xs text-slate-600 dark:text-slate-400 ">
                           {RESOURCE_CATEGORY_OPTIONS.find(
                             (c) => c.value === note.resource_category
                           )?.label ?? ""}
@@ -526,7 +526,7 @@ export function CurriculumManager() {
                           href={note.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="rounded-lg p-2 text-teal-700 hover:bg-[var(--surface)] dark:text-teal-300"
+                          className="rounded-lg p-2 text-teal-700 hover:bg-white dark:bg-slate-900 dark:text-teal-300"
                         >
                           <ExternalLink className="h-4 w-4" />
                         </a>
@@ -592,7 +592,7 @@ export function CurriculumManager() {
                   onUploaded={(url) => setNoteForm((f) => ({ ...f, url }))}
                   onClear={() => setNoteForm((f) => ({ ...f, url: "" }))}
                 />
-                <label className="flex items-center gap-2 text-sm text-[var(--foreground)]">
+                <label className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100">
                   <input
                     type="checkbox"
                     checked={noteForm.is_coming_soon}
@@ -602,7 +602,7 @@ export function CurriculumManager() {
                         is_coming_soon: e.target.checked,
                       }))
                     }
-                    className="h-4 w-4 rounded border-[var(--border)] text-teal-700"
+                    className="h-4 w-4 rounded border-slate-200 dark:border-slate-800 text-teal-700"
                   />
                   تعليم كـ «قريباً»
                 </label>

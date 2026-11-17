@@ -42,10 +42,10 @@ export function Sidebar({ username }: { username?: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed start-3 top-3 z-40 rounded-xl border border-[var(--border)] bg-[var(--surface)]/90 p-2.5 shadow-sm backdrop-blur lg:hidden"
+        className="fixed start-3 top-3 z-40 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-2.5 shadow-sm backdrop-blur lg:hidden"
         aria-label={t.openMenu}
       >
-        <Menu className="h-5 w-5 text-[var(--foreground)]" />
+        <Menu className="h-5 w-5 text-slate-900 dark:text-slate-100" />
       </button>
 
       {open && (
@@ -108,7 +108,7 @@ export function Sidebar({ username }: { username?: string }) {
                 onClick={() => setOpen(false)}
                 className={`flex items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-medium transition-all ${
                   active
-                    ? "bg-white text-teal-900 shadow-sm"
+                    ? "bg-white dark:bg-slate-900 text-teal-900 shadow-sm"
                     : "text-teal-50/90 hover:bg-sidebar-hover"
                 }`}
               >

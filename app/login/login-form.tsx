@@ -22,9 +22,11 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
       <input type="hidden" name="next" value={nextPath} />
 
       <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium text-slate-700">اسم المستخدم</span>
+        <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+          اسم المستخدم
+        </span>
         <div className="relative">
-          <User className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <User className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
           <input
             type="text"
             name="username"
@@ -33,15 +35,17 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
             autoComplete="username"
             disabled={pending}
             placeholder="admin"
-            className="w-full rounded-xl border border-slate-200 bg-white py-3 pr-10 pl-4 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/20 disabled:opacity-70"
+            className="w-full rounded-xl border border-slate-300 bg-white py-3 pr-10 pl-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-700 focus:ring-2 focus:ring-teal-700/20 disabled:opacity-70 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
           />
         </div>
       </label>
 
       <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium text-slate-700">كلمة المرور</span>
+        <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+          كلمة المرور
+        </span>
         <div className="relative">
-          <Lock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Lock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
           <input
             type="password"
             name="password"
@@ -49,14 +53,14 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
             autoComplete="current-password"
             disabled={pending}
             placeholder="••••••••"
-            className="w-full rounded-xl border border-slate-200 bg-white py-3 pr-10 pl-4 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/20 disabled:opacity-70"
+            className="w-full rounded-xl border border-slate-300 bg-white py-3 pr-10 pl-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-700 focus:ring-2 focus:ring-teal-700/20 disabled:opacity-70 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
           />
         </div>
       </label>
 
       {state && !state.success && (
         <p
-          className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"
+          className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/50 dark:text-rose-300"
           role="alert"
         >
           {state.error}
@@ -74,7 +78,7 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
         دخول لوحة التحكم
       </Button>
 
-      <p className="flex items-center justify-center gap-1.5 text-xs text-slate-500">
+      <p className="flex items-center justify-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
         <Shield className="h-3.5 w-3.5" />
         دخول آمن للمشرفين والمساعدين
       </p>

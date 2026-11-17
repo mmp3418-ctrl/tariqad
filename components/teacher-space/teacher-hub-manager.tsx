@@ -179,10 +179,10 @@ export function TeacherHubManager() {
           <Briefcase className="h-5 w-5 shrink-0" />
           <span className="text-sm font-semibold">{t.hub.title}</span>
         </div>
-        <h2 className="text-2xl font-extrabold text-[var(--foreground)]">
+        <h2 className="text-2xl font-extrabold text-slate-900 dark:text-slate-100">
           {t.hub.title}
         </h2>
-        <p className="mt-1 text-sm text-[var(--muted)]">{t.hub.subtitle}</p>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400 ">{t.hub.subtitle}</p>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -190,14 +190,14 @@ export function TeacherHubManager() {
           <div className="min-w-0">
             <div className="mb-1 flex items-center gap-2 text-teal-700 dark:text-teal-300">
               <CalendarDays className="h-4 w-4" />
-              <h3 className="font-bold text-[var(--foreground)]">
+              <h3 className="font-bold text-slate-900 dark:text-slate-100">
                 {t.hub.tabSchedules}
               </h3>
             </div>
-            <p className="text-sm text-[var(--muted)]">{t.hub.schedulesHint}</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400 ">{t.hub.schedulesHint}</p>
           </div>
           {loadingFlags ? (
-            <span className="text-xs text-[var(--muted)]">{t.loading}</span>
+            <span className="text-xs text-slate-600 dark:text-slate-400 ">{t.loading}</span>
           ) : (
             <Switch
               checked={schedulesEnabled}
@@ -222,14 +222,14 @@ export function TeacherHubManager() {
           <div className="min-w-0">
             <div className="mb-1 flex items-center gap-2 text-teal-700 dark:text-teal-300">
               <Calculator className="h-4 w-4" />
-              <h3 className="font-bold text-[var(--foreground)]">
+              <h3 className="font-bold text-slate-900 dark:text-slate-100">
                 {t.hub.tabGrades}
               </h3>
             </div>
-            <p className="text-sm text-[var(--muted)]">{t.hub.gradesHint}</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400 ">{t.hub.gradesHint}</p>
           </div>
           {loadingFlags ? (
-            <span className="text-xs text-[var(--muted)]">{t.loading}</span>
+            <span className="text-xs text-slate-600 dark:text-slate-400 ">{t.loading}</span>
           ) : (
             <Switch
               checked={gradeCalcEnabled}
@@ -254,10 +254,10 @@ export function TeacherHubManager() {
       <section className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h3 className="text-lg font-bold text-[var(--foreground)]">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
               {t.hub.tabResources}
             </h3>
-            <p className="text-sm text-[var(--muted)]">{t.hub.resourcesHint}</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400 ">{t.hub.resourcesHint}</p>
           </div>
           <Button onClick={openCreate} className="shrink-0">
             <Plus className="h-4 w-4" />
@@ -323,10 +323,10 @@ export function TeacherHubManager() {
               <article key={item.id} className="glass-card p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-bold text-[var(--foreground)]">
+                    <p className="font-bold text-slate-900 dark:text-slate-100">
                       {item.title_ar}
                     </p>
-                    <p className="mt-1 text-xs text-[var(--muted)]">
+                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400 ">
                       {TEACHER_SPACE_CATEGORIES.find(
                         (c) => c.value === item.category
                       )?.label ?? item.category}
@@ -360,7 +360,7 @@ export function TeacherHubManager() {
                     </Button>
                   </div>
                 </div>
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] pt-3">
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 dark:border-slate-800 pt-3">
                   <a
                     href={item.url}
                     target="_blank"
@@ -509,25 +509,25 @@ export function TeacherHubManager() {
             onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
           />
           <div className="flex flex-wrap gap-4">
-            <label className="flex items-center gap-2 text-sm text-[var(--foreground)]">
+            <label className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100">
               <input
                 type="checkbox"
                 checked={form.is_active}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, is_active: e.target.checked }))
                 }
-                className="h-4 w-4 rounded border-[var(--border)] text-teal-700"
+                className="h-4 w-4 rounded border-slate-200 dark:border-slate-800 text-teal-700"
               />
               مفعّل
             </label>
-            <label className="flex items-center gap-2 text-sm text-[var(--foreground)]">
+            <label className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100">
               <input
                 type="checkbox"
                 checked={form.is_coming_soon}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, is_coming_soon: e.target.checked }))
                 }
-                className="h-4 w-4 rounded border-[var(--border)] text-teal-700"
+                className="h-4 w-4 rounded border-slate-200 dark:border-slate-800 text-teal-700"
               />
               قريباً
             </label>

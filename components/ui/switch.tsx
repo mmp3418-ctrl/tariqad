@@ -21,7 +21,7 @@ export function Switch({
       className={`inline-flex cursor-pointer items-center gap-2 ${disabled ? "opacity-60" : ""}`}
     >
       {label && (
-        <span className="text-xs font-semibold text-[var(--muted)]">
+        <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
           {label}
         </span>
       )}
@@ -33,7 +33,9 @@ export function Switch({
         disabled={disabled}
         onClick={() => onChange(!checked)}
         className={`relative h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/40 ${
-          checked ? "bg-teal-700 dark:bg-teal-500" : "bg-slate-300 dark:bg-slate-600"
+          checked
+            ? "bg-teal-700 dark:bg-teal-500"
+            : "bg-slate-300 dark:bg-slate-600"
         }`}
       >
         <span

@@ -147,10 +147,10 @@ export function SettingsManager() {
           <Settings className="h-5 w-5" />
           <span className="text-sm font-semibold">إعدادات الموقع</span>
         </div>
-        <h2 className="text-2xl font-extrabold text-[var(--foreground)]">
+        <h2 className="text-2xl font-extrabold text-slate-900 dark:text-slate-100">
           إعدادات الموقع
         </h2>
-        <p className="mt-1 text-sm text-[var(--muted)]">
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400 ">
           {BRAND_AR} — الشعار والنصوص ووسائل التواصل
         </p>
       </header>
@@ -158,10 +158,10 @@ export function SettingsManager() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <section className="glass-card space-y-4 p-4 sm:p-6">
           <div>
-            <h3 className="text-base font-bold text-[var(--foreground)]">
+            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
               محتوى الصفحة الرئيسية
             </h3>
-            <p className="mt-1 text-xs text-[var(--muted)]">
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400 ">
               الاسم: {BRAND_AR} · {BRAND_EN}
             </p>
           </div>
@@ -197,7 +197,7 @@ export function SettingsManager() {
         </section>
 
         <section className="glass-card space-y-4 p-4 sm:p-6">
-          <h3 className="text-base font-bold text-[var(--foreground)]">الشعار</h3>
+          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">الشعار</h3>
           <FileUpload
             label="رفع شعار المنصة"
             folder="branding"
@@ -211,10 +211,10 @@ export function SettingsManager() {
 
         <section className="glass-card space-y-4 p-4 sm:p-6">
           <div>
-            <h3 className="text-base font-bold text-[var(--foreground)]">
+            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
               أرقام التواصل والتيليجرام
             </h3>
-            <p className="mt-1 text-xs text-[var(--muted)]">
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400 ">
               عند تعبئة أي حقل ستظهر أيقونته تلقائياً في الموقع الرئيسي
             </p>
           </div>
@@ -258,10 +258,10 @@ export function SettingsManager() {
         <section className="glass-card space-y-4 p-4 sm:p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 className="text-base font-bold text-[var(--foreground)]">
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
                 وسائل التواصل الاجتماعي
               </h3>
-              <p className="mt-0.5 text-sm text-[var(--muted)]">
+              <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-400 ">
                 أضف منصات غير محدودة مع أيقونة جاهزة أو مخصصة
               </p>
             </div>
@@ -281,7 +281,7 @@ export function SettingsManager() {
           </div>
 
           {form.social_links.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+            <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 px-4 py-10 text-center text-sm text-slate-600 dark:text-slate-400 ">
               لا توجد روابط بعد
             </div>
           ) : (
@@ -291,7 +291,7 @@ export function SettingsManager() {
                 return (
                   <div
                     key={link.id}
-                    className="space-y-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-3"
+                    className="space-y-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 p-3"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
@@ -303,11 +303,11 @@ export function SettingsManager() {
                             className="h-9 w-9 rounded-lg object-cover"
                           />
                         ) : (
-                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-teal-700 shadow-sm">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white dark:bg-slate-900 text-teal-700 shadow-sm">
                             <Icon className="h-4 w-4" />
                           </div>
                         )}
-                        <span className="text-sm font-semibold text-slate-700">
+                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                           منصة #{index + 1}
                         </span>
                       </div>
@@ -368,7 +368,7 @@ export function SettingsManager() {
                     </div>
 
                     <div>
-                      <p className="mb-2 text-sm font-medium text-slate-700">
+                      <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-200">
                         اختيار الأيقونة
                       </p>
                       <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
@@ -386,7 +386,7 @@ export function SettingsManager() {
                               className={`flex h-10 items-center justify-center rounded-xl border ${
                                 active
                                   ? "border-teal-700 bg-teal-50 text-teal-800"
-                                  : "border-slate-200 bg-white text-slate-600"
+                                  : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600"
                               }`}
                             >
                               <OptIcon className="h-4 w-4" />

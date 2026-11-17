@@ -2,7 +2,7 @@
 
 export function PageLoader({ label = "جاري التحميل..." }: { label?: string }) {
   return (
-    <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 text-[var(--muted)]">
+    <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 text-slate-600 dark:text-slate-400">
       <span className="h-9 w-9 animate-spin rounded-full border-[3px] border-teal-700 border-t-transparent dark:border-teal-400" />
       <p className="text-sm font-medium">{label}</p>
     </div>
@@ -17,10 +17,14 @@ export function EmptyState({
   description?: string;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-muted)]/60 px-6 py-16 text-center">
-      <p className="text-base font-semibold text-[var(--foreground)]">{title}</p>
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-16 text-center dark:border-slate-700 dark:bg-slate-900/60">
+      <p className="text-base font-semibold text-slate-900 dark:text-slate-100">
+        {title}
+      </p>
       {description && (
-        <p className="mt-1 max-w-md text-sm text-[var(--muted)]">{description}</p>
+        <p className="mt-1 max-w-md text-sm text-slate-600 dark:text-slate-400">
+          {description}
+        </p>
       )}
     </div>
   );
@@ -46,16 +50,18 @@ export function ConfirmDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
       <button
         type="button"
-        className="absolute inset-0 bg-slate-950/55 backdrop-blur-sm"
+        className="absolute inset-0 cursor-default"
         onClick={onCancel}
         aria-label="إلغاء"
       />
-      <div className="relative z-10 mx-4 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 text-[var(--foreground)] shadow-2xl sm:p-6">
-        <h3 className="text-lg font-bold text-[var(--foreground)]">{title}</h3>
-        <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">
+      <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+        <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+          {title}
+        </h3>
+        <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
           {message}
         </p>
         <div className="mt-6 flex flex-wrap items-center justify-end gap-2">
@@ -63,7 +69,7 @@ export function ConfirmDialog({
             type="button"
             onClick={onCancel}
             disabled={loading}
-            className="h-10 rounded-xl px-4 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--surface-muted)]"
+            className="h-10 rounded-xl px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             إلغاء
           </button>

@@ -108,10 +108,10 @@ export function GradesManager() {
             <GraduationCap className="h-5 w-5" />
             <span className="text-sm font-semibold">الصفوف الدراسية</span>
           </div>
-          <h2 className="text-2xl font-extrabold text-[var(--foreground)]">
+          <h2 className="text-2xl font-extrabold text-slate-900 dark:text-slate-100">
             إدارة الصفوف والمراحل
           </h2>
-          <p className="mt-1 text-sm text-[var(--muted)]">
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400 ">
             اسم الصف + المرحلة + خيار «قريباً»
           </p>
         </div>
@@ -140,7 +140,7 @@ export function GradesManager() {
             <article key={item.id} className="glass-card p-4">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate text-base font-bold text-slate-900">
+                  <p className="truncate text-base font-bold text-slate-900 dark:text-slate-100">
                     {item.title_ar}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
@@ -169,7 +169,7 @@ export function GradesManager() {
                   </Button>
                 </div>
               </div>
-              <div className="mt-3 flex justify-end border-t border-slate-100 pt-3">
+              <div className="mt-3 flex justify-end border-t border-slate-200 dark:border-slate-800 pt-3">
                 <Switch
                   checked={item.is_coming_soon ?? false}
                   onChange={(v) =>

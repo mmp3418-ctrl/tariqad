@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { supabase } from "@/lib/supabase";
 import { requireAuth } from "@/lib/action-helpers";
+import { insertFlexible, updateFlexible } from "@/lib/supabase-write";
 import { LIBYAN_GRADES_SEED, slugify } from "@/lib/constants";
 import type { ActionResult, Grade, GradeStage } from "@/lib/types";
 
@@ -55,24 +56,20 @@ export async function createGrade(input: {
   const slug = `${slugify(title_ar)}-${Date.now().toString(36)}`;
   const sort_order = await nextSortOrder();
 
-  const { data, error } = await supabase
-    .from("grades")
-    .insert({
-      stage: input.stage,
-      title_ar,
-      title_en,
-      slug,
-      sort_order,
-      is_coming_soon: input.is_coming_soon ?? false,
-    })
-    .select()
-    .single();
+  const { data, error } = await insertFlexible<Grade>("grades", {
+    stage: input.stage,
+    title_ar,
+    title_en,
+    slug,
+    sort_order,
+    is_coming_soon: input.is_coming_soon ?? false,
+  });
 
-  if (error) return { success: false, error: error.message };
+  if (error || !data) return { success: false, error: error ?? "فشل الحفظ" };
   revalidateGradePaths();
   return {
     success: true,
-    data: data as Grade,
+    data,
     message: "تم إضافة الصف بنجاح",
   };
 }
@@ -96,24 +93,23 @@ export async function updateGrade(
   const title_ar = input.title_ar.trim();
   const title_en = (input.title_en || title_ar).trim();
 
-  const { data, error } = await supabase
-    .from("grades")
-    .update({
+  const { data, error } = await updateFlexible<Grade>(
+    "grades",
+    id,
+    {
       stage: input.stage,
       title_ar,
       title_en,
       slug: slugify(title_ar) || `grade-${id.slice(0, 8)}`,
       is_coming_soon: input.is_coming_soon ?? false,
-    })
-    .eq("id", id)
-    .select()
-    .single();
+    }
+  );
 
-  if (error) return { success: false, error: error.message };
+  if (error || !data) return { success: false, error: error ?? "فشل التحديث" };
   revalidateGradePaths();
   return {
     success: true,
-    data: data as Grade,
+    data,
     message: "تم تحديث الصف بنجاح",
   };
 }

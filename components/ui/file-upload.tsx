@@ -54,17 +54,19 @@ export function FileUpload({
 
   return (
     <div className="flex w-full max-w-full flex-col gap-2 overflow-hidden">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
-      <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-3 sm:flex-row sm:items-center">
+      <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+        {label}
+      </span>
+      <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-3 sm:flex-row sm:items-center dark:border-slate-700 dark:bg-slate-800/70">
         {preview === "image" && value ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={value}
             alt="معاينة"
-            className="h-16 w-16 shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
+            className="h-16 w-16 shrink-0 rounded-xl object-cover ring-1 ring-slate-200 dark:ring-slate-700"
           />
         ) : (
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-white text-slate-400 ring-1 ring-slate-200">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-white text-slate-400 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-500 dark:ring-slate-700">
             {preview === "image" ? (
               <ImagePlus className="h-6 w-6" />
             ) : (
@@ -73,7 +75,7 @@ export function FileUpload({
           </div>
         )}
         <div className="min-w-0 flex-1 space-y-2">
-          <p className="truncate text-xs text-slate-500">
+          <p className="truncate text-xs text-slate-600 dark:text-slate-400">
             {localName || hint || "اختر ملفاً للرفع إلى المنصة"}
           </p>
           <div className="flex flex-wrap gap-2">

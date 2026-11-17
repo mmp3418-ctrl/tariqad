@@ -124,10 +124,10 @@ export function TeacherSchedulesManager() {
             <CalendarClock className="h-5 w-5 shrink-0" />
             <span className="text-sm font-semibold">جداول المعلمين</span>
           </div>
-          <h2 className="text-2xl font-extrabold text-slate-900">
+          <h2 className="text-2xl font-extrabold text-slate-900 dark:text-slate-100">
             جداول حصص المعلمين
           </h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400 ">
             إدارة خانات الجدول لكل معلم — دائماً ظاهرة بدون مفاتيح تفعيل
           </p>
         </div>
@@ -159,17 +159,17 @@ export function TeacherSchedulesManager() {
         <EmptyState title="لا توجد حصص مسجّلة" />
       ) : (
         <>
-          <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white sm:block">
+          <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 sm:block">
             <table className="w-full min-w-[720px] border-collapse text-center text-sm">
               <thead>
-                <tr className="bg-slate-50">
-                  <th className="border-b border-l border-slate-200 px-3 py-3 text-xs font-bold text-slate-500">
+                <tr className="bg-slate-50 dark:bg-slate-800">
+                  <th className="border-b border-l border-slate-200 dark:border-slate-800 px-3 py-3 text-xs font-bold text-slate-600 dark:text-slate-400 ">
                     الحصة
                   </th>
                   {WEEKDAYS.map((day) => (
                     <th
                       key={day}
-                      className="border-b border-l border-slate-200 px-3 py-3 text-xs font-bold text-slate-700 last:border-l-0"
+                      className="border-b border-l border-slate-200 dark:border-slate-800 px-3 py-3 text-xs font-bold text-slate-700 dark:text-slate-200 last:border-l-0"
                     >
                       {DAY_LABELS[day]}
                     </th>
@@ -179,7 +179,7 @@ export function TeacherSchedulesManager() {
               <tbody>
                 {PERIODS.map((period) => (
                   <tr key={period}>
-                    <td className="border-b border-l border-slate-100 bg-slate-50/80 px-3 py-3 font-bold text-slate-600">
+                    <td className="border-b border-l border-slate-200 dark:border-slate-800 bg-slate-50/80 px-3 py-3 font-bold text-slate-600">
                       {period}
                     </td>
                     {WEEKDAYS.map((day) => {
@@ -193,7 +193,7 @@ export function TeacherSchedulesManager() {
                       return (
                         <td
                           key={`${day}-${period}`}
-                          className="border-b border-l border-slate-100 p-1.5 last:border-l-0"
+                          className="border-b border-l border-slate-200 dark:border-slate-800 p-1.5 last:border-l-0"
                         >
                           {cell ? (
                             <button
@@ -208,7 +208,7 @@ export function TeacherSchedulesManager() {
                                 {cell.class_name}
                               </p>
                               {!teacherFilter && (
-                                <p className="mt-0.5 text-[10px] text-slate-500">
+                                <p className="mt-0.5 text-[10px] text-slate-600 dark:text-slate-400 ">
                                   {cell.teacher_name}
                                 </p>
                               )}
@@ -217,7 +217,7 @@ export function TeacherSchedulesManager() {
                             <button
                               type="button"
                               onClick={() => openCreate(day, period)}
-                              className="flex h-14 w-full items-center justify-center rounded-xl text-slate-300 hover:bg-slate-50 hover:text-slate-500"
+                              className="flex h-14 w-full items-center justify-center rounded-xl text-slate-300 hover:bg-slate-50 dark:bg-slate-800 hover:text-slate-600 dark:text-slate-400 "
                             >
                               <Plus className="h-4 w-4" />
                             </button>
@@ -236,10 +236,10 @@ export function TeacherSchedulesManager() {
               <article key={item.id} className="glass-card p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="truncate font-bold text-slate-900">
+                    <p className="truncate font-bold text-slate-900 dark:text-slate-100">
                       {item.teacher_name} · {item.subject}
                     </p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-600 dark:text-slate-400 ">
                       {DAY_LABELS[item.day_of_week]} · الحصة{" "}
                       {item.period_number} · {item.class_name}
                     </p>

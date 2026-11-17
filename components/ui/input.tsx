@@ -21,11 +21,18 @@ interface SelectProps
 }
 
 const fieldClass =
-  "w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted)] focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 disabled:bg-[var(--surface-muted)]";
+  "w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 disabled:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:disabled:bg-slate-900";
 
-const labelClass = "text-sm font-medium text-[var(--foreground)]";
+const labelClass = "text-sm font-medium text-slate-900 dark:text-slate-100";
 
-export function Input({ label, error, required, className = "", id, ...props }: InputProps) {
+export function Input({
+  label,
+  error,
+  required,
+  className = "",
+  id,
+  ...props
+}: InputProps) {
   const inputId = id || props.name;
   return (
     <label className="flex flex-col gap-1.5" htmlFor={inputId}>
@@ -39,7 +46,9 @@ export function Input({ label, error, required, className = "", id, ...props }: 
         className={`${fieldClass} ${error ? "border-rose-400" : ""} ${className}`}
         {...props}
       />
-      {error && <span className="text-xs text-rose-600">{error}</span>}
+      {error && (
+        <span className="text-xs text-rose-600 dark:text-rose-400">{error}</span>
+      )}
     </label>
   );
 }
@@ -65,7 +74,9 @@ export function Textarea({
         className={`${fieldClass} min-h-[96px] resize-y ${error ? "border-rose-400" : ""} ${className}`}
         {...props}
       />
-      {error && <span className="text-xs text-rose-600">{error}</span>}
+      {error && (
+        <span className="text-xs text-rose-600 dark:text-rose-400">{error}</span>
+      )}
     </label>
   );
 }
@@ -96,7 +107,9 @@ export function Select({
       >
         {children}
       </select>
-      {error && <span className="text-xs text-rose-600">{error}</span>}
+      {error && (
+        <span className="text-xs text-rose-600 dark:text-rose-400">{error}</span>
+      )}
     </label>
   );
 }

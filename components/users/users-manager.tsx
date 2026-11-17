@@ -72,10 +72,10 @@ export function UsersManager() {
             <Users className="h-5 w-5" />
             <span className="text-sm font-semibold">المشرفون والصلاحيات</span>
           </div>
-          <h2 className="text-2xl font-extrabold text-slate-900">
+          <h2 className="text-2xl font-extrabold text-slate-900 dark:text-slate-100">
             إدارة حسابات المشرفين
           </h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400 ">
             أضف مساعدين بصلاحيات دخول منفصلة للوحة التحكم
           </p>
         </div>
@@ -98,7 +98,7 @@ export function UsersManager() {
             <article key={user.id} className="glass-card p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-base font-bold text-slate-900">
+                  <p className="truncate text-base font-bold text-slate-900 dark:text-slate-100">
                     {user.username}
                   </p>
                   <span
@@ -115,7 +115,7 @@ export function UsersManager() {
                   <Trash2 className="h-4 w-4 text-rose-600" />
                 </Button>
               </div>
-              <p className="mt-3 text-xs text-slate-500">
+              <p className="mt-3 text-xs text-slate-600 dark:text-slate-400 ">
                 أُضيف في{" "}
                 {new Date(user.created_at).toLocaleDateString("ar-LY")}
               </p>
