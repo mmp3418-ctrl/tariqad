@@ -1,5 +1,5 @@
-import { TeacherSpaceManager } from "@/components/teacher-space/teacher-space-manager";
+import { TeacherHubManager } from "@/components/teacher-space/teacher-hub-manager";
 
 export default function TeacherSpacePage() {
-  return <TeacherSpaceManager />;
+  return <TeacherHubManager />;
 }

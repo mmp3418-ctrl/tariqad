@@ -125,7 +125,7 @@ create table if not exists public.teacher_schedules (
 );
 alter table public.teacher_schedules add column if not exists is_active boolean not null default true;
 
--- Teacher resources (tools per grade + unit)
+-- Teacher resources (fixed preset tools — toggle/manage only)
 create table if not exists public.teacher_resources (
   id uuid primary key default gen_random_uuid(),
   category text not null check (category in (
@@ -135,8 +135,9 @@ create table if not exists public.teacher_resources (
   title_en text not null default '',
   description_ar text,
   url text not null,
-  grade_id uuid not null references public.grades (id) on delete cascade,
-  unit_id uuid not null references public.units (id) on delete cascade,
+  grade_id uuid references public.grades (id) on delete set null,
+  unit_id uuid references public.units (id) on delete set null,
+  is_active boolean not null default true,
   is_coming_soon boolean not null default false,
   sort_order integer not null default 0,
   created_at timestamptz not null default now()
@@ -161,23 +162,26 @@ create table if not exists public.teacher_space_items (
 
 alter table public.teacher_space_items add column if not exists unit_id uuid references public.units (id) on delete set null;
 alter table public.teacher_space_items add column if not exists is_coming_soon boolean not null default false;
-alter table public.teacher_resources add column if not exists grade_id uuid references public.grades (id) on delete cascade;
-alter table public.teacher_resources add column if not exists unit_id uuid references public.units (id) on delete cascade;
+alter table public.teacher_resources add column if not exists grade_id uuid references public.grades (id) on delete set null;
+alter table public.teacher_resources add column if not exists unit_id uuid references public.units (id) on delete set null;
+alter table public.teacher_resources add column if not exists is_active boolean not null default true;
 alter table public.teacher_resources add column if not exists is_coming_soon boolean not null default false;
 
--- Grade calculator tools (أداة جمع الدرجات — أدوات)
+-- Grade calculator tools (أداة جمع الدرجات — أدوات جاهزة)
 create table if not exists public.grade_calculator_tools (
   id uuid primary key default gen_random_uuid(),
   title_ar text not null,
   description_ar text,
   url text not null,
-  grade_id uuid not null references public.grades (id) on delete cascade,
-  unit_id uuid not null references public.units (id) on delete cascade,
+  grade_id uuid references public.grades (id) on delete set null,
+  unit_id uuid references public.units (id) on delete set null,
   max_score numeric not null default 100,
+  is_active boolean not null default true,
   is_coming_soon boolean not null default false,
   created_at timestamptz not null default now()
 );
 alter table public.grade_calculator_tools add column if not exists max_score numeric not null default 100;
+alter table public.grade_calculator_tools add column if not exists is_active boolean not null default true;
 alter table public.grade_calculator_tools add column if not exists is_coming_soon boolean not null default false;
 
 -- Grade records per class/unit

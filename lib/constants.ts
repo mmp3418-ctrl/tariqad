@@ -36,13 +36,35 @@ export const RESOURCE_CATEGORY_OPTIONS: {
 export const TEACHER_SPACE_CATEGORIES: {
   value: TeacherSpaceCategory;
   label: string;
+  labelEn: string;
 }[] = [
-  { value: "lesson_prep", label: "تحضير الدروس" },
-  { value: "worksheets", label: "أوراق العمل" },
-  { value: "question_banks", label: "بنوك الأسئلة" },
-  { value: "grammar_summaries", label: "ملخصات قواعد" },
-  { value: "classroom_guide", label: "دليل إدارة الصف" },
+  { value: "lesson_prep", label: "تحضير الدروس", labelEn: "Lesson Prep" },
+  { value: "worksheets", label: "أوراق العمل", labelEn: "Worksheets" },
+  { value: "question_banks", label: "بنوك الأسئلة", labelEn: "Question Banks" },
+  {
+    value: "grammar_summaries",
+    label: "ملخصات قواعد",
+    labelEn: "Grammar Summaries",
+  },
+  {
+    value: "classroom_guide",
+    label: "دليل إدارة الصف",
+    labelEn: "Classroom Guide",
+  },
 ];
+
+/** Fixed platform presets — no creating extra tools from the admin UI */
+export const TEACHER_RESOURCE_PRESETS = TEACHER_SPACE_CATEGORIES.map(
+  (c, index) => ({
+    category: c.value,
+    title_ar: c.label,
+    title_en: c.labelEn,
+    url: "#",
+    sort_order: index + 1,
+    is_active: true,
+    is_coming_soon: false,
+  })
+);
 
 export const ANNOUNCEMENT_KIND_LABELS: Record<AnnouncementKind, string> = {
   alert: "تنبيه",
@@ -136,17 +158,14 @@ export const SOCIAL_ICON_OPTIONS: {
 ];
 
 export const NAV_ITEMS = [
-  { href: "/announcements", label: "الإعلانات", icon: "Megaphone" },
-  { href: "/grades", label: "الصفوف الدراسية", icon: "GraduationCap" },
-  { href: "/units", label: "الوحدات والدروس", icon: "Layers" },
-  { href: "/notes", label: "المذكرات والملخصات", icon: "FileText" },
-  { href: "/videos", label: "الشروحات المرئية", icon: "PlayCircle" },
-  { href: "/schedules", label: "جداول الحصص", icon: "CalendarDays" },
-  { href: "/teacher-schedules", label: "جداول المعلمين", icon: "CalendarClock" },
-  { href: "/teacher-space", label: "موارد المعلم", icon: "Briefcase" },
-  { href: "/grade-calculator", label: "أداة جمع الدرجات", icon: "Calculator" },
-  { href: "/users", label: "المشرفون والصلاحيات", icon: "Users" },
-  { href: "/settings", label: "إعدادات الموقع", icon: "Settings" },
+  { href: "/announcements", labelKey: "announcements", icon: "Megaphone" },
+  { href: "/grades", labelKey: "grades", icon: "GraduationCap" },
+  { href: "/units", labelKey: "units", icon: "Layers" },
+  { href: "/notes", labelKey: "notes", icon: "FileText" },
+  { href: "/videos", labelKey: "videos", icon: "PlayCircle" },
+  { href: "/teacher-space", labelKey: "teacherSpace", icon: "Briefcase" },
+  { href: "/users", labelKey: "users", icon: "Users" },
+  { href: "/settings", labelKey: "settings", icon: "Settings" },
 ] as const;
 
 export const LIBYAN_GRADES_SEED: Omit<Grade, "id">[] = [

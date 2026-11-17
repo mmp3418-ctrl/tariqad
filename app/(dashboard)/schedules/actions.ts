@@ -10,6 +10,7 @@ const SELECT =
 
 function revalidate() {
   revalidatePath("/schedules");
+  revalidatePath("/teacher-space");
 }
 
 export async function getClassSchedules(
@@ -129,4 +130,25 @@ export async function deleteClassSchedule(id: string): Promise<ActionResult> {
   if (error) return { success: false, error: error.message };
   revalidate();
   return { success: true, message: "تم حذف الحصة" };
+}
+
+export async function toggleClassScheduleActive(
+  id: string,
+  is_active: boolean
+): Promise<ActionResult> {
+  const authError = await requireAuth();
+  if (authError) return authError;
+
+  const { error } = await supabase
+    .from("class_schedules")
+    .update({ is_active })
+    .eq("id", id);
+
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/teacher-space");
+  revalidate();
+  return {
+    success: true,
+    message: is_active ? "تم تفعيل الحصة" : "تم إيقاف الحصة",
+  };
 }

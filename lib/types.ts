@@ -133,9 +133,10 @@ export interface GradeCalculatorTool {
   title_ar: string;
   description_ar: string | null;
   url: string;
-  grade_id: string;
-  unit_id: string;
+  grade_id: string | null;
+  unit_id: string | null;
   max_score: number;
+  is_active: boolean;
   is_coming_soon: boolean;
   created_at: string;
   grades?: Pick<Grade, "id" | "title_ar"> | null;
@@ -156,7 +157,7 @@ export interface GradeRecord {
   units?: Pick<Unit, "id" | "title_ar"> | null;
 }
 
-/** Stored in `teacher_resources` table */
+/** Stored in `teacher_resources` table — preset tools only */
 export interface TeacherSpaceItem {
   id: string;
   category: TeacherSpaceCategory;
@@ -164,8 +165,9 @@ export interface TeacherSpaceItem {
   title_en: string;
   description_ar: string | null;
   url: string;
-  grade_id: string;
-  unit_id: string;
+  grade_id: string | null;
+  unit_id: string | null;
+  is_active: boolean;
   is_coming_soon: boolean;
   sort_order: number;
   created_at: string;

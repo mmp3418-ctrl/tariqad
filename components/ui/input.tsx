@@ -21,15 +21,17 @@ interface SelectProps
 }
 
 const fieldClass =
-  "w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 disabled:bg-slate-50";
+  "w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted)] focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 disabled:bg-[var(--surface-muted)]";
+
+const labelClass = "text-sm font-medium text-[var(--foreground)]";
 
 export function Input({ label, error, required, className = "", id, ...props }: InputProps) {
   const inputId = id || props.name;
   return (
     <label className="flex flex-col gap-1.5" htmlFor={inputId}>
-      <span className="text-sm font-medium text-slate-700">
+      <span className={labelClass}>
         {label}
-        {required && <span className="mr-1 text-rose-500">*</span>}
+        {required && <span className="ms-1 text-rose-500">*</span>}
       </span>
       <input
         id={inputId}
@@ -53,9 +55,9 @@ export function Textarea({
   const inputId = id || props.name;
   return (
     <label className="flex flex-col gap-1.5" htmlFor={inputId}>
-      <span className="text-sm font-medium text-slate-700">
+      <span className={labelClass}>
         {label}
-        {required && <span className="mr-1 text-rose-500">*</span>}
+        {required && <span className="ms-1 text-rose-500">*</span>}
       </span>
       <textarea
         id={inputId}
@@ -81,9 +83,9 @@ export function Select({
   return (
     <label className="flex flex-col gap-1.5" htmlFor={inputId}>
       {label ? (
-        <span className="text-sm font-medium text-slate-700">
+        <span className={labelClass}>
           {label}
-          {required && <span className="mr-1 text-rose-500">*</span>}
+          {required && <span className="ms-1 text-rose-500">*</span>}
         </span>
       ) : null}
       <select

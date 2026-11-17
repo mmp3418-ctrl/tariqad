@@ -147,26 +147,26 @@ export function SettingsManager() {
           <Settings className="h-5 w-5" />
           <span className="text-sm font-semibold">إعدادات الموقع</span>
         </div>
-        <h2 className="text-2xl font-extrabold text-slate-900">
-          الهوية والتواصل
+        <h2 className="text-2xl font-extrabold text-[var(--foreground)]">
+          إعدادات الموقع
         </h2>
-        <p className="mt-1 text-sm text-slate-500">
-          {BRAND_AR} / {BRAND_EN} — الشعار، الصفحة الرئيسية، والتواصل
+        <p className="mt-1 text-sm text-[var(--muted)]">
+          {BRAND_AR} — الشعار والنصوص ووسائل التواصل
         </p>
       </header>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <section className="glass-card space-y-4 p-4 sm:p-6">
           <div>
-            <h3 className="text-base font-bold text-slate-900">
-              محتوى الصفحة الرئيسية والكتاب
+            <h3 className="text-base font-bold text-[var(--foreground)]">
+              محتوى الصفحة الرئيسية
             </h3>
-            <p className="mt-1 text-xs text-slate-500">
-              الاسم ثابت: {BRAND_AR} (عربي) · {BRAND_EN} (English)
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              الاسم: {BRAND_AR} · {BRAND_EN}
             </p>
           </div>
           <Textarea
-            label="نص المقدمة (عربي) — hero_subtitle_ar"
+            label="النص التعريفي (عربي)"
             name="hero_subtitle_ar"
             value={form.hero_subtitle_ar}
             onChange={(e) =>
@@ -175,7 +175,7 @@ export function SettingsManager() {
             placeholder="منصتك التعليمية الشاملة للمنهج الليبي"
           />
           <Textarea
-            label="Intro text (English) — hero_subtitle_en"
+            label="النص التعريفي (إنجليزي)"
             name="hero_subtitle_en"
             dir="ltr"
             value={form.hero_subtitle_en}
@@ -185,7 +185,7 @@ export function SettingsManager() {
             placeholder="Your complete educational hub..."
           />
           <Input
-            label="سنة الكتاب على الغلاف — book_year_label"
+            label="سنة الكتاب على الغلاف"
             name="book_year_label"
             dir="ltr"
             placeholder="2026 - 2027"
@@ -197,7 +197,7 @@ export function SettingsManager() {
         </section>
 
         <section className="glass-card space-y-4 p-4 sm:p-6">
-          <h3 className="text-base font-bold text-slate-900">الشعار</h3>
+          <h3 className="text-base font-bold text-[var(--foreground)]">الشعار</h3>
           <FileUpload
             label="رفع شعار المنصة"
             folder="branding"

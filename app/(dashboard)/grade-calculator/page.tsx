@@ -1,5 +1,5 @@
-import { GradeCalculatorManager } from "@/components/grade-calculator/grade-calculator-manager";
+import { redirect } from "next/navigation";
 
 export default function GradeCalculatorPage() {
-  return <GradeCalculatorManager />;
+  redirect("/teacher-space");
 }

@@ -1,5 +1,5 @@
-import { SchoolSchedulesManager } from "@/components/schedules/school-schedules-manager";
+import { redirect } from "next/navigation";
 
 export default function SchedulesPage() {
-  return <SchoolSchedulesManager />;
+  redirect("/teacher-space");
 }

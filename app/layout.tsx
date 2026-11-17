@@ -1,12 +1,19 @@
 import type { Metadata } from "next";
-import { Cairo } from "next/font/google";
-import { ToastProvider } from "@/components/ui/toast";
+import { Cairo, Inter } from "next/font/google";
+import { AppProviders } from "@/components/providers/app-providers";
 import { BRAND_AR, BRAND_EN } from "@/lib/constants";
 import "./globals.css";
 
 const cairo = Cairo({
   variable: "--font-cairo",
   subsets: ["arabic", "latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
+});
+
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
   display: "swap",
 });
@@ -26,9 +33,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ar" dir="rtl" className={`${cairo.variable} h-full`}>
+    <html
+      lang="ar"
+      dir="rtl"
+      className={`${cairo.variable} ${inter.variable} h-full`}
+      suppressHydrationWarning
+    >
       <body className="min-h-full font-sans antialiased">
-        <ToastProvider>{children}</ToastProvider>
+        <AppProviders>{children}</AppProviders>
       </body>
     </html>
   );

@@ -10,79 +10,70 @@ import type {
 } from "@/lib/types";
 
 const TOOL_SELECT =
-  "id, title_ar, description_ar, url, grade_id, unit_id, max_score, is_coming_soon, created_at, grades(id, title_ar), units(id, title_ar)";
+  "id, title_ar, description_ar, url, grade_id, unit_id, max_score, is_active, is_coming_soon, created_at, grades(id, title_ar), units(id, title_ar)";
 
 const RECORD_SELECT =
   "id, student_name, grade_id, unit_id, score, max_score, notes, created_at, grades(id, title_ar), units(id, title_ar)";
 
 function revalidate() {
   revalidatePath("/grade-calculator");
+  revalidatePath("/teacher-space");
 }
 
-/* ── Tools ── */
+const GRADE_TOOL_PRESET = {
+  title_ar: "أداة جمع الدرجات",
+  description_ar: "أداة جاهزة لجمع درجات الطلاب",
+  url: "#",
+  max_score: 100,
+};
 
-export async function getGradeCalculatorTools(filters?: {
-  grade_id?: string;
-  unit_id?: string;
-}): Promise<ActionResult<GradeCalculatorTool[]>> {
+export async function ensureGradeCalculatorPresets(): Promise<
+  ActionResult<GradeCalculatorTool[]>
+> {
   const authError = await requireAuth<GradeCalculatorTool[]>();
   if (authError) return authError;
 
-  let query = supabase
+  const { data: existing, error: listError } = await supabase
+    .from("grade_calculator_tools")
+    .select("id")
+    .limit(1);
+
+  if (listError) return { success: false, error: listError.message };
+
+  if (!existing?.length) {
+    const { error: insertError } = await supabase
+      .from("grade_calculator_tools")
+      .insert({
+        title_ar: GRADE_TOOL_PRESET.title_ar,
+        description_ar: GRADE_TOOL_PRESET.description_ar,
+        url: GRADE_TOOL_PRESET.url,
+        grade_id: null,
+        unit_id: null,
+        max_score: GRADE_TOOL_PRESET.max_score,
+        is_active: true,
+        is_coming_soon: false,
+      });
+    if (insertError) return { success: false, error: insertError.message };
+  }
+
+  return getGradeCalculatorTools();
+}
+
+export async function getGradeCalculatorTools(): Promise<
+  ActionResult<GradeCalculatorTool[]>
+> {
+  const authError = await requireAuth<GradeCalculatorTool[]>();
+  if (authError) return authError;
+
+  const { data, error } = await supabase
     .from("grade_calculator_tools")
     .select(TOOL_SELECT)
     .order("created_at", { ascending: false });
 
-  if (filters?.grade_id) query = query.eq("grade_id", filters.grade_id);
-  if (filters?.unit_id) query = query.eq("unit_id", filters.unit_id);
-
-  const { data, error } = await query;
   if (error) return { success: false, error: error.message };
   return {
     success: true,
     data: (data as unknown as GradeCalculatorTool[]) ?? [],
-  };
-}
-
-export async function createGradeCalculatorTool(input: {
-  title_ar: string;
-  description_ar: string;
-  url: string;
-  grade_id: string;
-  unit_id: string;
-  max_score: number;
-  is_coming_soon: boolean;
-}): Promise<ActionResult<GradeCalculatorTool>> {
-  const authError = await requireAuth<GradeCalculatorTool>();
-  if (authError) return authError;
-
-  if (!input.grade_id || !input.unit_id) {
-    return { success: false, error: "الصف والوحدة مطلوبان" };
-  }
-  if (!input.title_ar.trim() || !input.url.trim()) {
-    return { success: false, error: "العنوان والرابط مطلوبان" };
-  }
-
-  const { data, error } = await supabase
-    .from("grade_calculator_tools")
-    .insert({
-      title_ar: input.title_ar.trim(),
-      description_ar: input.description_ar.trim() || null,
-      url: input.url.trim(),
-      grade_id: input.grade_id,
-      unit_id: input.unit_id,
-      max_score: Number(input.max_score) || 100,
-      is_coming_soon: input.is_coming_soon ?? false,
-    })
-    .select(TOOL_SELECT)
-    .single();
-
-  if (error) return { success: false, error: error.message };
-  revalidate();
-  return {
-    success: true,
-    data: data as unknown as GradeCalculatorTool,
-    message: "تم إضافة الأداة",
   };
 }
 
@@ -92,17 +83,14 @@ export async function updateGradeCalculatorTool(
     title_ar: string;
     description_ar: string;
     url: string;
-    grade_id: string;
-    unit_id: string;
     max_score: number;
-    is_coming_soon: boolean;
   }
 ): Promise<ActionResult<GradeCalculatorTool>> {
   const authError = await requireAuth<GradeCalculatorTool>();
   if (authError) return authError;
 
-  if (!input.grade_id || !input.unit_id) {
-    return { success: false, error: "الصف والوحدة مطلوبان" };
+  if (!input.title_ar.trim() || !input.url.trim()) {
+    return { success: false, error: "العنوان والرابط مطلوبان" };
   }
 
   const { data, error } = await supabase
@@ -111,10 +99,7 @@ export async function updateGradeCalculatorTool(
       title_ar: input.title_ar.trim(),
       description_ar: input.description_ar.trim() || null,
       url: input.url.trim(),
-      grade_id: input.grade_id,
-      unit_id: input.unit_id,
       max_score: Number(input.max_score) || 100,
-      is_coming_soon: input.is_coming_soon ?? false,
     })
     .eq("id", id)
     .select(TOOL_SELECT)
@@ -129,22 +114,45 @@ export async function updateGradeCalculatorTool(
   };
 }
 
-export async function deleteGradeCalculatorTool(
-  id: string
+export async function toggleGradeCalculatorActive(
+  id: string,
+  is_active: boolean
 ): Promise<ActionResult> {
   const authError = await requireAuth();
   if (authError) return authError;
 
   const { error } = await supabase
     .from("grade_calculator_tools")
-    .delete()
+    .update({ is_active })
     .eq("id", id);
+
   if (error) return { success: false, error: error.message };
   revalidate();
-  return { success: true, message: "تم الحذف" };
+  return {
+    success: true,
+    message: is_active ? "تم التفعيل" : "تم الإيقاف",
+  };
 }
 
-/* ── Records ── */
+export async function toggleGradeCalculatorComingSoon(
+  id: string,
+  is_coming_soon: boolean
+): Promise<ActionResult> {
+  const authError = await requireAuth();
+  if (authError) return authError;
+
+  const { error } = await supabase
+    .from("grade_calculator_tools")
+    .update({ is_coming_soon })
+    .eq("id", id);
+
+  if (error) return { success: false, error: error.message };
+  revalidate();
+  return {
+    success: true,
+    message: is_coming_soon ? "تم تعليم الأداة كـ قريباً" : "تم إلغاء قريباً",
+  };
+}
 
 export async function getGradeRecords(filters?: {
   grade_id?: string;
@@ -222,10 +230,6 @@ export async function updateGradeRecord(
 ): Promise<ActionResult<GradeRecord>> {
   const authError = await requireAuth<GradeRecord>();
   if (authError) return authError;
-
-  if (!input.grade_id || !input.unit_id) {
-    return { success: false, error: "الصف والوحدة مطلوبان" };
-  }
 
   const { data, error } = await supabase
     .from("grade_records")
