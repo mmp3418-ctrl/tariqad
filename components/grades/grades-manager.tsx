@@ -108,10 +108,10 @@ export function GradesManager() {
             <GraduationCap className="h-5 w-5" />
             <span className="text-sm font-semibold">الصفوف الدراسية</span>
           </div>
-          <h2 className="text-2xl font-extrabold text-slate-900">
+          <h2 className="text-2xl font-extrabold text-[var(--foreground)]">
             إدارة الصفوف والمراحل
           </h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-[var(--muted)]">
             اسم الصف + المرحلة + خيار «قريباً»
           </p>
         </div>

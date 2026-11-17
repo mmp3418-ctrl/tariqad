@@ -10,11 +10,32 @@ import type {
 } from "@/lib/types";
 
 const TABLE = "teacher_resources";
-const SELECT =
+const SELECT_FULL =
   "id, category, title_ar, title_en, description_ar, url, grade_id, unit_id, is_active, is_coming_soon, sort_order, created_at, grades(id, title_ar), units(id, title_ar)";
+const SELECT_SAFE =
+  "id, category, title_ar, description_ar, url, grade_id, unit_id, is_coming_soon, created_at, grades(id, title_ar), units(id, title_ar)";
 
 function revalidate() {
   revalidatePath("/teacher-space");
+}
+
+function normalizeItem(row: Record<string, unknown>): TeacherSpaceItem {
+  return {
+    id: String(row.id),
+    category: row.category as TeacherSpaceCategory,
+    title_ar: String(row.title_ar ?? ""),
+    title_en: String(row.title_en ?? ""),
+    description_ar: (row.description_ar as string | null) ?? null,
+    url: String(row.url ?? ""),
+    grade_id: (row.grade_id as string | null) ?? null,
+    unit_id: (row.unit_id as string | null) ?? null,
+    is_active: row.is_active !== false,
+    is_coming_soon: Boolean(row.is_coming_soon),
+    sort_order: Number(row.sort_order ?? 0),
+    created_at: String(row.created_at ?? new Date().toISOString()),
+    grades: (row.grades as TeacherSpaceItem["grades"]) ?? null,
+    units: (row.units as TeacherSpaceItem["units"]) ?? null,
+  };
 }
 
 export async function getTeacherSpaceItems(filters?: {
@@ -25,21 +46,35 @@ export async function getTeacherSpaceItems(filters?: {
   const authError = await requireAuth<TeacherSpaceItem[]>();
   if (authError) return authError;
 
-  let query = supabase
-    .from(TABLE)
-    .select(SELECT)
+  let full = supabase.from(TABLE).select(SELECT_FULL);
+  if (filters?.category) full = full.eq("category", filters.category);
+  if (filters?.grade_id) full = full.eq("grade_id", filters.grade_id);
+  if (filters?.unit_id) full = full.eq("unit_id", filters.unit_id);
+
+  const fullRes = await full
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: false });
 
-  if (filters?.category) query = query.eq("category", filters.category);
-  if (filters?.grade_id) query = query.eq("grade_id", filters.grade_id);
-  if (filters?.unit_id) query = query.eq("unit_id", filters.unit_id);
+  if (!fullRes.error) {
+    return {
+      success: true,
+      data: ((fullRes.data as Record<string, unknown>[]) ?? []).map(
+        normalizeItem
+      ),
+    };
+  }
 
-  const { data, error } = await query;
-  if (error) return { success: false, error: error.message };
+  let safe = supabase.from(TABLE).select(SELECT_SAFE);
+  if (filters?.category) safe = safe.eq("category", filters.category);
+  if (filters?.grade_id) safe = safe.eq("grade_id", filters.grade_id);
+  if (filters?.unit_id) safe = safe.eq("unit_id", filters.unit_id);
+
+  const safeRes = await safe.order("created_at", { ascending: false });
+  if (safeRes.error) return { success: false, error: safeRes.error.message };
+
   return {
     success: true,
-    data: (data as unknown as TeacherSpaceItem[]) ?? [],
+    data: ((safeRes.data as Record<string, unknown>[]) ?? []).map(normalizeItem),
   };
 }
 
@@ -63,28 +98,38 @@ export async function createTeacherSpaceItem(input: {
     return { success: false, error: "العنوان والملف أو الرابط مطلوبان" };
   }
 
-  const { data, error } = await supabase
+  const payload = {
+    category: input.category,
+    title_ar: input.title_ar.trim(),
+    title_en: "",
+    description_ar: input.description_ar.trim() || null,
+    url: input.url.trim(),
+    grade_id: input.grade_id,
+    unit_id: input.unit_id,
+    is_active: input.is_active ?? true,
+    is_coming_soon: input.is_coming_soon ?? false,
+    sort_order: 0,
+  };
+
+  let result = await supabase
     .from(TABLE)
-    .insert({
-      category: input.category,
-      title_ar: input.title_ar.trim(),
-      title_en: "",
-      description_ar: input.description_ar.trim() || null,
-      url: input.url.trim(),
-      grade_id: input.grade_id,
-      unit_id: input.unit_id,
-      is_active: input.is_active ?? true,
-      is_coming_soon: input.is_coming_soon ?? false,
-      sort_order: 0,
-    })
-    .select(SELECT)
+    .insert(payload)
+    .select(SELECT_FULL)
     .single();
 
-  if (error) return { success: false, error: error.message };
+  if (result.error) {
+    result = await supabase
+      .from(TABLE)
+      .insert(payload)
+      .select(SELECT_SAFE)
+      .single();
+  }
+
+  if (result.error) return { success: false, error: result.error.message };
   revalidate();
   return {
     success: true,
-    data: data as unknown as TeacherSpaceItem,
+    data: normalizeItem(result.data as Record<string, unknown>),
     message: "تم إضافة المورد",
   };
 }
@@ -109,27 +154,38 @@ export async function updateTeacherSpaceItem(
     return { success: false, error: "الصف والوحدة مطلوبان" };
   }
 
-  const { data, error } = await supabase
+  const payload = {
+    category: input.category,
+    title_ar: input.title_ar.trim(),
+    description_ar: input.description_ar.trim() || null,
+    url: input.url.trim(),
+    grade_id: input.grade_id,
+    unit_id: input.unit_id,
+    is_active: input.is_active ?? true,
+    is_coming_soon: input.is_coming_soon ?? false,
+  };
+
+  let result = await supabase
     .from(TABLE)
-    .update({
-      category: input.category,
-      title_ar: input.title_ar.trim(),
-      description_ar: input.description_ar.trim() || null,
-      url: input.url.trim(),
-      grade_id: input.grade_id,
-      unit_id: input.unit_id,
-      is_active: input.is_active ?? true,
-      is_coming_soon: input.is_coming_soon ?? false,
-    })
+    .update(payload)
     .eq("id", id)
-    .select(SELECT)
+    .select(SELECT_FULL)
     .single();
 
-  if (error) return { success: false, error: error.message };
+  if (result.error) {
+    result = await supabase
+      .from(TABLE)
+      .update(payload)
+      .eq("id", id)
+      .select(SELECT_SAFE)
+      .single();
+  }
+
+  if (result.error) return { success: false, error: result.error.message };
   revalidate();
   return {
     success: true,
-    data: data as unknown as TeacherSpaceItem,
+    data: normalizeItem(result.data as Record<string, unknown>),
     message: "تم التحديث",
   };
 }

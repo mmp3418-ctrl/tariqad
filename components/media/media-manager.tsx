@@ -209,8 +209,10 @@ export function MediaManager({ mode }: { mode: Mode }) {
           <div className="mb-1 text-sm font-semibold text-teal-700">
             {copy.eyebrow}
           </div>
-          <h2 className="text-2xl font-extrabold text-slate-900">{copy.title}</h2>
-          <p className="mt-1 text-sm text-slate-500">{copy.subtitle}</p>
+          <h2 className="text-2xl font-extrabold text-[var(--foreground)]">
+            {copy.title}
+          </h2>
+          <p className="mt-1 text-sm text-[var(--muted)]">{copy.subtitle}</p>
         </div>
         <Button onClick={openCreate} disabled={grades.length === 0}>
           <Plus className="h-4 w-4" />

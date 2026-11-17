@@ -211,10 +211,10 @@ export function SettingsManager() {
 
         <section className="glass-card space-y-4 p-4 sm:p-6">
           <div>
-            <h3 className="text-base font-bold text-slate-900">
+            <h3 className="text-base font-bold text-[var(--foreground)]">
               أرقام التواصل والتيليجرام
             </h3>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-[var(--muted)]">
               عند تعبئة أي حقل ستظهر أيقونته تلقائياً في الموقع الرئيسي
             </p>
           </div>
@@ -258,10 +258,10 @@ export function SettingsManager() {
         <section className="glass-card space-y-4 p-4 sm:p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 className="text-base font-bold text-slate-900">
+              <h3 className="text-base font-bold text-[var(--foreground)]">
                 وسائل التواصل الاجتماعي
               </h3>
-              <p className="mt-0.5 text-sm text-slate-500">
+              <p className="mt-0.5 text-sm text-[var(--muted)]">
                 أضف منصات غير محدودة مع أيقونة جاهزة أو مخصصة
               </p>
             </div>

@@ -15,7 +15,7 @@ export async function loginAction(
   try {
     const username = String(formData.get("username") ?? "");
     const password = String(formData.get("password") ?? "");
-    const next = String(formData.get("next") ?? "/announcements");
+    const next = String(formData.get("next") ?? "/grades");
 
     if (!username.trim() || !password) {
       return { success: false, error: "يرجى إدخال اسم المستخدم وكلمة المرور" };
@@ -28,8 +28,12 @@ export async function loginAction(
 
     await setSessionCookies(user);
 
+    const blocked =
+      next.startsWith("/announcements") || next.includes("advert");
     const safeNext =
-      next.startsWith("/") && !next.startsWith("//") ? next : "/announcements";
+      next.startsWith("/") && !next.startsWith("//") && !blocked
+        ? next
+        : "/grades";
     redirect(safeNext);
   } catch (err) {
     if (

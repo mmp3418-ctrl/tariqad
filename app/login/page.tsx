@@ -14,10 +14,11 @@ async function LoginContent({
   searchParams: Promise<{ next?: string }>;
 }) {
   const params = await searchParams;
-  const nextPath =
+  const rawNext =
     params.next && params.next.startsWith("/") && !params.next.startsWith("//")
       ? params.next
-      : "/announcements";
+      : "/grades";
+  const nextPath = rawNext.startsWith("/announcements") ? "/grades" : rawNext;
 
   return <LoginForm nextPath={nextPath} />;
 }

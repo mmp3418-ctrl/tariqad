@@ -219,13 +219,23 @@ alter table public.site_settings add column if not exists book_year_label text;
 alter table public.site_settings add column if not exists schedules_enabled boolean not null default true;
 alter table public.site_settings add column if not exists grade_calculator_enabled boolean not null default true;
 
-insert into public.site_settings (id, social_links, hero_subtitle_ar, hero_subtitle_en, book_year_label)
+insert into public.site_settings (
+  id,
+  social_links,
+  hero_subtitle_ar,
+  hero_subtitle_en,
+  book_year_label,
+  schedules_enabled,
+  grade_calculator_enabled
+)
 values (
   1,
   '[]'::jsonb,
   'منصتك التعليمية الشاملة للمنهج الليبي',
   'Your complete educational hub for the Libyan curriculum',
-  '2026 - 2027'
+  '2026 - 2027',
+  true,
+  true
 )
 on conflict (id) do nothing;
 

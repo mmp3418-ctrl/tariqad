@@ -1,9 +1,7 @@
 import { redirect } from "next/navigation";
-import { isAuthenticated } from "@/lib/auth";
+import { getSessionUser } from "@/lib/auth";
 
 export default async function HomePage() {
-  if (await isAuthenticated()) {
-    redirect("/announcements");
-  }
-  redirect("/login");
+  const session = await getSessionUser();
+  redirect(session ? "/grades" : "/login");
 }
