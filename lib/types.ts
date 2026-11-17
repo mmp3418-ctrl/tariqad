@@ -105,6 +105,18 @@ export type ResourceWithGrade = Resource & {
   lessons?: Pick<Lesson, "id" | "title_ar"> | null;
 };
 
+/** General school period timetable (`class_schedules`) */
+export interface ClassSchedule {
+  id: string;
+  class_name: string;
+  day_of_week: number;
+  period_number: number;
+  subject: string;
+  room: string | null;
+  is_active: boolean;
+}
+
+/** Per-teacher timetable slots (`teacher_schedules`) */
 export interface TeacherSchedule {
   id: string;
   teacher_name: string;
@@ -113,6 +125,35 @@ export interface TeacherSchedule {
   class_name: string;
   subject: string;
   is_active: boolean;
+}
+
+/** Grade calculator tool / config (`grade_calculator_tools`) */
+export interface GradeCalculatorTool {
+  id: string;
+  title_ar: string;
+  description_ar: string | null;
+  url: string;
+  grade_id: string;
+  unit_id: string;
+  max_score: number;
+  is_coming_soon: boolean;
+  created_at: string;
+  grades?: Pick<Grade, "id" | "title_ar"> | null;
+  units?: Pick<Unit, "id" | "title_ar"> | null;
+}
+
+/** Student grade record per class/unit (`grade_records`) */
+export interface GradeRecord {
+  id: string;
+  student_name: string;
+  grade_id: string;
+  unit_id: string;
+  score: number;
+  max_score: number;
+  notes: string | null;
+  created_at: string;
+  grades?: Pick<Grade, "id" | "title_ar"> | null;
+  units?: Pick<Unit, "id" | "title_ar"> | null;
 }
 
 /** Stored in `teacher_resources` table */

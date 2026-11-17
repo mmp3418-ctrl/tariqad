@@ -18,7 +18,6 @@ import {
   toggleTeacherSpaceComingSoon,
   updateTeacherSpaceItem,
 } from "@/app/(dashboard)/teacher-space/actions";
-import { SchedulesPanel } from "@/components/schedules/schedules-panel";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Input, Select, Textarea } from "@/components/ui/input";
@@ -37,11 +36,8 @@ const emptyForm = {
   is_coming_soon: false,
 };
 
-type Tab = "tools" | "schedules";
-
 export function TeacherSpaceManager() {
   const { success, error } = useToast();
-  const [tab, setTab] = useState<Tab>("tools");
   const [items, setItems] = useState<TeacherSpaceItem[]>([]);
   const [grades, setGrades] = useState<Grade[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
@@ -169,236 +165,201 @@ export function TeacherSpaceManager() {
 
   return (
     <div className="space-y-6 overflow-x-hidden">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
           <div className="mb-1 flex items-center gap-2 text-teal-700">
-            <Briefcase className="h-5 w-5" />
-            <span className="text-sm font-semibold">مساحة المعلم</span>
+            <Briefcase className="h-5 w-5 shrink-0" />
+            <span className="text-sm font-semibold">موارد المعلم</span>
           </div>
           <h2 className="text-2xl font-extrabold text-slate-900">
-            مساحة المعلم والجداول
+            موارد المعلم حسب الوحدة
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            أدوات المعلم حسب الصف والوحدة، مع جداول الحصص في صفحة واحدةحدة
+            تحضير، أوراق عمل، بنوك أسئلة، ملخصات قواعد، ودليل إدارة الصف — صف ثم
+            وحدة ثم تصنيف
           </p>
         </div>
-        {tab === "tools" && (
-          <Button onClick={() => openCreate()}>
-            <Plus className="h-4 w-4" />
-            أداة جديدة
-          </Button>
-        )}
+        <Button onClick={() => openCreate()} className="shrink-0">
+          <Plus className="h-4 w-4" />
+          مورد جديد
+        </Button>
       </header>
 
-      <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-1.5">
-        <button
-          type="button"
-          onClick={() => setTab("tools")}
-          className={`rounded-xl px-4 py-2 text-sm font-bold transition ${
-            tab === "tools"
-              ? "bg-teal-700 text-white shadow-sm"
-              : "text-slate-600 hover:bg-slate-50"
-          }`}
+      <div className="glass-card grid gap-4 p-4 sm:grid-cols-3">
+        <Select
+          label="الصف"
+          name="grade_filter"
+          value={gradeFilter}
+          onChange={(e) => {
+            setGradeFilter(e.target.value);
+            setUnitFilter("");
+          }}
         >
-          أدوات المعلم
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("schedules")}
-          className={`rounded-xl px-4 py-2 text-sm font-bold transition ${
-            tab === "schedules"
-              ? "bg-teal-700 text-white shadow-sm"
-              : "text-slate-600 hover:bg-slate-50"
-          }`}
+          <option value="">كل الصفوف</option>
+          {grades.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.title_ar}
+            </option>
+          ))}
+        </Select>
+        <Select
+          label="الوحدة الدراسية"
+          name="unit_filter"
+          value={unitFilter}
+          disabled={!gradeFilter}
+          onChange={(e) => setUnitFilter(e.target.value)}
         >
-          جداول المعلمين
-        </button>
+          <option value="">كل الوحدات</option>
+          {units.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.title_ar}
+            </option>
+          ))}
+        </Select>
+        <Select
+          label="التصنيف"
+          name="category_filter"
+          value={categoryFilter}
+          onChange={(e) =>
+            setCategoryFilter(e.target.value as "" | TeacherSpaceCategory)
+          }
+        >
+          <option value="">كل التصنيفات</option>
+          {TEACHER_SPACE_CATEGORIES.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </Select>
       </div>
 
-      {tab === "schedules" ? (
-        <div className="glass-card p-4 sm:p-5">
-          <SchedulesPanel />
-        </div>
+      {loading ? (
+        <PageLoader />
+      ) : items.length === 0 ? (
+        <EmptyState
+          title="لا توجد موارد بعد"
+          description="اختر الصف ثم الوحدة عند إضافة تحضير أو أوراق عمل أو غيرها"
+        />
       ) : (
-        <>
-          <div className="glass-card grid gap-4 p-4 sm:grid-cols-3">
-            <Select
-              label="الصف"
-              name="grade_filter"
-              value={gradeFilter}
-              onChange={(e) => {
-                setGradeFilter(e.target.value);
-                setUnitFilter("");
-              }}
-            >
-              <option value="">كل الصفوف</option>
-              {grades.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.title_ar}
-                </option>
-              ))}
-            </Select>
-            <Select
-              label="الوحدة الدراسية"
-              name="unit_filter"
-              value={unitFilter}
-              onChange={(e) => setUnitFilter(e.target.value)}
-              disabled={!gradeFilter}
-            >
-              <option value="">كل الوحدات</option>
-              {units.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.title_ar}
-                </option>
-              ))}
-            </Select>
-            <Select
-              label="التصنيف"
-              name="category_filter"
-              value={categoryFilter}
-              onChange={(e) =>
-                setCategoryFilter(e.target.value as "" | TeacherSpaceCategory)
-              }
-            >
-              <option value="">كل التصنيفات</option>
-              {TEACHER_SPACE_CATEGORIES.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-
-          {loading ? (
-            <PageLoader />
-          ) : items.length === 0 ? (
-            <EmptyState
-              title="لا توجد أدوات بعد"
-              description="اختر الصف ثم الوحدة عند إضافة تحضير أو أوراق عمل أو غيرها"
-            />
-          ) : (
-            <div className="space-y-6">
-              {TEACHER_SPACE_CATEGORIES.filter(
-                (c) => !categoryFilter || c.value === categoryFilter
-              ).map((cat) => {
-                const list = grouped.get(cat.value) ?? [];
-                if (categoryFilter && list.length === 0) return null;
-                return (
-                  <section key={cat.value} className="space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <h3 className="text-lg font-bold text-slate-900">
-                        {cat.label}
-                      </h3>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => openCreate(cat.value)}
-                      >
-                        <Plus className="h-4 w-4" />
-                        إضافة
-                      </Button>
-                    </div>
-                    {list.length === 0 ? (
-                      <p className="text-sm text-slate-400">
-                        لا عناصر في هذا التصنيف
-                      </p>
-                    ) : (
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        {list.map((item) => (
-                          <article key={item.id} className="glass-card p-4">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <p className="font-bold text-slate-900">
-                                  {item.title_ar}
-                                </p>
-                                {item.description_ar && (
-                                  <p className="mt-1 line-clamp-2 text-sm text-slate-500">
-                                    {item.description_ar}
-                                  </p>
-                                )}
-                                <div className="mt-2 flex flex-wrap gap-1.5">
-                                  {item.grades?.title_ar && (
-                                    <span className="badge badge-info">
-                                      {item.grades.title_ar}
-                                    </span>
-                                  )}
-                                  {item.units?.title_ar && (
-                                    <span className="badge badge-muted">
-                                      {item.units.title_ar}
-                                    </span>
-                                  )}
-                                  {item.is_coming_soon && (
-                                    <span className="badge badge-warning">
-                                      قريباً
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex shrink-0 gap-1">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => openEdit(item)}
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => setDeleteId(item.id)}
-                                >
-                                  <Trash2 className="h-4 w-4 text-rose-600" />
-                                </Button>
-                              </div>
+        <div className="space-y-6">
+          {TEACHER_SPACE_CATEGORIES.filter(
+            (c) => !categoryFilter || c.value === categoryFilter
+          ).map((cat) => {
+            const list = grouped.get(cat.value) ?? [];
+            if (categoryFilter && list.length === 0) return null;
+            return (
+              <section key={cat.value} className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-lg font-bold text-slate-900">
+                    {cat.label}
+                  </h3>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openCreate(cat.value)}
+                  >
+                    <Plus className="h-4 w-4" />
+                    إضافة
+                  </Button>
+                </div>
+                {list.length === 0 ? (
+                  <p className="text-sm text-slate-400">
+                    لا عناصر في هذا التصنيف
+                  </p>
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {list.map((item) => (
+                      <article key={item.id} className="glass-card p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-bold text-slate-900">
+                              {item.title_ar}
+                            </p>
+                            {item.description_ar && (
+                              <p className="mt-1 line-clamp-2 text-sm text-slate-500">
+                                {item.description_ar}
+                              </p>
+                            )}
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {item.grades?.title_ar && (
+                                <span className="badge badge-info">
+                                  {item.grades.title_ar}
+                                </span>
+                              )}
+                              {item.units?.title_ar && (
+                                <span className="badge badge-muted">
+                                  {item.units.title_ar}
+                                </span>
+                              )}
+                              {item.is_coming_soon && (
+                                <span className="badge badge-warning">
+                                  قريباً
+                                </span>
+                              )}
                             </div>
-                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
-                              <a
-                                href={item.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline"
-                              >
-                                <ExternalLink className="h-3.5 w-3.5" />
-                                فتح
-                              </a>
-                              <Switch
-                                checked={item.is_coming_soon}
-                                onChange={(v) =>
-                                  startTransition(async () => {
-                                    const r =
-                                      await toggleTeacherSpaceComingSoon(
-                                        item.id,
-                                        v
-                                      );
-                                    if (r.success) {
-                                      success(r.message ?? "تم");
-                                      await load();
-                                    } else error(r.error);
-                                  })
-                                }
-                                disabled={pending}
-                                label="قريباً"
-                              />
-                            </div>
-                          </article>
-                        ))}
-                      </div>
-                    )}
-                  </section>
-                );
-              })}
-            </div>
-          )}
-        </>
+                          </div>
+                          <div className="flex shrink-0 gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => openEdit(item)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setDeleteId(item.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-rose-600" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            فتح
+                          </a>
+                          <Switch
+                            checked={item.is_coming_soon}
+                            onChange={(v) =>
+                              startTransition(async () => {
+                                const r = await toggleTeacherSpaceComingSoon(
+                                  item.id,
+                                  v
+                                );
+                                if (r.success) {
+                                  success(r.message ?? "تم");
+                                  await load();
+                                } else error(r.error);
+                              })
+                            }
+                            disabled={pending}
+                            label="قريباً"
+                          />
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
+            );
+          })}
+        </div>
       )}
 
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editing ? "تعديل أداة" : "إضافة لأدوات المعلم"}
+        title={editing ? "تعديل مورد" : "إضافة مورد للمعلم"}
         size="lg"
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 overflow-x-hidden">
           <Select
             label="التصنيف"
             name="category"
@@ -518,7 +479,7 @@ export function TeacherSpaceManager() {
 
       <ConfirmDialog
         open={!!deleteId}
-        title="حذف العنصر"
+        title="حذف المورد"
         message="هل أنت متأكد من الحذف؟"
         onCancel={() => setDeleteId(null)}
         onConfirm={() =>

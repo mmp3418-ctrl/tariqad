@@ -141,7 +141,10 @@ export const NAV_ITEMS = [
   { href: "/units", label: "الوحدات والدروس", icon: "Layers" },
   { href: "/notes", label: "المذكرات والملخصات", icon: "FileText" },
   { href: "/videos", label: "الشروحات المرئية", icon: "PlayCircle" },
-  { href: "/teacher-space", label: "مساحة المعلم", icon: "Briefcase" },
+  { href: "/schedules", label: "جداول الحصص", icon: "CalendarDays" },
+  { href: "/teacher-schedules", label: "جداول المعلمين", icon: "CalendarClock" },
+  { href: "/teacher-space", label: "موارد المعلم", icon: "Briefcase" },
+  { href: "/grade-calculator", label: "أداة جمع الدرجات", icon: "Calculator" },
   { href: "/users", label: "المشرفون والصلاحيات", icon: "Users" },
   { href: "/settings", label: "إعدادات الموقع", icon: "Settings" },
 ] as const;

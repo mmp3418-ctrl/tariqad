@@ -3,136 +3,130 @@
 import { revalidatePath } from "next/cache";
 import { supabase } from "@/lib/supabase";
 import { requireAuth } from "@/lib/action-helpers";
-import type { ActionResult, TeacherSchedule } from "@/lib/types";
+import type { ActionResult, ClassSchedule } from "@/lib/types";
 
-function revalidateTeacherSpace() {
-  revalidatePath("/teacher-space");
+const SELECT =
+  "id, class_name, day_of_week, period_number, subject, room, is_active";
+
+function revalidate() {
   revalidatePath("/schedules");
 }
 
-export async function getSchedules(
-  teacherName?: string
-): Promise<ActionResult<TeacherSchedule[]>> {
-  const authError = await requireAuth<TeacherSchedule[]>();
+export async function getClassSchedules(
+  className?: string
+): Promise<ActionResult<ClassSchedule[]>> {
+  const authError = await requireAuth<ClassSchedule[]>();
   if (authError) return authError;
 
   let query = supabase
-    .from("teacher_schedules")
-    .select("id, teacher_name, day_of_week, period_number, class_name, subject, is_active")
-    .order("teacher_name", { ascending: true })
+    .from("class_schedules")
+    .select(SELECT)
+    .order("class_name", { ascending: true })
     .order("day_of_week", { ascending: true })
     .order("period_number", { ascending: true });
 
-  if (teacherName) query = query.eq("teacher_name", teacherName);
+  if (className) query = query.eq("class_name", className);
 
   const { data, error } = await query;
   if (error) return { success: false, error: error.message };
-  return { success: true, data: (data as TeacherSchedule[]) ?? [] };
+  return { success: true, data: (data as ClassSchedule[]) ?? [] };
 }
 
-export async function getTeacherNames(): Promise<ActionResult<string[]>> {
+export async function getClassNames(): Promise<ActionResult<string[]>> {
   const authError = await requireAuth<string[]>();
   if (authError) return authError;
 
   const { data, error } = await supabase
-    .from("teacher_schedules")
-    .select("teacher_name")
-    .order("teacher_name", { ascending: true });
+    .from("class_schedules")
+    .select("class_name")
+    .order("class_name", { ascending: true });
 
   if (error) return { success: false, error: error.message };
-  const rows = (data as Pick<TeacherSchedule, "teacher_name">[]) ?? [];
+  const rows = (data as Pick<ClassSchedule, "class_name">[]) ?? [];
   return {
     success: true,
-    data: Array.from(new Set(rows.map((r) => r.teacher_name))),
+    data: Array.from(new Set(rows.map((r) => r.class_name))),
   };
 }
 
-export async function createSchedule(input: {
-  teacher_name: string;
+export async function createClassSchedule(input: {
+  class_name: string;
   day_of_week: number;
   period_number: number;
-  class_name: string;
   subject: string;
-}): Promise<ActionResult<TeacherSchedule>> {
-  const authError = await requireAuth<TeacherSchedule>();
+  room?: string;
+}): Promise<ActionResult<ClassSchedule>> {
+  const authError = await requireAuth<ClassSchedule>();
   if (authError) return authError;
 
-  if (
-    !input.teacher_name.trim() ||
-    !input.class_name.trim() ||
-    !input.subject.trim()
-  ) {
-    return { success: false, error: "جميع الحقول مطلوبة" };
+  if (!input.class_name.trim() || !input.subject.trim()) {
+    return { success: false, error: "اسم الفصل والمادة مطلوبان" };
   }
 
   const { data, error } = await supabase
-    .from("teacher_schedules")
+    .from("class_schedules")
     .insert({
-      teacher_name: input.teacher_name.trim(),
+      class_name: input.class_name.trim(),
       day_of_week: Number(input.day_of_week),
       period_number: Number(input.period_number),
-      class_name: input.class_name.trim(),
       subject: input.subject.trim(),
+      room: input.room?.trim() || null,
       is_active: true,
     })
-    .select("id, teacher_name, day_of_week, period_number, class_name, subject, is_active")
+    .select(SELECT)
     .single();
 
   if (error) return { success: false, error: error.message };
-  revalidateTeacherSpace();
+  revalidate();
   return {
     success: true,
-    data: data as TeacherSchedule,
-    message: "تم إضافة الحصة بنجاح",
+    data: data as ClassSchedule,
+    message: "تم إضافة الحصة",
   };
 }
 
-export async function updateSchedule(
+export async function updateClassSchedule(
   id: string,
   input: {
-    teacher_name: string;
+    class_name: string;
     day_of_week: number;
     period_number: number;
-    class_name: string;
     subject: string;
+    room?: string;
   }
-): Promise<ActionResult<TeacherSchedule>> {
-  const authError = await requireAuth<TeacherSchedule>();
+): Promise<ActionResult<ClassSchedule>> {
+  const authError = await requireAuth<ClassSchedule>();
   if (authError) return authError;
 
   const { data, error } = await supabase
-    .from("teacher_schedules")
+    .from("class_schedules")
     .update({
-      teacher_name: input.teacher_name.trim(),
+      class_name: input.class_name.trim(),
       day_of_week: Number(input.day_of_week),
       period_number: Number(input.period_number),
-      class_name: input.class_name.trim(),
       subject: input.subject.trim(),
+      room: input.room?.trim() || null,
       is_active: true,
     })
     .eq("id", id)
-    .select("id, teacher_name, day_of_week, period_number, class_name, subject, is_active")
+    .select(SELECT)
     .single();
 
   if (error) return { success: false, error: error.message };
-  revalidateTeacherSpace();
+  revalidate();
   return {
     success: true,
-    data: data as TeacherSchedule,
-    message: "تم تحديث الحصة بنجاح",
+    data: data as ClassSchedule,
+    message: "تم تحديث الحصة",
   };
 }
 
-export async function deleteSchedule(id: string): Promise<ActionResult> {
+export async function deleteClassSchedule(id: string): Promise<ActionResult> {
   const authError = await requireAuth();
   if (authError) return authError;
 
-  const { error } = await supabase
-    .from("teacher_schedules")
-    .delete()
-    .eq("id", id);
-
+  const { error } = await supabase.from("class_schedules").delete().eq("id", id);
   if (error) return { success: false, error: error.message };
-  revalidateTeacherSpace();
+  revalidate();
   return { success: true, message: "تم حذف الحصة" };
 }

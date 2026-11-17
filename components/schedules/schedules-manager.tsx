@@ -1,4 +1,4 @@
 "use client";
 
-/** @deprecated Use SchedulesPanel via /teacher-space — kept for any stale imports. */
-export { SchedulesPanel as SchedulesManager } from "./schedules-panel";
+/** @deprecated Use SchoolSchedulesManager on /schedules */
+export { SchoolSchedulesManager as SchedulesManager } from "./school-schedules-manager";

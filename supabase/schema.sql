@@ -100,7 +100,20 @@ alter table public.resources
   add constraint resources_type_check
   check (type in ('pdf', 'video', 'playlist'));
 
--- Teacher schedules
+-- General school / class period schedules (جداول الحصص)
+create table if not exists public.class_schedules (
+  id uuid primary key default gen_random_uuid(),
+  class_name text not null,
+  day_of_week integer not null check (day_of_week between 0 and 6),
+  period_number integer not null check (period_number between 1 and 12),
+  subject text not null,
+  room text,
+  is_active boolean not null default true
+);
+alter table public.class_schedules add column if not exists room text;
+alter table public.class_schedules add column if not exists is_active boolean not null default true;
+
+-- Teacher schedules (جداول المعلمين)
 create table if not exists public.teacher_schedules (
   id uuid primary key default gen_random_uuid(),
   teacher_name text not null,
@@ -152,6 +165,35 @@ alter table public.teacher_resources add column if not exists grade_id uuid refe
 alter table public.teacher_resources add column if not exists unit_id uuid references public.units (id) on delete cascade;
 alter table public.teacher_resources add column if not exists is_coming_soon boolean not null default false;
 
+-- Grade calculator tools (أداة جمع الدرجات — أدوات)
+create table if not exists public.grade_calculator_tools (
+  id uuid primary key default gen_random_uuid(),
+  title_ar text not null,
+  description_ar text,
+  url text not null,
+  grade_id uuid not null references public.grades (id) on delete cascade,
+  unit_id uuid not null references public.units (id) on delete cascade,
+  max_score numeric not null default 100,
+  is_coming_soon boolean not null default false,
+  created_at timestamptz not null default now()
+);
+alter table public.grade_calculator_tools add column if not exists max_score numeric not null default 100;
+alter table public.grade_calculator_tools add column if not exists is_coming_soon boolean not null default false;
+
+-- Grade records per class/unit
+create table if not exists public.grade_records (
+  id uuid primary key default gen_random_uuid(),
+  student_name text not null,
+  grade_id uuid not null references public.grades (id) on delete cascade,
+  unit_id uuid not null references public.units (id) on delete cascade,
+  score numeric not null default 0,
+  max_score numeric not null default 100,
+  notes text,
+  created_at timestamptz not null default now()
+);
+create index if not exists grade_records_grade_unit_idx
+  on public.grade_records (grade_id, unit_id);
+
 -- Site settings
 create table if not exists public.site_settings (
   id integer primary key check (id = 1),
@@ -190,9 +232,12 @@ alter table public.grades enable row level security;
 alter table public.units enable row level security;
 alter table public.lessons enable row level security;
 alter table public.resources enable row level security;
+alter table public.class_schedules enable row level security;
 alter table public.teacher_schedules enable row level security;
 alter table public.teacher_resources enable row level security;
 alter table public.teacher_space_items enable row level security;
+alter table public.grade_calculator_tools enable row level security;
+alter table public.grade_records enable row level security;
 alter table public.site_settings enable row level security;
 
 drop policy if exists "Allow all admin_users" on public.admin_users;
@@ -201,9 +246,12 @@ drop policy if exists "Allow all grades" on public.grades;
 drop policy if exists "Allow all units" on public.units;
 drop policy if exists "Allow all lessons" on public.lessons;
 drop policy if exists "Allow all resources" on public.resources;
+drop policy if exists "Allow all class_schedules" on public.class_schedules;
 drop policy if exists "Allow all teacher_schedules" on public.teacher_schedules;
 drop policy if exists "Allow all teacher_resources" on public.teacher_resources;
 drop policy if exists "Allow all teacher_space_items" on public.teacher_space_items;
+drop policy if exists "Allow all grade_calculator_tools" on public.grade_calculator_tools;
+drop policy if exists "Allow all grade_records" on public.grade_records;
 drop policy if exists "Allow all site_settings" on public.site_settings;
 
 create policy "Allow all admin_users" on public.admin_users for all using (true) with check (true);
@@ -212,7 +260,10 @@ create policy "Allow all grades" on public.grades for all using (true) with chec
 create policy "Allow all units" on public.units for all using (true) with check (true);
 create policy "Allow all lessons" on public.lessons for all using (true) with check (true);
 create policy "Allow all resources" on public.resources for all using (true) with check (true);
+create policy "Allow all class_schedules" on public.class_schedules for all using (true) with check (true);
 create policy "Allow all teacher_schedules" on public.teacher_schedules for all using (true) with check (true);
 create policy "Allow all teacher_resources" on public.teacher_resources for all using (true) with check (true);
 create policy "Allow all teacher_space_items" on public.teacher_space_items for all using (true) with check (true);
+create policy "Allow all grade_calculator_tools" on public.grade_calculator_tools for all using (true) with check (true);
+create policy "Allow all grade_records" on public.grade_records for all using (true) with check (true);
 create policy "Allow all site_settings" on public.site_settings for all using (true) with check (true);

@@ -4,6 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Briefcase,
+  Calculator,
+  CalendarClock,
+  CalendarDays,
   FileText,
   GraduationCap,
   Layers,
@@ -25,7 +28,10 @@ const ICONS = {
   Layers,
   FileText,
   PlayCircle,
+  CalendarDays,
+  CalendarClock,
   Briefcase,
+  Calculator,
   Users,
   Settings,
 } as const;
