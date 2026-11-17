@@ -81,21 +81,21 @@ function ToastCard({
     <div
       className={`pointer-events-auto flex items-start gap-3 rounded-xl border px-4 py-3 shadow-lg backdrop-blur transition-all animate-in slide-in-from-bottom-2 ${
         isSuccess
-          ? "border-emerald-200 bg-emerald-50/95 text-emerald-900"
-          : "border-rose-200 bg-rose-50/95 text-rose-900"
+          ? "border-emerald-200 bg-emerald-50/95 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/95 dark:text-emerald-100"
+          : "border-rose-200 bg-rose-50/95 text-rose-900 dark:border-rose-800 dark:bg-rose-950/95 dark:text-rose-100"
       }`}
       role="status"
     >
       {isSuccess ? (
-        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
       ) : (
-        <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" />
+        <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400" />
       )}
-      <p className="flex-1 text-sm font-medium leading-relaxed">{item.message}</p>
+      <p className="flex-1 text-sm font-medium leading-relaxed text-inherit">{item.message}</p>
       <button
         type="button"
         onClick={() => onClose(item.id)}
-        className="rounded-lg p-1 opacity-60 transition hover:opacity-100"
+        className="rounded-lg p-1 text-inherit opacity-60 transition hover:opacity-100"
         aria-label="إغلاق"
       >
         <X className="h-4 w-4" />

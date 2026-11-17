@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { remapMissingWriteColumn } from "@/lib/schema-compat";
 
 type Row = Record<string, unknown>;
 
@@ -19,7 +20,8 @@ export function sanitizeUuidFields<T extends Row>(row: T): T {
         key.endsWith("_id") ||
         key === "cover_image_url" ||
         key === "description_ar" ||
-        key === "description_en"
+        key === "description_en" ||
+        key === "file_url"
       ) {
         (next as Row)[key] = null;
       }
@@ -30,17 +32,21 @@ export function sanitizeUuidFields<T extends Row>(row: T): T {
 
 function missingColumnName(message: string): string | null {
   const lower = message.toLowerCase();
-  // PostgREST / Postgres variants
   const patterns = [
     /column ["']?([a-z0-9_]+)["']? of relation/i,
     /could not find the ['"]([a-z0-9_]+)['"] column/i,
     /unknown column ['"]([a-z0-9_]+)['"]/i,
+    /['"]([a-z0-9_]+)['"] column of ['"].+['"] does not exist/i,
   ];
   for (const pattern of patterns) {
     const match = message.match(pattern) ?? lower.match(pattern);
     if (match?.[1]) return match[1];
   }
   if (lower.includes("schema cache") && lower.includes("column")) {
+    const quoted = message.match(/['"]([a-z0-9_]+)['"]/i);
+    if (quoted?.[1]) return quoted[1];
+  }
+  if (lower.includes("does not exist") && lower.includes("column")) {
     const quoted = message.match(/['"]([a-z0-9_]+)['"]/i);
     if (quoted?.[1]) return quoted[1];
   }
@@ -56,9 +62,22 @@ function isForeignKeyError(message: string): boolean {
   );
 }
 
+function applyMissingColumnFix(current: Row, errorMessage: string): boolean {
+  const missing = missingColumnName(errorMessage);
+  if (!missing) return false;
+
+  if (remapMissingWriteColumn(current, missing)) return true;
+
+  if (missing in current) {
+    delete current[missing];
+    return true;
+  }
+  return false;
+}
+
 /**
- * Insert with progressive stripping of unknown columns / empty FKs
- * so forms keep working across schema drift.
+ * Insert with progressive stripping / alias remapping of unknown columns
+ * and empty FKs so forms keep working across schema drift.
  */
 export async function insertFlexible<T = Row>(
   table: string,
@@ -67,7 +86,7 @@ export async function insertFlexible<T = Row>(
 ): Promise<{ data: T | null; error: string | null }> {
   let current = sanitizeUuidFields({ ...payload });
 
-  for (let attempt = 0; attempt < 10; attempt += 1) {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
     const { data, error } = await supabase
       .from(table)
       .insert(current)
@@ -76,17 +95,12 @@ export async function insertFlexible<T = Row>(
 
     if (!error) return { data: data as T, error: null };
 
-    const missing = missingColumnName(error.message);
-    if (missing && missing in current) {
-      delete current[missing];
-      continue;
-    }
+    if (applyMissingColumnFix(current, error.message)) continue;
 
     if (isForeignKeyError(error.message)) {
       let changed = false;
       for (const key of OPTIONAL_FK_KEYS) {
         if (key in current && current[key] != null) {
-          // Prefer nulling optional FKs that often cause 23503 when stale/empty
           if (key === "lesson_id" || key === "cover_image_url") {
             current[key] = null;
             changed = true;
@@ -96,7 +110,6 @@ export async function insertFlexible<T = Row>(
       if (changed) continue;
     }
 
-    // Select join failed after insert — retry insert with bare *
     if (
       attempt === 0 &&
       select.includes("(") &&
@@ -105,6 +118,7 @@ export async function insertFlexible<T = Row>(
     ) {
       const bare = await supabase.from(table).insert(current).select("*").single();
       if (!bare.error) return { data: bare.data as T, error: null };
+      if (applyMissingColumnFix(current, bare.error.message)) continue;
     }
 
     return { data: null, error: error.message };
@@ -121,7 +135,7 @@ export async function updateFlexible<T = Row>(
 ): Promise<{ data: T | null; error: string | null }> {
   let current = sanitizeUuidFields({ ...payload });
 
-  for (let attempt = 0; attempt < 10; attempt += 1) {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
     const { data, error } = await supabase
       .from(table)
       .update(current)
@@ -131,11 +145,7 @@ export async function updateFlexible<T = Row>(
 
     if (!error) return { data: data as T, error: null };
 
-    const missing = missingColumnName(error.message);
-    if (missing && missing in current) {
-      delete current[missing];
-      continue;
-    }
+    if (applyMissingColumnFix(current, error.message)) continue;
 
     if (isForeignKeyError(error.message)) {
       if ("lesson_id" in current && current.lesson_id != null) {
@@ -157,6 +167,7 @@ export async function updateFlexible<T = Row>(
         .select("*")
         .single();
       if (!bare.error) return { data: bare.data as T, error: null };
+      if (applyMissingColumnFix(current, bare.error.message)) continue;
     }
 
     return { data: null, error: error.message };
@@ -164,3 +175,5 @@ export async function updateFlexible<T = Row>(
 
   return { data: null, error: "تعذر التحديث بعد عدة محاولات" };
 }
+
+export { missingColumnName };

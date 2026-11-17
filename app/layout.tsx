@@ -39,7 +39,14 @@ export default function RootLayout({
       className={`${cairo.variable} ${inter.variable} h-full`}
       suppressHydrationWarning
     >
-      <body className="min-h-full font-sans antialiased">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('tariq-admin-theme');if(t==='dark'||(t!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');document.documentElement.dataset.theme='dark';}else{document.documentElement.classList.remove('dark');document.documentElement.dataset.theme='light';}}catch(e){}})();`,
+          }}
+        />
+      </head>
+      <body className="min-h-full bg-background text-foreground font-sans antialiased">
         <AppProviders>{children}</AppProviders>
       </body>
     </html>

@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Class-based dark mode (ThemeProvider toggles html.dark) */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #f0f4f3;
   --foreground: #0f172a;
@@ -70,6 +73,17 @@ body {
 
 html[lang="en"] body {
   font-family: var(--font-inter), var(--font-cairo), "Segoe UI", sans-serif;
+}
+
+/* Native <option> contrast inside themed selects */
+option {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+html.dark option {
+  background-color: #1e293b;
+  color: #f1f5f9;
 }
 
 ::selection {

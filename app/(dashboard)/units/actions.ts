@@ -4,13 +4,28 @@ import { revalidatePath } from "next/cache";
 import { supabase } from "@/lib/supabase";
 import { requireAuth } from "@/lib/action-helpers";
 import { insertFlexible, updateFlexible } from "@/lib/supabase-write";
+import { normalizeTitleFields } from "@/lib/schema-compat";
 import type { ActionResult, Lesson, Unit, UnitWithLessons } from "@/lib/types";
 
-const UNIT_SELECT = "id, grade_id, title_ar, title_en, sort_order, is_coming_soon";
-const UNIT_SELECT_MIN = "id, grade_id, title_ar, sort_order, is_coming_soon";
-const LESSON_SELECT =
-  "id, unit_id, title_ar, title_en, sort_order, is_coming_soon";
-const LESSON_SELECT_MIN = "id, unit_id, title_ar, sort_order, is_coming_soon";
+const UNIT_SELECTS = [
+  "id, grade_id, title_ar, title_en, sort_order, is_coming_soon",
+  "id, grade_id, title_ar, sort_order, is_coming_soon",
+  "id, grade_id, title_ar, title_en, sort_order",
+  "id, grade_id, title_ar",
+  "id, grade_id, title, sort_order",
+  "id, grade_id, title",
+  "*",
+];
+
+const LESSON_SELECTS = [
+  "id, unit_id, title_ar, title_en, sort_order, is_coming_soon",
+  "id, unit_id, title_ar, sort_order, is_coming_soon",
+  "id, unit_id, title_ar, title_en, sort_order",
+  "id, unit_id, title_ar",
+  "id, unit_id, title, sort_order",
+  "id, unit_id, title",
+  "*",
+];
 
 function revalidate() {
   revalidatePath("/units");
@@ -20,69 +35,69 @@ function revalidate() {
 }
 
 function normalizeUnit(row: Record<string, unknown>): Unit {
+  const titled = normalizeTitleFields(row);
   return {
-    id: String(row.id),
-    grade_id: String(row.grade_id),
-    title_ar: String(row.title_ar ?? ""),
-    title_en: String(row.title_en ?? row.title_ar ?? ""),
-    sort_order: Number(row.sort_order ?? 0),
-    is_coming_soon: Boolean(row.is_coming_soon),
+    id: String(titled.id),
+    grade_id: String(titled.grade_id),
+    title_ar: titled.title_ar,
+    title_en: titled.title_en,
+    sort_order: Number(titled.sort_order ?? 0),
+    is_coming_soon: Boolean(titled.is_coming_soon),
   };
 }
 
 function normalizeLesson(row: Record<string, unknown>): Lesson {
+  const titled = normalizeTitleFields(row);
   return {
-    id: String(row.id),
-    unit_id: String(row.unit_id),
-    title_ar: String(row.title_ar ?? ""),
-    title_en: String(row.title_en ?? row.title_ar ?? ""),
-    sort_order: Number(row.sort_order ?? 0),
-    is_coming_soon: Boolean(row.is_coming_soon),
+    id: String(titled.id),
+    unit_id: String(titled.unit_id),
+    title_ar: titled.title_ar,
+    title_en: titled.title_en,
+    sort_order: Number(titled.sort_order ?? 0),
+    is_coming_soon: Boolean(titled.is_coming_soon),
   };
 }
 
 async function fetchUnits(gradeId: string) {
-  const full = await supabase
-    .from("units")
-    .select(UNIT_SELECT)
-    .eq("grade_id", gradeId)
-    .order("sort_order", { ascending: true });
+  for (const select of UNIT_SELECTS) {
+    const withSort = await supabase
+      .from("units")
+      .select(select)
+      .eq("grade_id", gradeId)
+      .order("sort_order", { ascending: true });
 
-  if (!full.error) return full;
+    if (!withSort.error) return withSort;
 
-  const min = await supabase
-    .from("units")
-    .select(UNIT_SELECT_MIN)
-    .eq("grade_id", gradeId)
-    .order("sort_order", { ascending: true });
+    const bare = await supabase
+      .from("units")
+      .select(select)
+      .eq("grade_id", gradeId);
 
-  if (!min.error) return min;
+    if (!bare.error) return bare;
+  }
 
-  // Last resort: no sort_order column
-  return supabase.from("units").select("id, grade_id, title_ar").eq("grade_id", gradeId);
+  return supabase.from("units").select("*").eq("grade_id", gradeId);
 }
 
 async function fetchLessons(unitIds: string[]) {
-  const full = await supabase
-    .from("lessons")
-    .select(LESSON_SELECT)
-    .in("unit_id", unitIds)
-    .order("sort_order", { ascending: true });
+  for (const select of LESSON_SELECTS) {
+    const withSort = await supabase
+      .from("lessons")
+      .select(select)
+      .in("unit_id", unitIds)
+      .order("sort_order", { ascending: true });
 
-  if (!full.error) return full;
+    if (!withSort.error) return withSort;
 
-  const min = await supabase
-    .from("lessons")
-    .select(LESSON_SELECT_MIN)
-    .in("unit_id", unitIds)
-    .order("sort_order", { ascending: true });
+    const bare = await supabase
+      .from("lessons")
+      .select(select)
+      .in("unit_id", unitIds);
 
-  if (!min.error) return min;
+    if (!bare.error) return bare;
+  }
 
-  return supabase
-    .from("lessons")
-    .select("id, unit_id, title_ar")
-    .in("unit_id", unitIds);
+  return supabase.from("lessons").select("*").in("unit_id", unitIds);
 }
 
 export async function getUnitsByGrade(
@@ -94,7 +109,9 @@ export async function getUnitsByGrade(
   const { data: units, error } = await fetchUnits(gradeId);
   if (error) return { success: false, error: error.message };
 
-  const unitList = ((units as Record<string, unknown>[]) ?? []).map(normalizeUnit);
+  const unitList = ((units as Record<string, unknown>[]) ?? []).map(
+    normalizeUnit
+  );
   if (unitList.length === 0) return { success: true, data: [] };
 
   const { data: lessons, error: lessonsError } = await fetchLessons(
@@ -148,8 +165,7 @@ export async function createUnit(input: {
 
   const { data, error } = await insertFlexible<Record<string, unknown>>(
     "units",
-    payload,
-    UNIT_SELECT
+    payload
   );
   if (error || !data) return { success: false, error: error ?? "فشل الحفظ" };
   revalidate();
@@ -181,8 +197,7 @@ export async function updateUnit(
   const { data, error } = await updateFlexible<Record<string, unknown>>(
     "units",
     id,
-    payload,
-    UNIT_SELECT
+    payload
   );
   if (error || !data) return { success: false, error: error ?? "فشل التحديث" };
   revalidate();
@@ -257,8 +272,7 @@ export async function createLesson(input: {
 
   const { data, error } = await insertFlexible<Record<string, unknown>>(
     "lessons",
-    payload,
-    LESSON_SELECT
+    payload
   );
   if (error || !data) return { success: false, error: error ?? "فشل الحفظ" };
   revalidate();
@@ -290,8 +304,7 @@ export async function updateLesson(
   const { data, error } = await updateFlexible<Record<string, unknown>>(
     "lessons",
     id,
-    payload,
-    LESSON_SELECT
+    payload
   );
   if (error || !data) return { success: false, error: error ?? "فشل التحديث" };
   revalidate();

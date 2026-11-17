@@ -4,8 +4,13 @@ import { revalidatePath } from "next/cache";
 import { supabase } from "@/lib/supabase";
 import { requireAuth } from "@/lib/action-helpers";
 import { insertFlexible, updateFlexible } from "@/lib/supabase-write";
+import {
+  normalizeRelatedTitle,
+  normalizeResourceRow,
+} from "@/lib/schema-compat";
 import type {
   ActionResult,
+  GradeStage,
   ResourceCategory,
   ResourceType,
   ResourceWithGrade,
@@ -52,8 +57,14 @@ function toPayload(input: MediaInput) {
   };
 }
 
-const SELECT_FULL =
-  "*, grades(id, title_ar, stage), units(id, title_ar), lessons(id, title_ar)";
+const SELECT_CHAINS = [
+  "*, grades(id, title_ar, stage), units(id, title_ar), lessons(id, title_ar)",
+  "*, grades(id, title_ar, stage), units(id, title_ar)",
+  "*, grades(id, title, stage), units(id, title), lessons(id, title)",
+  "*, grades(id, title, stage), units(id, title)",
+  "*, grades(*), units(*), lessons(*)",
+  "*",
+];
 
 function revalidateMedia() {
   revalidatePath("/notes");
@@ -61,30 +72,90 @@ function revalidateMedia() {
   revalidatePath("/videos");
 }
 
+function normalizeMediaRow(row: Record<string, unknown>): ResourceWithGrade {
+  const base = normalizeResourceRow(row);
+  const grades = normalizeRelatedTitle(row.grades);
+  const units = normalizeRelatedTitle(row.units);
+  const lessons = normalizeRelatedTitle(row.lessons);
+
+  return {
+    id: String(base.id),
+    grade_id: String(base.grade_id ?? ""),
+    unit_id: (base.unit_id as string | null) ?? null,
+    lesson_id: (base.lesson_id as string | null) ?? null,
+    type: base.type as ResourceType,
+    title_ar: base.title_ar,
+    title_en: base.title_en,
+    subject_ar: base.subject_ar,
+    subject_en: base.subject_en,
+    term: (base.term as string | null) ?? null,
+    url: base.url,
+    description_ar: (base.description_ar as string | null) ?? null,
+    description_en: (base.description_en as string | null) ?? null,
+    badge_color: String(base.badge_color ?? "#0f766e"),
+    icon_type: String(base.icon_type ?? "file-text"),
+    cover_image_url: (base.cover_image_url as string | null) ?? null,
+    resource_category:
+      (base.resource_category as ResourceWithGrade["resource_category"]) ?? null,
+    is_coming_soon: Boolean(base.is_coming_soon),
+    grades: grades
+      ? {
+          id: grades.id,
+          title_ar: grades.title_ar,
+          title_en: grades.title_ar,
+          stage: (grades.stage as GradeStage) || "primary",
+        }
+      : null,
+    units: units ? { id: units.id, title_ar: units.title_ar } : null,
+    lessons: lessons ? { id: lessons.id, title_ar: lessons.title_ar } : null,
+  };
+}
+
 async function queryResources(opts: {
   types: string[];
   unitId?: string;
 }): Promise<ActionResult<ResourceWithGrade[]>> {
-  let query = supabase
-    .from("resources")
-    .select(SELECT_FULL)
-    .in("type", opts.types);
-  if (opts.unitId) query = query.eq("unit_id", opts.unitId);
+  let lastError: string | null = null;
+  const orderKeys = ["title_ar", "title", "created_at"] as const;
 
-  const full = await query.order("title_ar", { ascending: true });
-  if (!full.error) {
-    return { success: true, data: (full.data as ResourceWithGrade[]) ?? [] };
+  for (const select of SELECT_CHAINS) {
+    for (const orderKey of orderKeys) {
+      let query = supabase
+        .from("resources")
+        .select(select)
+        .in("type", opts.types);
+      if (opts.unitId) query = query.eq("unit_id", opts.unitId);
+
+      const ordered = await query.order(orderKey, { ascending: true });
+      if (!ordered.error) {
+        return {
+          success: true,
+          data: ((ordered.data as unknown as Record<string, unknown>[]) ?? []).map(
+            normalizeMediaRow
+          ),
+        };
+      }
+      lastError = ordered.error.message;
+    }
+
+    let plain = supabase
+      .from("resources")
+      .select(select)
+      .in("type", opts.types);
+    if (opts.unitId) plain = plain.eq("unit_id", opts.unitId);
+    const result = await plain;
+    if (!result.error) {
+      return {
+        success: true,
+        data: ((result.data as unknown as Record<string, unknown>[]) ?? []).map(
+          normalizeMediaRow
+        ),
+      };
+    }
+    lastError = result.error.message;
   }
 
-  let safe = supabase
-    .from("resources")
-    .select("*, grades(id, title_ar, stage), units(id, title_ar)")
-    .in("type", opts.types);
-  if (opts.unitId) safe = safe.eq("unit_id", opts.unitId);
-
-  const fallback = await safe.order("title_ar", { ascending: true });
-  if (fallback.error) return { success: false, error: fallback.error.message };
-  return { success: true, data: (fallback.data as ResourceWithGrade[]) ?? [] };
+  return { success: false, error: lastError ?? "فشل جلب الموارد" };
 }
 
 export async function getMediaByType(
@@ -139,15 +210,18 @@ export async function createMedia(
     }
   }
 
-  const { data, error } = await insertFlexible<ResourceWithGrade>(
+  const { data, error } = await insertFlexible<Record<string, unknown>>(
     "resources",
-    toPayload(input),
-    SELECT_FULL
+    toPayload(input)
   );
 
   if (error || !data) return { success: false, error: error ?? "فشل الحفظ" };
   revalidateMedia();
-  return { success: true, data, message: "تم الحفظ بنجاح" };
+  return {
+    success: true,
+    data: normalizeMediaRow(data),
+    message: "تم الحفظ بنجاح",
+  };
 }
 
 export async function updateMedia(
@@ -179,16 +253,19 @@ export async function updateMedia(
     }
   }
 
-  const { data, error } = await updateFlexible<ResourceWithGrade>(
+  const { data, error } = await updateFlexible<Record<string, unknown>>(
     "resources",
     id,
-    toPayload(input),
-    SELECT_FULL
+    toPayload(input)
   );
 
   if (error || !data) return { success: false, error: error ?? "فشل التحديث" };
   revalidateMedia();
-  return { success: true, data, message: "تم التحديث بنجاح" };
+  return {
+    success: true,
+    data: normalizeMediaRow(data),
+    message: "تم التحديث بنجاح",
+  };
 }
 
 export async function deleteMedia(id: string): Promise<ActionResult> {
