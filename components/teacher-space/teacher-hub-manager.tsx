@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import {
   Briefcase,
   Calculator,
@@ -11,167 +11,102 @@ import {
   Trash2,
 } from "lucide-react";
 import type {
-  ClassSchedule,
   Grade,
-  GradeCalculatorTool,
-  GradeRecord,
+  TeacherSpaceCategory,
   TeacherSpaceItem,
   Unit,
 } from "@/lib/types";
-import { DAY_LABELS, PERIODS, WEEKDAYS } from "@/lib/constants";
+import { TEACHER_SPACE_CATEGORIES } from "@/lib/constants";
 import { useLocale } from "@/lib/i18n";
 import { getGrades } from "@/app/(dashboard)/grades/actions";
 import { getUnitsByGrade } from "@/app/(dashboard)/units/actions";
 import {
-  createClassSchedule,
-  deleteClassSchedule,
-  getClassNames,
-  getClassSchedules,
-  toggleClassScheduleActive,
-  updateClassSchedule,
-} from "@/app/(dashboard)/schedules/actions";
+  getSiteSettings,
+  updateTeacherFeatureFlags,
+} from "@/app/(dashboard)/settings/actions";
 import {
-  ensureTeacherResourcePresets,
+  createTeacherSpaceItem,
+  deleteTeacherSpaceItem,
+  getTeacherSpaceItems,
   toggleTeacherSpaceActive,
   toggleTeacherSpaceComingSoon,
   updateTeacherSpaceItem,
 } from "@/app/(dashboard)/teacher-space/actions";
-import {
-  createGradeRecord,
-  deleteGradeRecord,
-  ensureGradeCalculatorPresets,
-  getGradeRecords,
-  toggleGradeCalculatorActive,
-  toggleGradeCalculatorComingSoon,
-  updateGradeCalculatorTool,
-  updateGradeRecord,
-} from "@/app/(dashboard)/grade-calculator/actions";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Input, Select, Textarea } from "@/components/ui/input";
+import { FileUpload } from "@/components/ui/file-upload";
 import { Switch } from "@/components/ui/switch";
 import { ConfirmDialog, EmptyState, PageLoader } from "@/components/ui/loading";
 import { useToast } from "@/components/ui/toast";
 
-type Tab = "schedules" | "resources" | "grades";
+const emptyForm = {
+  category: "lesson_prep" as TeacherSpaceCategory,
+  title_ar: "",
+  description_ar: "",
+  url: "",
+  grade_id: "",
+  unit_id: "",
+  is_active: true,
+  is_coming_soon: false,
+};
 
 export function TeacherHubManager() {
-  const { t, locale } = useLocale();
+  const { t } = useLocale();
   const { success, error } = useToast();
-  const [tab, setTab] = useState<Tab>("schedules");
   const [pending, startTransition] = useTransition();
+  const [loadingFlags, setLoadingFlags] = useState(true);
+  const [schedulesEnabled, setSchedulesEnabled] = useState(true);
+  const [gradeCalcEnabled, setGradeCalcEnabled] = useState(true);
 
-  /* schedules */
-  const [schedules, setSchedules] = useState<ClassSchedule[]>([]);
-  const [classes, setClasses] = useState<string[]>([]);
-  const [classFilter, setClassFilter] = useState("");
-  const [schedulesLoading, setSchedulesLoading] = useState(true);
-  const [scheduleModal, setScheduleModal] = useState(false);
-  const [editingSchedule, setEditingSchedule] = useState<ClassSchedule | null>(
-    null
-  );
-  const [deleteScheduleId, setDeleteScheduleId] = useState<string | null>(null);
-  const [scheduleForm, setScheduleForm] = useState({
-    class_name: "",
-    day_of_week: 0,
-    period_number: 1,
-    subject: "",
-    room: "",
-  });
-
-  /* resources */
-  const [resources, setResources] = useState<TeacherSpaceItem[]>([]);
-  const [resourcesLoading, setResourcesLoading] = useState(true);
-  const [resourceModal, setResourceModal] = useState(false);
-  const [editingResource, setEditingResource] =
-    useState<TeacherSpaceItem | null>(null);
-  const [resourceForm, setResourceForm] = useState({
-    title_ar: "",
-    title_en: "",
-    description_ar: "",
-    url: "",
-  });
-
-  /* grade tools + records */
-  const [gradeTools, setGradeTools] = useState<GradeCalculatorTool[]>([]);
-  const [gradeRecords, setGradeRecords] = useState<GradeRecord[]>([]);
   const [grades, setGrades] = useState<Grade[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [formUnits, setFormUnits] = useState<Unit[]>([]);
   const [gradeFilter, setGradeFilter] = useState("");
   const [unitFilter, setUnitFilter] = useState("");
-  const [gradesLoading, setGradesLoading] = useState(true);
-  const [toolModal, setToolModal] = useState(false);
-  const [editingTool, setEditingTool] = useState<GradeCalculatorTool | null>(
-    null
-  );
-  const [toolForm, setToolForm] = useState({
-    title_ar: "",
-    description_ar: "",
-    url: "",
-    max_score: 100,
-  });
-  const [recordModal, setRecordModal] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<GradeRecord | null>(null);
-  const [deleteRecordId, setDeleteRecordId] = useState<string | null>(null);
-  const [recordForm, setRecordForm] = useState({
-    student_name: "",
-    grade_id: "",
-    unit_id: "",
-    score: 0,
-    max_score: 100,
-    notes: "",
-  });
-  const [formUnits, setFormUnits] = useState<Unit[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<"" | TeacherSpaceCategory>("");
+  const [items, setItems] = useState<TeacherSpaceItem[]>([]);
+  const [loadingItems, setLoadingItems] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<TeacherSpaceItem | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [form, setForm] = useState(emptyForm);
 
-  const loadSchedules = useCallback(async () => {
-    setSchedulesLoading(true);
-    const [list, names] = await Promise.all([
-      getClassSchedules(classFilter || undefined),
-      getClassNames(),
-    ]);
-    if (list.success) setSchedules(list.data ?? []);
-    else error(list.error);
-    if (names.success) setClasses(names.data ?? []);
-    setSchedulesLoading(false);
-  }, [classFilter, error]);
-
-  const loadResources = useCallback(async () => {
-    setResourcesLoading(true);
-    const result = await ensureTeacherResourcePresets();
-    if (result.success) setResources(result.data ?? []);
-    else error(result.error);
-    setResourcesLoading(false);
+  const loadFlags = useCallback(async () => {
+    setLoadingFlags(true);
+    const result = await getSiteSettings();
+    if (result.success && result.data) {
+      setSchedulesEnabled(result.data.schedules_enabled !== false);
+      setGradeCalcEnabled(result.data.grade_calculator_enabled !== false);
+    } else if (!result.success) error(result.error);
+    setLoadingFlags(false);
   }, [error]);
 
-  const loadGradeSection = useCallback(async () => {
-    setGradesLoading(true);
-    const [tools, records, gradeList] = await Promise.all([
-      ensureGradeCalculatorPresets(),
-      getGradeRecords({
-        grade_id: gradeFilter || undefined,
-        unit_id: unitFilter || undefined,
-      }),
-      getGrades(),
-    ]);
-    if (tools.success) setGradeTools(tools.data ?? []);
-    else error(tools.error);
-    if (records.success) setGradeRecords(records.data ?? []);
-    else error(records.error);
-    if (gradeList.success) setGrades(gradeList.data ?? []);
-    setGradesLoading(false);
-  }, [gradeFilter, unitFilter, error]);
+  const loadGrades = useCallback(async () => {
+    const result = await getGrades();
+    if (result.success) setGrades(result.data ?? []);
+  }, []);
+
+  const loadItems = useCallback(async () => {
+    setLoadingItems(true);
+    const result = await getTeacherSpaceItems({
+      grade_id: gradeFilter || undefined,
+      unit_id: unitFilter || undefined,
+      category: categoryFilter || undefined,
+    });
+    if (result.success) setItems(result.data ?? []);
+    else error(result.error);
+    setLoadingItems(false);
+  }, [gradeFilter, unitFilter, categoryFilter, error]);
 
   useEffect(() => {
-    if (tab === "schedules") void loadSchedules();
-  }, [tab, loadSchedules]);
+    void loadFlags();
+    void loadGrades();
+  }, [loadFlags, loadGrades]);
 
   useEffect(() => {
-    if (tab === "resources") void loadResources();
-  }, [tab, loadResources]);
-
-  useEffect(() => {
-    if (tab === "grades") void loadGradeSection();
-  }, [tab, loadGradeSection]);
+    void loadItems();
+  }, [loadItems]);
 
   useEffect(() => {
     if (!gradeFilter) {
@@ -184,157 +119,58 @@ export function TeacherHubManager() {
   }, [gradeFilter]);
 
   useEffect(() => {
-    if (!recordForm.grade_id) {
+    if (!form.grade_id) {
       setFormUnits([]);
       return;
     }
-    void getUnitsByGrade(recordForm.grade_id).then((r) => {
+    void getUnitsByGrade(form.grade_id).then((r) => {
       if (r.success) setFormUnits(r.data ?? []);
     });
-  }, [recordForm.grade_id]);
+  }, [form.grade_id]);
 
-  const gridMap = useMemo(() => {
-    const map = new Map<string, ClassSchedule>();
-    for (const item of schedules) {
-      map.set(`${item.day_of_week}-${item.period_number}`, item);
-    }
-    return map;
-  }, [schedules]);
-
-  function openScheduleCreate(day?: number, period?: number) {
-    setEditingSchedule(null);
-    setScheduleForm({
-      class_name: classFilter || "",
-      day_of_week: day ?? 0,
-      period_number: period ?? 1,
-      subject: "",
-      room: "",
-    });
-    setScheduleModal(true);
-  }
-
-  function openScheduleEdit(item: ClassSchedule) {
-    setEditingSchedule(item);
-    setScheduleForm({
-      class_name: item.class_name,
-      day_of_week: item.day_of_week,
-      period_number: item.period_number,
-      subject: item.subject,
-      room: item.room ?? "",
-    });
-    setScheduleModal(true);
-  }
-
-  function submitSchedule(e: React.FormEvent) {
-    e.preventDefault();
-    startTransition(async () => {
-      const result = editingSchedule
-        ? await updateClassSchedule(editingSchedule.id, scheduleForm)
-        : await createClassSchedule(scheduleForm);
-      if (result.success) {
-        success(result.message ?? t.save);
-        setScheduleModal(false);
-        await loadSchedules();
-      } else error(result.error);
-    });
-  }
-
-  function openResourceEdit(item: TeacherSpaceItem) {
-    setEditingResource(item);
-    setResourceForm({
-      title_ar: item.title_ar,
-      title_en: item.title_en ?? "",
-      description_ar: item.description_ar ?? "",
-      url: item.url,
-    });
-    setResourceModal(true);
-  }
-
-  function submitResource(e: React.FormEvent) {
-    e.preventDefault();
-    if (!editingResource) return;
-    startTransition(async () => {
-      const result = await updateTeacherSpaceItem(
-        editingResource.id,
-        resourceForm
-      );
-      if (result.success) {
-        success(result.message ?? t.save);
-        setResourceModal(false);
-        await loadResources();
-      } else error(result.error);
-    });
-  }
-
-  function openToolEdit(item: GradeCalculatorTool) {
-    setEditingTool(item);
-    setToolForm({
-      title_ar: item.title_ar,
-      description_ar: item.description_ar ?? "",
-      url: item.url,
-      max_score: item.max_score,
-    });
-    setToolModal(true);
-  }
-
-  function submitTool(e: React.FormEvent) {
-    e.preventDefault();
-    if (!editingTool) return;
-    startTransition(async () => {
-      const result = await updateGradeCalculatorTool(editingTool.id, toolForm);
-      if (result.success) {
-        success(result.message ?? t.save);
-        setToolModal(false);
-        await loadGradeSection();
-      } else error(result.error);
-    });
-  }
-
-  function openRecordCreate() {
-    setEditingRecord(null);
-    setRecordForm({
-      student_name: "",
+  function openCreate() {
+    setEditing(null);
+    setForm({
+      ...emptyForm,
       grade_id: gradeFilter || "",
       unit_id: unitFilter || "",
-      score: 0,
-      max_score: 100,
-      notes: "",
+      category: categoryFilter || "lesson_prep",
     });
-    setRecordModal(true);
+    setModalOpen(true);
   }
 
-  function openRecordEdit(item: GradeRecord) {
-    setEditingRecord(item);
-    setRecordForm({
-      student_name: item.student_name,
-      grade_id: item.grade_id,
-      unit_id: item.unit_id,
-      score: item.score,
-      max_score: item.max_score,
-      notes: item.notes ?? "",
+  function openEdit(item: TeacherSpaceItem) {
+    setEditing(item);
+    setForm({
+      category: item.category,
+      title_ar: item.title_ar,
+      description_ar: item.description_ar ?? "",
+      url: item.url,
+      grade_id: item.grade_id ?? "",
+      unit_id: item.unit_id ?? "",
+      is_active: item.is_active !== false,
+      is_coming_soon: item.is_coming_soon,
     });
-    setRecordModal(true);
+    setModalOpen(true);
   }
 
-  function submitRecord(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!form.grade_id || !form.unit_id) {
+      error("اختر الصف ثم الوحدة");
+      return;
+    }
     startTransition(async () => {
-      const result = editingRecord
-        ? await updateGradeRecord(editingRecord.id, recordForm)
-        : await createGradeRecord(recordForm);
+      const result = editing
+        ? await updateTeacherSpaceItem(editing.id, form)
+        : await createTeacherSpaceItem(form);
       if (result.success) {
         success(result.message ?? t.save);
-        setRecordModal(false);
-        await loadGradeSection();
+        setModalOpen(false);
+        await loadItems();
       } else error(result.error);
     });
   }
-
-  const tabs: { id: Tab; label: string; icon: typeof CalendarDays }[] = [
-    { id: "schedules", label: t.hub.tabSchedules, icon: CalendarDays },
-    { id: "resources", label: t.hub.tabResources, icon: Briefcase },
-    { id: "grades", label: t.hub.tabGrades, icon: Calculator },
-  ];
 
   return (
     <div className="space-y-6 overflow-x-hidden">
@@ -349,745 +185,97 @@ export function TeacherHubManager() {
         <p className="mt-1 text-sm text-[var(--muted)]">{t.hub.subtitle}</p>
       </header>
 
-      <div className="flex flex-wrap gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-1.5">
-        {tabs.map((item) => {
-          const Icon = item.icon;
-          const active = tab === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setTab(item.id)}
-              className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold transition sm:px-4 ${
-                active
-                  ? "bg-teal-700 text-white shadow-sm dark:bg-teal-600"
-                  : "text-[var(--muted)] hover:bg-[var(--surface-muted)]"
-              }`}
-            >
-              <Icon className="h-4 w-4" />
-              {item.label}
-            </button>
-          );
-        })}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section className="glass-card flex items-center justify-between gap-4 p-4 sm:p-5">
+          <div className="min-w-0">
+            <div className="mb-1 flex items-center gap-2 text-teal-700 dark:text-teal-300">
+              <CalendarDays className="h-4 w-4" />
+              <h3 className="font-bold text-[var(--foreground)]">
+                {t.hub.tabSchedules}
+              </h3>
+            </div>
+            <p className="text-sm text-[var(--muted)]">{t.hub.schedulesHint}</p>
+          </div>
+          {loadingFlags ? (
+            <span className="text-xs text-[var(--muted)]">{t.loading}</span>
+          ) : (
+            <Switch
+              checked={schedulesEnabled}
+              disabled={pending}
+              label={schedulesEnabled ? t.active : t.inactive}
+              onChange={(v) =>
+                startTransition(async () => {
+                  const r = await updateTeacherFeatureFlags({
+                    schedules_enabled: v,
+                  });
+                  if (r.success) {
+                    setSchedulesEnabled(v);
+                    success(r.message ?? "");
+                  } else error(r.error);
+                })
+              }
+            />
+          )}
+        </section>
+
+        <section className="glass-card flex items-center justify-between gap-4 p-4 sm:p-5">
+          <div className="min-w-0">
+            <div className="mb-1 flex items-center gap-2 text-teal-700 dark:text-teal-300">
+              <Calculator className="h-4 w-4" />
+              <h3 className="font-bold text-[var(--foreground)]">
+                {t.hub.tabGrades}
+              </h3>
+            </div>
+            <p className="text-sm text-[var(--muted)]">{t.hub.gradesHint}</p>
+          </div>
+          {loadingFlags ? (
+            <span className="text-xs text-[var(--muted)]">{t.loading}</span>
+          ) : (
+            <Switch
+              checked={gradeCalcEnabled}
+              disabled={pending}
+              label={gradeCalcEnabled ? t.active : t.inactive}
+              onChange={(v) =>
+                startTransition(async () => {
+                  const r = await updateTeacherFeatureFlags({
+                    grade_calculator_enabled: v,
+                  });
+                  if (r.success) {
+                    setGradeCalcEnabled(v);
+                    success(r.message ?? "");
+                  } else error(r.error);
+                })
+              }
+            />
+          )}
+        </section>
       </div>
 
-      {tab === "schedules" && (
-        <section className="space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div className="glass-card w-full p-4 sm:max-w-sm">
-              <Select
-                label={locale === "ar" ? "تصفية حسب الفصل" : "Filter by class"}
-                name="class_filter"
-                value={classFilter}
-                onChange={(e) => setClassFilter(e.target.value)}
-              >
-                <option value="">
-                  {locale === "ar" ? "كل الفصول" : "All classes"}
-                </option>
-                {classes.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <Button onClick={() => openScheduleCreate()} className="shrink-0">
-              <Plus className="h-4 w-4" />
-              {locale === "ar" ? "حصة جديدة" : "New period"}
-            </Button>
+      <section className="space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-[var(--foreground)]">
+              {t.hub.tabResources}
+            </h3>
+            <p className="text-sm text-[var(--muted)]">{t.hub.resourcesHint}</p>
           </div>
+          <Button onClick={openCreate} className="shrink-0">
+            <Plus className="h-4 w-4" />
+            مورد جديد
+          </Button>
+        </div>
 
-          {schedulesLoading ? (
-            <PageLoader />
-          ) : schedules.length === 0 ? (
-            <EmptyState title={t.hub.noItems} />
-          ) : (
-            <>
-              <div className="hidden overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)] sm:block">
-                <table className="w-full min-w-[720px] border-collapse text-center text-sm">
-                  <thead>
-                    <tr className="bg-[var(--surface-muted)]">
-                      <th className="border-b border-[var(--border)] px-3 py-3 text-xs font-bold text-[var(--muted)]">
-                        #
-                      </th>
-                      {WEEKDAYS.map((day) => (
-                        <th
-                          key={day}
-                          className="border-b border-[var(--border)] px-3 py-3 text-xs font-bold text-[var(--foreground)]"
-                        >
-                          {DAY_LABELS[day]}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {PERIODS.map((period) => (
-                      <tr key={period}>
-                        <td className="border-b border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 font-bold text-[var(--muted)]">
-                          {period}
-                        </td>
-                        {WEEKDAYS.map((day) => {
-                          const cell = classFilter
-                            ? gridMap.get(`${day}-${period}`)
-                            : schedules.find(
-                                (i) =>
-                                  i.day_of_week === day &&
-                                  i.period_number === period
-                              );
-                          return (
-                            <td
-                              key={`${day}-${period}`}
-                              className="border-b border-[var(--border)] p-1.5"
-                            >
-                              {cell ? (
-                                <div
-                                  className={`rounded-xl p-2 text-start ${
-                                    cell.is_active
-                                      ? "bg-teal-50 dark:bg-teal-950/40"
-                                      : "bg-slate-100 opacity-60 dark:bg-slate-800"
-                                  }`}
-                                >
-                                  <button
-                                    type="button"
-                                    onClick={() => openScheduleEdit(cell)}
-                                    className="w-full text-start"
-                                  >
-                                    <p className="text-xs font-bold text-teal-900 dark:text-teal-100">
-                                      {cell.subject}
-                                    </p>
-                                    <p className="text-[11px] text-teal-700/80 dark:text-teal-200/80">
-                                      {cell.class_name}
-                                    </p>
-                                  </button>
-                                  <div className="mt-2">
-                                    <Switch
-                                      checked={cell.is_active !== false}
-                                      disabled={pending}
-                                      label={t.hub.toggleActive}
-                                      onChange={(v) =>
-                                        startTransition(async () => {
-                                          const r =
-                                            await toggleClassScheduleActive(
-                                              cell.id,
-                                              v
-                                            );
-                                          if (r.success) {
-                                            success(r.message ?? "");
-                                            await loadSchedules();
-                                          } else error(r.error);
-                                        })
-                                      }
-                                    />
-                                  </div>
-                                </div>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => openScheduleCreate(day, period)}
-                                  className="flex h-14 w-full items-center justify-center rounded-xl text-[var(--muted)] hover:bg-[var(--surface-muted)]"
-                                >
-                                  <Plus className="h-4 w-4" />
-                                </button>
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="grid gap-2 sm:hidden">
-                {schedules.map((item) => (
-                  <article key={item.id} className="glass-card p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-bold text-[var(--foreground)]">
-                          {item.subject}
-                        </p>
-                        <p className="text-xs text-[var(--muted)]">
-                          {item.class_name} · {DAY_LABELS[item.day_of_week]} ·{" "}
-                          {item.period_number}
-                        </p>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => openScheduleEdit(item)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="mt-2">
-                      <Switch
-                        checked={item.is_active !== false}
-                        disabled={pending}
-                        label={t.hub.toggleActive}
-                        onChange={(v) =>
-                          startTransition(async () => {
-                            const r = await toggleClassScheduleActive(
-                              item.id,
-                              v
-                            );
-                            if (r.success) {
-                              success(r.message ?? "");
-                              await loadSchedules();
-                            } else error(r.error);
-                          })
-                        }
-                      />
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </>
-          )}
-        </section>
-      )}
-
-      {tab === "resources" && (
-        <section className="space-y-4">
-          <p className="text-sm text-[var(--muted)]">{t.hub.manageOnly}</p>
-          {resourcesLoading ? (
-            <PageLoader />
-          ) : resources.length === 0 ? (
-            <EmptyState title={t.hub.noItems} />
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {resources.map((item) => (
-                <article key={item.id} className="glass-card p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="font-bold text-[var(--foreground)]">
-                        {locale === "en" && item.title_en
-                          ? item.title_en
-                          : item.title_ar}
-                      </p>
-                      {item.description_ar && (
-                        <p className="mt-1 line-clamp-2 text-sm text-[var(--muted)]">
-                          {item.description_ar}
-                        </p>
-                      )}
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {item.is_active === false && (
-                          <span className="badge badge-muted">{t.inactive}</span>
-                        )}
-                        {item.is_coming_soon && (
-                          <span className="badge badge-warning">
-                            {t.comingSoon}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => openResourceEdit(item)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] pt-3">
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline dark:text-teal-300"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      {t.hub.open}
-                    </a>
-                    <div className="flex flex-wrap gap-3">
-                      <Switch
-                        checked={item.is_active !== false}
-                        disabled={pending}
-                        label={t.hub.toggleActive}
-                        onChange={(v) =>
-                          startTransition(async () => {
-                            const r = await toggleTeacherSpaceActive(
-                              item.id,
-                              v
-                            );
-                            if (r.success) {
-                              success(r.message ?? "");
-                              await loadResources();
-                            } else error(r.error);
-                          })
-                        }
-                      />
-                      <Switch
-                        checked={item.is_coming_soon}
-                        disabled={pending}
-                        label={t.hub.toggleSoon}
-                        onChange={(v) =>
-                          startTransition(async () => {
-                            const r = await toggleTeacherSpaceComingSoon(
-                              item.id,
-                              v
-                            );
-                            if (r.success) {
-                              success(r.message ?? "");
-                              await loadResources();
-                            } else error(r.error);
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      {tab === "grades" && (
-        <section className="space-y-5">
-          <p className="text-sm text-[var(--muted)]">{t.hub.manageOnly}</p>
-
-          {gradesLoading ? (
-            <PageLoader />
-          ) : (
-            <>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {gradeTools.map((item) => (
-                  <article key={item.id} className="glass-card p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-bold text-[var(--foreground)]">
-                          {item.title_ar}
-                        </p>
-                        {item.description_ar && (
-                          <p className="mt-1 line-clamp-2 text-sm text-[var(--muted)]">
-                            {item.description_ar}
-                          </p>
-                        )}
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => openToolEdit(item)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] pt-3">
-                      <a
-                        href={item.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline dark:text-teal-300"
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                        {t.hub.open}
-                      </a>
-                      <div className="flex flex-wrap gap-3">
-                        <Switch
-                          checked={item.is_active !== false}
-                          disabled={pending}
-                          label={t.hub.toggleActive}
-                          onChange={(v) =>
-                            startTransition(async () => {
-                              const r = await toggleGradeCalculatorActive(
-                                item.id,
-                                v
-                              );
-                              if (r.success) {
-                                success(r.message ?? "");
-                                await loadGradeSection();
-                              } else error(r.error);
-                            })
-                          }
-                        />
-                        <Switch
-                          checked={item.is_coming_soon}
-                          disabled={pending}
-                          label={t.hub.toggleSoon}
-                          onChange={(v) =>
-                            startTransition(async () => {
-                              const r = await toggleGradeCalculatorComingSoon(
-                                item.id,
-                                v
-                              );
-                              if (r.success) {
-                                success(r.message ?? "");
-                                await loadGradeSection();
-                              } else error(r.error);
-                            })
-                          }
-                        />
-                      </div>
-                    </div>
-                  </article>
-                ))}
-              </div>
-
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div className="glass-card grid w-full gap-3 p-4 sm:grid-cols-2">
-                  <Select
-                    label={locale === "ar" ? "الصف" : "Grade"}
-                    name="grade_filter"
-                    value={gradeFilter}
-                    onChange={(e) => {
-                      setGradeFilter(e.target.value);
-                      setUnitFilter("");
-                    }}
-                  >
-                    <option value="">
-                      {locale === "ar" ? "كل الصفوف" : "All grades"}
-                    </option>
-                    {grades.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.title_ar}
-                      </option>
-                    ))}
-                  </Select>
-                  <Select
-                    label={locale === "ar" ? "الوحدة" : "Unit"}
-                    name="unit_filter"
-                    value={unitFilter}
-                    disabled={!gradeFilter}
-                    onChange={(e) => setUnitFilter(e.target.value)}
-                  >
-                    <option value="">
-                      {locale === "ar" ? "كل الوحدات" : "All units"}
-                    </option>
-                    {units.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.title_ar}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <Button onClick={openRecordCreate} className="shrink-0">
-                  <Plus className="h-4 w-4" />
-                  {locale === "ar" ? "درجة جديدة" : "New grade"}
-                </Button>
-              </div>
-
-              {gradeRecords.length === 0 ? (
-                <EmptyState title={t.hub.noItems} />
-              ) : (
-                <div className="overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
-                  <table className="w-full min-w-[560px] text-start text-sm">
-                    <thead className="bg-[var(--surface-muted)] text-xs font-bold text-[var(--muted)]">
-                      <tr>
-                        <th className="px-3 py-3">
-                          {locale === "ar" ? "الطالب" : "Student"}
-                        </th>
-                        <th className="px-3 py-3">
-                          {locale === "ar" ? "الصف" : "Grade"}
-                        </th>
-                        <th className="px-3 py-3">
-                          {locale === "ar" ? "الدرجة" : "Score"}
-                        </th>
-                        <th className="px-3 py-3" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {gradeRecords.map((item) => (
-                        <tr
-                          key={item.id}
-                          className="border-t border-[var(--border)]"
-                        >
-                          <td className="px-3 py-3 font-semibold text-[var(--foreground)]">
-                            {item.student_name}
-                          </td>
-                          <td className="px-3 py-3 text-[var(--muted)]">
-                            {item.grades?.title_ar ?? "—"}
-                          </td>
-                          <td className="px-3 py-3 font-bold text-teal-800 dark:text-teal-300">
-                            {item.score} / {item.max_score}
-                          </td>
-                          <td className="px-3 py-3">
-                            <div className="flex gap-1">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => openRecordEdit(item)}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => setDeleteRecordId(item.id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-rose-600" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </>
-          )}
-        </section>
-      )}
-
-      <Modal
-        open={scheduleModal}
-        onClose={() => setScheduleModal(false)}
-        title={
-          editingSchedule
-            ? locale === "ar"
-              ? "تعديل الحصة"
-              : "Edit period"
-            : locale === "ar"
-              ? "إضافة حصة"
-              : "Add period"
-        }
-      >
-        <form onSubmit={submitSchedule} className="space-y-4">
-          <Input
-            label={locale === "ar" ? "اسم الفصل" : "Class name"}
-            name="class_name"
-            required
-            value={scheduleForm.class_name}
-            onChange={(e) =>
-              setScheduleForm((f) => ({ ...f, class_name: e.target.value }))
-            }
-          />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Select
-              label={locale === "ar" ? "اليوم" : "Day"}
-              name="day_of_week"
-              value={scheduleForm.day_of_week}
-              onChange={(e) =>
-                setScheduleForm((f) => ({
-                  ...f,
-                  day_of_week: Number(e.target.value),
-                }))
-              }
-            >
-              {WEEKDAYS.map((day) => (
-                <option key={day} value={day}>
-                  {DAY_LABELS[day]}
-                </option>
-              ))}
-            </Select>
-            <Select
-              label={locale === "ar" ? "رقم الحصة" : "Period"}
-              name="period_number"
-              value={scheduleForm.period_number}
-              onChange={(e) =>
-                setScheduleForm((f) => ({
-                  ...f,
-                  period_number: Number(e.target.value),
-                }))
-              }
-            >
-              {PERIODS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <Input
-            label={locale === "ar" ? "المادة" : "Subject"}
-            name="subject"
-            required
-            value={scheduleForm.subject}
-            onChange={(e) =>
-              setScheduleForm((f) => ({ ...f, subject: e.target.value }))
-            }
-          />
-          <Input
-            label={locale === "ar" ? "القاعة" : "Room"}
-            name="room"
-            value={scheduleForm.room}
-            onChange={(e) =>
-              setScheduleForm((f) => ({ ...f, room: e.target.value }))
-            }
-          />
-          <div className="flex flex-wrap justify-between gap-2">
-            {editingSchedule ? (
-              <Button
-                type="button"
-                variant="danger"
-                onClick={() => {
-                  setScheduleModal(false);
-                  setDeleteScheduleId(editingSchedule.id);
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-                {t.delete}
-              </Button>
-            ) : (
-              <span />
-            )}
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setScheduleModal(false)}
-              >
-                {t.cancel}
-              </Button>
-              <Button type="submit" loading={pending}>
-                {t.save}
-              </Button>
-            </div>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal
-        open={resourceModal}
-        onClose={() => setResourceModal(false)}
-        title={locale === "ar" ? "تعديل المورد" : "Edit resource"}
-      >
-        <form onSubmit={submitResource} className="space-y-4">
-          <Input
-            label={locale === "ar" ? "العنوان" : "Title"}
-            name="title_ar"
-            required
-            value={resourceForm.title_ar}
-            onChange={(e) =>
-              setResourceForm((f) => ({ ...f, title_ar: e.target.value }))
-            }
-          />
-          <Input
-            label={locale === "ar" ? "العنوان بالإنجليزية" : "English title"}
-            name="title_en"
-            dir="ltr"
-            value={resourceForm.title_en}
-            onChange={(e) =>
-              setResourceForm((f) => ({ ...f, title_en: e.target.value }))
-            }
-          />
-          <Textarea
-            label={locale === "ar" ? "الوصف" : "Description"}
-            name="description_ar"
-            value={resourceForm.description_ar}
-            onChange={(e) =>
-              setResourceForm((f) => ({
-                ...f,
-                description_ar: e.target.value,
-              }))
-            }
-          />
-          <Input
-            label={locale === "ar" ? "الرابط" : "URL"}
-            name="url"
-            dir="ltr"
-            required
-            value={resourceForm.url}
-            onChange={(e) =>
-              setResourceForm((f) => ({ ...f, url: e.target.value }))
-            }
-          />
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setResourceModal(false)}
-            >
-              {t.cancel}
-            </Button>
-            <Button type="submit" loading={pending}>
-              {t.save}
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal
-        open={toolModal}
-        onClose={() => setToolModal(false)}
-        title={locale === "ar" ? "تعديل الأداة" : "Edit tool"}
-      >
-        <form onSubmit={submitTool} className="space-y-4">
-          <Input
-            label={locale === "ar" ? "العنوان" : "Title"}
-            name="title_ar"
-            required
-            value={toolForm.title_ar}
-            onChange={(e) =>
-              setToolForm((f) => ({ ...f, title_ar: e.target.value }))
-            }
-          />
-          <Textarea
-            label={locale === "ar" ? "الوصف" : "Description"}
-            name="description_ar"
-            value={toolForm.description_ar}
-            onChange={(e) =>
-              setToolForm((f) => ({ ...f, description_ar: e.target.value }))
-            }
-          />
-          <Input
-            label={locale === "ar" ? "الرابط" : "URL"}
-            name="url"
-            dir="ltr"
-            required
-            value={toolForm.url}
-            onChange={(e) =>
-              setToolForm((f) => ({ ...f, url: e.target.value }))
-            }
-          />
-          <Input
-            label={locale === "ar" ? "الدرجة القصوى" : "Max score"}
-            name="max_score"
-            type="number"
-            min={1}
-            value={toolForm.max_score}
-            onChange={(e) =>
-              setToolForm((f) => ({
-                ...f,
-                max_score: Number(e.target.value) || 100,
-              }))
-            }
-          />
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setToolModal(false)}
-            >
-              {t.cancel}
-            </Button>
-            <Button type="submit" loading={pending}>
-              {t.save}
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal
-        open={recordModal}
-        onClose={() => setRecordModal(false)}
-        title={
-          editingRecord
-            ? locale === "ar"
-              ? "تعديل الدرجة"
-              : "Edit grade"
-            : locale === "ar"
-              ? "تسجيل درجة"
-              : "Add grade"
-        }
-      >
-        <form onSubmit={submitRecord} className="space-y-4">
+        <div className="glass-card grid gap-4 p-4 sm:grid-cols-3">
           <Select
-            label={locale === "ar" ? "الصف" : "Grade"}
-            name="grade_id"
-            required
-            value={recordForm.grade_id}
-            onChange={(e) =>
-              setRecordForm((f) => ({
-                ...f,
-                grade_id: e.target.value,
-                unit_id: "",
-              }))
-            }
+            label="الصف"
+            name="grade_filter"
+            value={gradeFilter}
+            onChange={(e) => {
+              setGradeFilter(e.target.value);
+              setUnitFilter("");
+            }}
           >
-            <option value="">
-              {locale === "ar" ? "اختر الصف" : "Select grade"}
-            </option>
+            <option value="">كل الصفوف</option>
             {grades.map((g) => (
               <option key={g.id} value={g.id}>
                 {g.title_ar}
@@ -1095,17 +283,190 @@ export function TeacherHubManager() {
             ))}
           </Select>
           <Select
-            label={locale === "ar" ? "الوحدة" : "Unit"}
+            label="الوحدة"
+            name="unit_filter"
+            value={unitFilter}
+            disabled={!gradeFilter}
+            onChange={(e) => setUnitFilter(e.target.value)}
+          >
+            <option value="">كل الوحدات</option>
+            {units.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.title_ar}
+              </option>
+            ))}
+          </Select>
+          <Select
+            label="التصنيف"
+            name="category_filter"
+            value={categoryFilter}
+            onChange={(e) =>
+              setCategoryFilter(e.target.value as "" | TeacherSpaceCategory)
+            }
+          >
+            <option value="">كل التصنيفات</option>
+            {TEACHER_SPACE_CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+
+        {loadingItems ? (
+          <PageLoader />
+        ) : items.length === 0 ? (
+          <EmptyState title={t.hub.noItems} />
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {items.map((item) => (
+              <article key={item.id} className="glass-card p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-bold text-[var(--foreground)]">
+                      {item.title_ar}
+                    </p>
+                    <p className="mt-1 text-xs text-[var(--muted)]">
+                      {TEACHER_SPACE_CATEGORIES.find(
+                        (c) => c.value === item.category
+                      )?.label ?? item.category}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {item.grades?.title_ar && (
+                        <span className="badge badge-info">
+                          {item.grades.title_ar}
+                        </span>
+                      )}
+                      {item.units?.title_ar && (
+                        <span className="badge badge-muted">
+                          {item.units.title_ar}
+                        </span>
+                      )}
+                      {item.is_coming_soon && (
+                        <span className="badge badge-warning">{t.comingSoon}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    <Button size="sm" variant="ghost" onClick={() => openEdit(item)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setDeleteId(item.id)}
+                    >
+                      <Trash2 className="h-4 w-4 text-rose-600" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] pt-3">
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline dark:text-teal-300"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    {t.hub.open}
+                  </a>
+                  <div className="flex flex-wrap gap-3">
+                    <Switch
+                      checked={item.is_active !== false}
+                      disabled={pending}
+                      label={t.hub.toggleActive}
+                      onChange={(v) =>
+                        startTransition(async () => {
+                          const r = await toggleTeacherSpaceActive(item.id, v);
+                          if (r.success) {
+                            success(r.message ?? "");
+                            await loadItems();
+                          } else error(r.error);
+                        })
+                      }
+                    />
+                    <Switch
+                      checked={item.is_coming_soon}
+                      disabled={pending}
+                      label={t.hub.toggleSoon}
+                      onChange={(v) =>
+                        startTransition(async () => {
+                          const r = await toggleTeacherSpaceComingSoon(
+                            item.id,
+                            v
+                          );
+                          if (r.success) {
+                            success(r.message ?? "");
+                            await loadItems();
+                          } else error(r.error);
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editing ? "تعديل المورد" : "إضافة مورد للمعلم"}
+        size="lg"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4 overflow-x-hidden">
+          <Select
+            label="التصنيف"
+            name="category"
+            required
+            value={form.category}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                category: e.target.value as TeacherSpaceCategory,
+              }))
+            }
+          >
+            {TEACHER_SPACE_CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </Select>
+          <Select
+            label="الصف"
+            name="grade_id"
+            required
+            value={form.grade_id}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                grade_id: e.target.value,
+                unit_id: "",
+              }))
+            }
+          >
+            <option value="">اختر الصف أولاً</option>
+            {grades.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.title_ar}
+              </option>
+            ))}
+          </Select>
+          <Select
+            label="الوحدة"
             name="unit_id"
             required
-            disabled={!recordForm.grade_id}
-            value={recordForm.unit_id}
+            disabled={!form.grade_id}
+            value={form.unit_id}
             onChange={(e) =>
-              setRecordForm((f) => ({ ...f, unit_id: e.target.value }))
+              setForm((f) => ({ ...f, unit_id: e.target.value }))
             }
           >
             <option value="">
-              {locale === "ar" ? "اختر الوحدة" : "Select unit"}
+              {form.grade_id ? "اختر الوحدة" : "اختر الصف أولاً"}
             </option>
             {formUnits.map((u) => (
               <option key={u.id} value={u.id}>
@@ -1114,55 +475,68 @@ export function TeacherHubManager() {
             ))}
           </Select>
           <Input
-            label={locale === "ar" ? "اسم الطالب" : "Student name"}
-            name="student_name"
+            label="العنوان"
+            name="title_ar"
             required
-            value={recordForm.student_name}
+            value={form.title_ar}
             onChange={(e) =>
-              setRecordForm((f) => ({ ...f, student_name: e.target.value }))
+              setForm((f) => ({ ...f, title_ar: e.target.value }))
             }
           />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Input
-              label={locale === "ar" ? "الدرجة" : "Score"}
-              name="score"
-              type="number"
-              min={0}
-              value={recordForm.score}
-              onChange={(e) =>
-                setRecordForm((f) => ({
-                  ...f,
-                  score: Number(e.target.value) || 0,
-                }))
-              }
-            />
-            <Input
-              label={locale === "ar" ? "من أصل" : "Out of"}
-              name="max_score"
-              type="number"
-              min={1}
-              value={recordForm.max_score}
-              onChange={(e) =>
-                setRecordForm((f) => ({
-                  ...f,
-                  max_score: Number(e.target.value) || 100,
-                }))
-              }
-            />
-          </div>
           <Textarea
-            label={locale === "ar" ? "ملاحظات" : "Notes"}
-            name="notes"
-            value={recordForm.notes}
+            label="وصف"
+            name="description_ar"
+            value={form.description_ar}
             onChange={(e) =>
-              setRecordForm((f) => ({ ...f, notes: e.target.value }))
+              setForm((f) => ({ ...f, description_ar: e.target.value }))
             }
           />
+          <FileUpload
+            label="رفع ملف"
+            folder="teacher-space"
+            accept="application/pdf,.pdf,image/*"
+            value={form.url}
+            preview="file"
+            onUploaded={(url) => setForm((f) => ({ ...f, url }))}
+            onClear={() => setForm((f) => ({ ...f, url: "" }))}
+          />
+          <Input
+            label="أو رابط مباشر"
+            name="url"
+            dir="ltr"
+            required
+            value={form.url}
+            onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
+          />
+          <div className="flex flex-wrap gap-4">
+            <label className="flex items-center gap-2 text-sm text-[var(--foreground)]">
+              <input
+                type="checkbox"
+                checked={form.is_active}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, is_active: e.target.checked }))
+                }
+                className="h-4 w-4 rounded border-[var(--border)] text-teal-700"
+              />
+              مفعّل
+            </label>
+            <label className="flex items-center gap-2 text-sm text-[var(--foreground)]">
+              <input
+                type="checkbox"
+                checked={form.is_coming_soon}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, is_coming_soon: e.target.checked }))
+                }
+                className="h-4 w-4 rounded border-[var(--border)] text-teal-700"
+              />
+              قريباً
+            </label>
+          </div>
           <div className="flex justify-end gap-2">
             <Button
               type="button"
               variant="secondary"
-              onClick={() => setRecordModal(false)}
+              onClick={() => setModalOpen(false)}
             >
               {t.cancel}
             </Button>
@@ -1174,43 +548,18 @@ export function TeacherHubManager() {
       </Modal>
 
       <ConfirmDialog
-        open={!!deleteScheduleId}
-        title={locale === "ar" ? "حذف الحصة" : "Delete period"}
-        message={
-          locale === "ar"
-            ? "هل أنت متأكد من حذف هذه الحصة؟"
-            : "Delete this period?"
-        }
-        onCancel={() => setDeleteScheduleId(null)}
+        open={!!deleteId}
+        title="حذف المورد"
+        message="هل أنت متأكد من حذف هذا المورد؟"
+        onCancel={() => setDeleteId(null)}
         onConfirm={() =>
           startTransition(async () => {
-            if (!deleteScheduleId) return;
-            const r = await deleteClassSchedule(deleteScheduleId);
+            if (!deleteId) return;
+            const r = await deleteTeacherSpaceItem(deleteId);
             if (r.success) {
               success(r.message ?? "");
-              setDeleteScheduleId(null);
-              await loadSchedules();
-            } else error(r.error);
-          })
-        }
-        loading={pending}
-      />
-
-      <ConfirmDialog
-        open={!!deleteRecordId}
-        title={locale === "ar" ? "حذف السجل" : "Delete record"}
-        message={
-          locale === "ar" ? "هل أنت متأكد من الحذف؟" : "Delete this record?"
-        }
-        onCancel={() => setDeleteRecordId(null)}
-        onConfirm={() =>
-          startTransition(async () => {
-            if (!deleteRecordId) return;
-            const r = await deleteGradeRecord(deleteRecordId);
-            if (r.success) {
-              success(r.message ?? "");
-              setDeleteRecordId(null);
-              await loadGradeSection();
+              setDeleteId(null);
+              await loadItems();
             } else error(r.error);
           })
         }

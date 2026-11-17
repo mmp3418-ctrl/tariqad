@@ -1,5 +1,5 @@
-import { AnnouncementsManager } from "@/components/announcements/announcements-manager";
+import { redirect } from "next/navigation";
 
 export default function AnnouncementsPage() {
-  return <AnnouncementsManager />;
+  redirect("/grades");
 }

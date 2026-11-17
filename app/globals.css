@@ -3,8 +3,8 @@
 :root {
   --background: #f0f4f3;
   --foreground: #0f172a;
-  --card: rgba(255, 255, 255, 0.9);
-  --muted: #64748b;
+  --card: #ffffff;
+  --muted: #475569;
   --border: #e2e8f0;
   --primary: #0f766e;
   --primary-dark: #0d5f59;
@@ -12,23 +12,23 @@
   --sidebar: #0b3d3a;
   --sidebar-hover: #0f4f4a;
   --surface: #ffffff;
-  --surface-muted: #f8fafc;
+  --surface-muted: #f1f5f9;
   --danger: #e11d48;
 }
 
 html.dark {
-  --background: #0b1220;
-  --foreground: #e2e8f0;
-  --card: rgba(15, 23, 42, 0.88);
-  --muted: #94a3b8;
-  --border: #1e293b;
-  --primary: #14b8a6;
-  --primary-dark: #0f766e;
+  --background: #020617;
+  --foreground: #f8fafc;
+  --card: #0f172a;
+  --muted: #cbd5e1;
+  --border: #334155;
+  --primary: #2dd4bf;
+  --primary-dark: #14b8a6;
   --accent: #5eead4;
-  --sidebar: #061512;
-  --sidebar-hover: #0a2a26;
-  --surface: #111827;
-  --surface-muted: #0f172a;
+  --sidebar: #022c26;
+  --sidebar-hover: #064e3b;
+  --surface: #0f172a;
+  --surface-muted: #1e293b;
   --danger: #fb7185;
 }
 
@@ -95,10 +95,10 @@ html[lang="en"] body {
 
 .glass-card {
   background: var(--card);
-  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  color: var(--foreground);
+  border: 1px solid var(--border);
   border-radius: 1.25rem;
   box-shadow: 0 10px 30px -18px rgba(15, 23, 42, 0.35);
-  backdrop-filter: blur(12px);
 }
 
 html.dark .glass-card {

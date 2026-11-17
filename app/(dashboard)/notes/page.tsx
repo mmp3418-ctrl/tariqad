@@ -1,5 +1,6 @@
-import { MediaManager } from "@/components/media/media-manager";
+import { redirect } from "next/navigation";
 
+/** Notes/summaries are managed inside /units */
 export default function NotesPage() {
-  return <MediaManager mode="notes" />;
+  redirect("/units");
 }

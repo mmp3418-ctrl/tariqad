@@ -1,5 +1,5 @@
-import { UnitsManager } from "@/components/units/units-manager";
+import { CurriculumManager } from "@/components/curriculum/curriculum-manager";
 
 export default function UnitsPage() {
-  return <UnitsManager />;
+  return <CurriculumManager />;
 }

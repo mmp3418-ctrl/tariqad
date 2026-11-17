@@ -158,10 +158,8 @@ export const SOCIAL_ICON_OPTIONS: {
 ];
 
 export const NAV_ITEMS = [
-  { href: "/announcements", labelKey: "announcements", icon: "Megaphone" },
   { href: "/grades", labelKey: "grades", icon: "GraduationCap" },
   { href: "/units", labelKey: "units", icon: "Layers" },
-  { href: "/notes", labelKey: "notes", icon: "FileText" },
   { href: "/videos", labelKey: "videos", icon: "PlayCircle" },
   { href: "/teacher-space", labelKey: "teacherSpace", icon: "Briefcase" },
   { href: "/users", labelKey: "users", icon: "Users" },

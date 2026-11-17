@@ -193,6 +193,9 @@ export interface SiteSettings {
   hero_subtitle_ar: string | null;
   hero_subtitle_en: string | null;
   book_year_label: string | null;
+  /** Public feature flags for student platform */
+  schedules_enabled: boolean;
+  grade_calculator_enabled: boolean;
   admin_password?: string | null;
   updated_at: string;
 }

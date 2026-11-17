@@ -9,6 +9,7 @@ function revalidate() {
   revalidatePath("/units");
   revalidatePath("/notes");
   revalidatePath("/videos");
+  revalidatePath("/teacher-space");
 }
 
 export async function getUnitsByGrade(

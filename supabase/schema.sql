@@ -216,6 +216,8 @@ alter table public.site_settings add column if not exists admin_password text;
 alter table public.site_settings add column if not exists hero_subtitle_ar text;
 alter table public.site_settings add column if not exists hero_subtitle_en text;
 alter table public.site_settings add column if not exists book_year_label text;
+alter table public.site_settings add column if not exists schedules_enabled boolean not null default true;
+alter table public.site_settings add column if not exists grade_calculator_enabled boolean not null default true;
 
 insert into public.site_settings (id, social_links, hero_subtitle_ar, hero_subtitle_en, book_year_label)
 values (

@@ -117,7 +117,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (authenticated && (pathname === "/login" || pathname === "/")) {
-    return NextResponse.redirect(new URL("/announcements", request.url));
+    return NextResponse.redirect(new URL("/grades", request.url));
   }
 
   if (!authenticated && pathname === "/") {

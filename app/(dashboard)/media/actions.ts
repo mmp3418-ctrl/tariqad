@@ -93,12 +93,33 @@ export async function createMedia(
 
   if (error) return { success: false, error: error.message };
   revalidatePath("/notes");
+  revalidatePath("/units");
   revalidatePath("/videos");
   return {
     success: true,
     data: data as ResourceWithGrade,
     message: "تم الحفظ بنجاح",
   };
+}
+
+export async function getMediaByUnit(
+  unitId: string,
+  type: ResourceType = "pdf"
+): Promise<ActionResult<ResourceWithGrade[]>> {
+  const authError = await requireAuth<ResourceWithGrade[]>();
+  if (authError) return authError;
+
+  const types = type === "video" ? ["video", "playlist"] : ["pdf"];
+
+  const { data, error } = await supabase
+    .from("resources")
+    .select(SELECT)
+    .eq("unit_id", unitId)
+    .in("type", types)
+    .order("title_ar", { ascending: true });
+
+  if (error) return { success: false, error: error.message };
+  return { success: true, data: (data as ResourceWithGrade[]) ?? [] };
 }
 
 export async function updateMedia(
@@ -124,6 +145,7 @@ export async function updateMedia(
 
   if (error) return { success: false, error: error.message };
   revalidatePath("/notes");
+  revalidatePath("/units");
   revalidatePath("/videos");
   return {
     success: true,
@@ -139,6 +161,7 @@ export async function deleteMedia(id: string): Promise<ActionResult> {
   const { error } = await supabase.from("resources").delete().eq("id", id);
   if (error) return { success: false, error: error.message };
   revalidatePath("/notes");
+  revalidatePath("/units");
   revalidatePath("/videos");
   return { success: true, message: "تم الحذف" };
 }
