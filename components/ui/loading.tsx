@@ -1,5 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
+import { createPortal } from "react-dom";
+import { X } from "lucide-react";
+
 export function PageLoader({ label = "جاري التحميل..." }: { label?: string }) {
   return (
     <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 text-slate-600 dark:text-slate-400">
@@ -49,21 +53,70 @@ export function ConfirmDialog({
   onCancel: () => void;
   loading?: boolean;
 }) {
-  if (!open) return null;
+  useEffect(() => {
+    if (!open) return;
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md">
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+    };
+
+    const previousOverflow = document.body.style.overflow;
+    const previousPaddingRight = document.body.style.paddingRight;
+    const scrollbarGap =
+      window.innerWidth - document.documentElement.clientWidth;
+
+    document.body.style.overflow = "hidden";
+    if (scrollbarGap > 0) {
+      document.body.style.paddingRight = `${scrollbarGap}px`;
+    }
+
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previousOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
+    };
+  }, [open, onCancel]);
+
+  if (!open) return null;
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
+      role="presentation"
+    >
       <button
         type="button"
         className="absolute inset-0 cursor-default"
         onClick={onCancel}
         aria-label="إلغاء"
       />
-      <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-        <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-          {title}
-        </h3>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-dialog-title"
+        className="relative z-10 w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 sm:p-8"
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <h3
+            id="confirm-dialog-title"
+            className="text-lg font-bold text-slate-900 dark:text-slate-100"
+          >
+            {title}
+          </h3>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+            aria-label="إغلاق"
+          >
+            <X className="h-5 w-5" />
+            <span className="hidden sm:inline">إغلاق</span>
+          </button>
+        </div>
+        <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
           {message}
         </p>
         <div className="mt-6 flex flex-wrap items-center justify-end gap-2">
@@ -88,6 +141,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -86,6 +86,11 @@ html.dark option {
   color: #f1f5f9;
 }
 
+/* Modal portals mount on body — keep stacking above app chrome */
+body:has([role="dialog"][aria-modal="true"]) {
+  overflow: hidden;
+}
+
 ::selection {
   background: color-mix(in srgb, var(--primary) 25%, transparent);
 }

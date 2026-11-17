@@ -21,7 +21,7 @@ interface SelectProps
 }
 
 const fieldClass =
-  "w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 disabled:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:disabled:bg-slate-900";
+  "w-full max-w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 disabled:cursor-not-allowed disabled:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:disabled:bg-slate-900";
 
 const labelClass = "text-sm font-medium text-slate-900 dark:text-slate-100";
 
@@ -35,7 +35,7 @@ export function Input({
 }: InputProps) {
   const inputId = id || props.name;
   return (
-    <label className="flex flex-col gap-1.5" htmlFor={inputId}>
+    <label className="flex w-full min-w-0 flex-col gap-1.5" htmlFor={inputId}>
       <span className={labelClass}>
         {label}
         {required && <span className="ms-1 text-rose-500">*</span>}
@@ -43,7 +43,7 @@ export function Input({
       <input
         id={inputId}
         required={required}
-        className={`${fieldClass} ${error ? "border-rose-400" : ""} ${className}`}
+        className={`${fieldClass} ${error ? "border-rose-400 dark:border-rose-500" : ""} ${className}`}
         {...props}
       />
       {error && (
@@ -63,7 +63,7 @@ export function Textarea({
 }: TextareaProps) {
   const inputId = id || props.name;
   return (
-    <label className="flex flex-col gap-1.5" htmlFor={inputId}>
+    <label className="flex w-full min-w-0 flex-col gap-1.5" htmlFor={inputId}>
       <span className={labelClass}>
         {label}
         {required && <span className="ms-1 text-rose-500">*</span>}
@@ -71,7 +71,7 @@ export function Textarea({
       <textarea
         id={inputId}
         required={required}
-        className={`${fieldClass} min-h-[96px] resize-y ${error ? "border-rose-400" : ""} ${className}`}
+        className={`${fieldClass} min-h-[96px] resize-y ${error ? "border-rose-400 dark:border-rose-500" : ""} ${className}`}
         {...props}
       />
       {error && (
@@ -92,7 +92,7 @@ export function Select({
 }: SelectProps) {
   const inputId = id || props.name;
   return (
-    <label className="flex flex-col gap-1.5" htmlFor={inputId}>
+    <label className="flex w-full min-w-0 flex-col gap-1.5" htmlFor={inputId}>
       {label ? (
         <span className={labelClass}>
           {label}
@@ -102,7 +102,7 @@ export function Select({
       <select
         id={inputId}
         required={required}
-        className={`${fieldClass} ${error ? "border-rose-400" : ""} ${className}`}
+        className={`${fieldClass} ${error ? "border-rose-400 dark:border-rose-500" : ""} ${className}`}
         {...props}
       >
         {children}

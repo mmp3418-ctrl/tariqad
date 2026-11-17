@@ -372,9 +372,8 @@ export function PdfBooksManager() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         title={editing ? "تعديل مستند PDF" : "مستند PDF جديد"}
-        size={isQuestionBank ? "xl" : "lg"}
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 transition-all">
           <Select
             label="الفئة المستهدفة (Target)"
             name="target_audience"
@@ -505,7 +504,7 @@ export function PdfBooksManager() {
           />
 
           {isQuestionBank ? (
-            <div className="space-y-4 rounded-2xl border border-teal-200 bg-teal-50/60 p-4 dark:border-teal-900 dark:bg-teal-950/40">
+            <div className="space-y-4 rounded-2xl border border-teal-200 bg-teal-50/60 p-4 transition-all dark:border-teal-900 dark:bg-teal-950/40">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                   بنك الأسئلة — حقول السؤال
