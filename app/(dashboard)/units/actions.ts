@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { supabase } from "@/lib/supabase";
 import { requireAuth } from "@/lib/action-helpers";
+import { insertFlexible, updateFlexible } from "@/lib/supabase-write";
 import type { ActionResult, Lesson, Unit, UnitWithLessons } from "@/lib/types";
 
 const UNIT_SELECT = "id, grade_id, title_ar, title_en, sort_order, is_coming_soon";
@@ -145,22 +146,16 @@ export async function createUnit(input: {
     is_coming_soon: input.is_coming_soon ?? false,
   };
 
-  let result = await supabase.from("units").insert(payload).select(UNIT_SELECT).single();
-
-  if (result.error && result.error.message.toLowerCase().includes("title_en")) {
-    const { title_en: _drop, ...withoutEn } = payload;
-    result = await supabase
-      .from("units")
-      .insert(withoutEn)
-      .select(UNIT_SELECT_MIN)
-      .single();
-  }
-
-  if (result.error) return { success: false, error: result.error.message };
+  const { data, error } = await insertFlexible<Record<string, unknown>>(
+    "units",
+    payload,
+    UNIT_SELECT
+  );
+  if (error || !data) return { success: false, error: error ?? "فشل الحفظ" };
   revalidate();
   return {
     success: true,
-    data: normalizeUnit(result.data as Record<string, unknown>),
+    data: normalizeUnit(data),
     message: "تم إضافة الوحدة",
   };
 }
@@ -183,28 +178,17 @@ export async function updateUnit(
     is_coming_soon: input.is_coming_soon ?? false,
   };
 
-  let result = await supabase
-    .from("units")
-    .update(payload)
-    .eq("id", id)
-    .select(UNIT_SELECT)
-    .single();
-
-  if (result.error && result.error.message.toLowerCase().includes("title_en")) {
-    const { title_en: _drop, ...withoutEn } = payload;
-    result = await supabase
-      .from("units")
-      .update(withoutEn)
-      .eq("id", id)
-      .select(UNIT_SELECT_MIN)
-      .single();
-  }
-
-  if (result.error) return { success: false, error: result.error.message };
+  const { data, error } = await updateFlexible<Record<string, unknown>>(
+    "units",
+    id,
+    payload,
+    UNIT_SELECT
+  );
+  if (error || !data) return { success: false, error: error ?? "فشل التحديث" };
   revalidate();
   return {
     success: true,
-    data: normalizeUnit(result.data as Record<string, unknown>),
+    data: normalizeUnit(data),
     message: "تم تحديث الوحدة",
   };
 }
@@ -271,26 +255,16 @@ export async function createLesson(input: {
     is_coming_soon: input.is_coming_soon ?? false,
   };
 
-  let result = await supabase
-    .from("lessons")
-    .insert(payload)
-    .select(LESSON_SELECT)
-    .single();
-
-  if (result.error && result.error.message.toLowerCase().includes("title_en")) {
-    const { title_en: _drop, ...withoutEn } = payload;
-    result = await supabase
-      .from("lessons")
-      .insert(withoutEn)
-      .select(LESSON_SELECT_MIN)
-      .single();
-  }
-
-  if (result.error) return { success: false, error: result.error.message };
+  const { data, error } = await insertFlexible<Record<string, unknown>>(
+    "lessons",
+    payload,
+    LESSON_SELECT
+  );
+  if (error || !data) return { success: false, error: error ?? "فشل الحفظ" };
   revalidate();
   return {
     success: true,
-    data: normalizeLesson(result.data as Record<string, unknown>),
+    data: normalizeLesson(data),
     message: "تم إضافة الدرس",
   };
 }
@@ -313,28 +287,17 @@ export async function updateLesson(
     is_coming_soon: input.is_coming_soon ?? false,
   };
 
-  let result = await supabase
-    .from("lessons")
-    .update(payload)
-    .eq("id", id)
-    .select(LESSON_SELECT)
-    .single();
-
-  if (result.error && result.error.message.toLowerCase().includes("title_en")) {
-    const { title_en: _drop, ...withoutEn } = payload;
-    result = await supabase
-      .from("lessons")
-      .update(withoutEn)
-      .eq("id", id)
-      .select(LESSON_SELECT_MIN)
-      .single();
-  }
-
-  if (result.error) return { success: false, error: result.error.message };
+  const { data, error } = await updateFlexible<Record<string, unknown>>(
+    "lessons",
+    id,
+    payload,
+    LESSON_SELECT
+  );
+  if (error || !data) return { success: false, error: error ?? "فشل التحديث" };
   revalidate();
   return {
     success: true,
-    data: normalizeLesson(result.data as Record<string, unknown>),
+    data: normalizeLesson(data),
     message: "تم تحديث الدرس",
   };
 }

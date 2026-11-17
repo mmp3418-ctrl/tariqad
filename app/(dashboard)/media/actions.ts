@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { supabase } from "@/lib/supabase";
 import { requireAuth } from "@/lib/action-helpers";
+import { insertFlexible, updateFlexible } from "@/lib/supabase-write";
 import type {
   ActionResult,
   ResourceCategory,
@@ -27,14 +28,17 @@ export type MediaInput = {
 };
 
 function toPayload(input: MediaInput) {
+  const lessonId = input.lesson_id?.trim() || null;
+  const unitId = input.unit_id?.trim() || null;
+
   return {
     grade_id: input.grade_id,
-    unit_id: input.unit_id || null,
-    lesson_id: input.lesson_id || null,
+    unit_id: unitId,
+    lesson_id: lessonId,
     type: input.type,
     title_ar: input.title_ar.trim(),
     title_en: "",
-    subject_ar: input.subject_ar.trim() || input.title_ar.trim(),
+    subject_ar: (input.subject_ar || input.title_ar).trim(),
     subject_en: "",
     term: null,
     url: input.url.trim(),
@@ -49,8 +53,6 @@ function toPayload(input: MediaInput) {
 }
 
 const SELECT_FULL =
-  "*, grades(id, title_ar, title_en, stage), units(id, title_ar), lessons(id, title_ar)";
-const SELECT_SAFE =
   "*, grades(id, title_ar, stage), units(id, title_ar), lessons(id, title_ar)";
 
 function revalidateMedia() {
@@ -63,26 +65,26 @@ async function queryResources(opts: {
   types: string[];
   unitId?: string;
 }): Promise<ActionResult<ResourceWithGrade[]>> {
-  let fullQuery = supabase
+  let query = supabase
     .from("resources")
     .select(SELECT_FULL)
     .in("type", opts.types);
-  if (opts.unitId) fullQuery = fullQuery.eq("unit_id", opts.unitId);
+  if (opts.unitId) query = query.eq("unit_id", opts.unitId);
 
-  const full = await fullQuery.order("title_ar", { ascending: true });
+  const full = await query.order("title_ar", { ascending: true });
   if (!full.error) {
     return { success: true, data: (full.data as ResourceWithGrade[]) ?? [] };
   }
 
-  let safeQuery = supabase
+  let safe = supabase
     .from("resources")
-    .select(SELECT_SAFE)
+    .select("*, grades(id, title_ar, stage), units(id, title_ar)")
     .in("type", opts.types);
-  if (opts.unitId) safeQuery = safeQuery.eq("unit_id", opts.unitId);
+  if (opts.unitId) safe = safe.eq("unit_id", opts.unitId);
 
-  const safe = await safeQuery.order("title_ar", { ascending: true });
-  if (safe.error) return { success: false, error: safe.error.message };
-  return { success: true, data: (safe.data as ResourceWithGrade[]) ?? [] };
+  const fallback = await safe.order("title_ar", { ascending: true });
+  if (fallback.error) return { success: false, error: fallback.error.message };
+  return { success: true, data: (fallback.data as ResourceWithGrade[]) ?? [] };
 }
 
 export async function getMediaByType(
@@ -112,10 +114,10 @@ export async function createMedia(
   const authError = await requireAuth<ResourceWithGrade>();
   if (authError) return authError;
 
-  if (!input.grade_id) {
+  if (!input.grade_id?.trim()) {
     return { success: false, error: "يجب اختيار الصف الدراسي" };
   }
-  if (input.type === "pdf" && !input.unit_id) {
+  if (input.type === "pdf" && !input.unit_id?.trim()) {
     return { success: false, error: "يجب ربط المذكرة بوحدة دراسية" };
   }
   if (!input.title_ar.trim() || !input.url.trim()) {
@@ -125,28 +127,27 @@ export async function createMedia(
     return { success: false, error: "يجب اختيار تصنيف المادة" };
   }
 
-  const payload = toPayload(input);
-  let result = await supabase
-    .from("resources")
-    .insert(payload)
-    .select(SELECT_FULL)
-    .single();
-
-  if (result.error) {
-    result = await supabase
-      .from("resources")
-      .insert(payload)
-      .select(SELECT_SAFE)
-      .single();
+  if (input.unit_id?.trim()) {
+    const { data: unitRow, error: unitError } = await supabase
+      .from("units")
+      .select("id, grade_id")
+      .eq("id", input.unit_id.trim())
+      .maybeSingle();
+    if (unitError) return { success: false, error: unitError.message };
+    if (!unitRow || unitRow.grade_id !== input.grade_id) {
+      return { success: false, error: "الوحدة لا تتبع الصف المحدد" };
+    }
   }
 
-  if (result.error) return { success: false, error: result.error.message };
+  const { data, error } = await insertFlexible<ResourceWithGrade>(
+    "resources",
+    toPayload(input),
+    SELECT_FULL
+  );
+
+  if (error || !data) return { success: false, error: error ?? "فشل الحفظ" };
   revalidateMedia();
-  return {
-    success: true,
-    data: result.data as unknown as ResourceWithGrade,
-    message: "تم الحفظ بنجاح",
-  };
+  return { success: true, data, message: "تم الحفظ بنجاح" };
 }
 
 export async function updateMedia(
@@ -156,40 +157,38 @@ export async function updateMedia(
   const authError = await requireAuth<ResourceWithGrade>();
   if (authError) return authError;
 
-  if (!input.grade_id || !input.title_ar.trim() || !input.url.trim()) {
+  if (!input.grade_id?.trim() || !input.title_ar.trim() || !input.url.trim()) {
     return { success: false, error: "الحقول الأساسية مطلوبة" };
   }
-  if (input.type === "pdf" && !input.unit_id) {
+  if (input.type === "pdf" && !input.unit_id?.trim()) {
     return { success: false, error: "يجب ربط المذكرة بوحدة دراسية" };
   }
   if (!input.resource_category) {
     return { success: false, error: "يجب اختيار تصنيف المادة" };
   }
 
-  const payload = toPayload(input);
-  let result = await supabase
-    .from("resources")
-    .update(payload)
-    .eq("id", id)
-    .select(SELECT_FULL)
-    .single();
-
-  if (result.error) {
-    result = await supabase
-      .from("resources")
-      .update(payload)
-      .eq("id", id)
-      .select(SELECT_SAFE)
-      .single();
+  if (input.unit_id?.trim()) {
+    const { data: unitRow, error: unitError } = await supabase
+      .from("units")
+      .select("id, grade_id")
+      .eq("id", input.unit_id.trim())
+      .maybeSingle();
+    if (unitError) return { success: false, error: unitError.message };
+    if (!unitRow || unitRow.grade_id !== input.grade_id) {
+      return { success: false, error: "الوحدة لا تتبع الصف المحدد" };
+    }
   }
 
-  if (result.error) return { success: false, error: result.error.message };
+  const { data, error } = await updateFlexible<ResourceWithGrade>(
+    "resources",
+    id,
+    toPayload(input),
+    SELECT_FULL
+  );
+
+  if (error || !data) return { success: false, error: error ?? "فشل التحديث" };
   revalidateMedia();
-  return {
-    success: true,
-    data: result.data as unknown as ResourceWithGrade,
-    message: "تم التحديث بنجاح",
-  };
+  return { success: true, data, message: "تم التحديث بنجاح" };
 }
 
 export async function deleteMedia(id: string): Promise<ActionResult> {

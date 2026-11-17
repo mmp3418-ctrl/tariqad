@@ -46,14 +46,14 @@ export function ConfirmDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center p-0 sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center">
       <button
         type="button"
         className="absolute inset-0 bg-slate-950/55 backdrop-blur-sm"
         onClick={onCancel}
         aria-label="إلغاء"
       />
-      <div className="relative z-10 w-full max-w-[100vw] rounded-t-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl sm:max-w-md sm:rounded-2xl sm:p-6">
+      <div className="relative z-10 mx-4 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 text-[var(--foreground)] shadow-2xl sm:p-6">
         <h3 className="text-lg font-bold text-[var(--foreground)]">{title}</h3>
         <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">
           {message}

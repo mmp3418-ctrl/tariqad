@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { supabase } from "@/lib/supabase";
 import { requireAuth } from "@/lib/action-helpers";
+import { insertFlexible, updateFlexible } from "@/lib/supabase-write";
 import type {
   ActionResult,
   TeacherSpaceCategory,
@@ -91,11 +92,22 @@ export async function createTeacherSpaceItem(input: {
   const authError = await requireAuth<TeacherSpaceItem>();
   if (authError) return authError;
 
-  if (!input.grade_id || !input.unit_id) {
+  if (!input.grade_id?.trim() || !input.unit_id?.trim()) {
     return { success: false, error: "الصف والوحدة مطلوبان" };
   }
   if (!input.title_ar.trim() || !input.url.trim()) {
     return { success: false, error: "العنوان والملف أو الرابط مطلوبان" };
+  }
+
+  // Ensure unit belongs to selected grade (avoids FK / orphan mismatches)
+  const { data: unitRow, error: unitError } = await supabase
+    .from("units")
+    .select("id, grade_id")
+    .eq("id", input.unit_id)
+    .maybeSingle();
+  if (unitError) return { success: false, error: unitError.message };
+  if (!unitRow || unitRow.grade_id !== input.grade_id) {
+    return { success: false, error: "الوحدة لا تتبع الصف المحدد" };
   }
 
   const payload = {
@@ -104,32 +116,23 @@ export async function createTeacherSpaceItem(input: {
     title_en: "",
     description_ar: input.description_ar.trim() || null,
     url: input.url.trim(),
-    grade_id: input.grade_id,
-    unit_id: input.unit_id,
+    grade_id: input.grade_id.trim(),
+    unit_id: input.unit_id.trim(),
     is_active: input.is_active ?? true,
     is_coming_soon: input.is_coming_soon ?? false,
     sort_order: 0,
   };
 
-  let result = await supabase
-    .from(TABLE)
-    .insert(payload)
-    .select(SELECT_FULL)
-    .single();
-
-  if (result.error) {
-    result = await supabase
-      .from(TABLE)
-      .insert(payload)
-      .select(SELECT_SAFE)
-      .single();
-  }
-
-  if (result.error) return { success: false, error: result.error.message };
+  const { data, error } = await insertFlexible<Record<string, unknown>>(
+    TABLE,
+    payload,
+    SELECT_FULL
+  );
+  if (error || !data) return { success: false, error: error ?? "فشل الحفظ" };
   revalidate();
   return {
     success: true,
-    data: normalizeItem(result.data as Record<string, unknown>),
+    data: normalizeItem(data),
     message: "تم إضافة المورد",
   };
 }
@@ -150,8 +153,18 @@ export async function updateTeacherSpaceItem(
   const authError = await requireAuth<TeacherSpaceItem>();
   if (authError) return authError;
 
-  if (!input.grade_id || !input.unit_id) {
+  if (!input.grade_id?.trim() || !input.unit_id?.trim()) {
     return { success: false, error: "الصف والوحدة مطلوبان" };
+  }
+
+  const { data: unitRow, error: unitError } = await supabase
+    .from("units")
+    .select("id, grade_id")
+    .eq("id", input.unit_id)
+    .maybeSingle();
+  if (unitError) return { success: false, error: unitError.message };
+  if (!unitRow || unitRow.grade_id !== input.grade_id) {
+    return { success: false, error: "الوحدة لا تتبع الصف المحدد" };
   }
 
   const payload = {
@@ -159,33 +172,23 @@ export async function updateTeacherSpaceItem(
     title_ar: input.title_ar.trim(),
     description_ar: input.description_ar.trim() || null,
     url: input.url.trim(),
-    grade_id: input.grade_id,
-    unit_id: input.unit_id,
+    grade_id: input.grade_id.trim(),
+    unit_id: input.unit_id.trim(),
     is_active: input.is_active ?? true,
     is_coming_soon: input.is_coming_soon ?? false,
   };
 
-  let result = await supabase
-    .from(TABLE)
-    .update(payload)
-    .eq("id", id)
-    .select(SELECT_FULL)
-    .single();
-
-  if (result.error) {
-    result = await supabase
-      .from(TABLE)
-      .update(payload)
-      .eq("id", id)
-      .select(SELECT_SAFE)
-      .single();
-  }
-
-  if (result.error) return { success: false, error: result.error.message };
+  const { data, error } = await updateFlexible<Record<string, unknown>>(
+    TABLE,
+    id,
+    payload,
+    SELECT_FULL
+  );
+  if (error || !data) return { success: false, error: error ?? "فشل التحديث" };
   revalidate();
   return {
     success: true,
-    data: normalizeItem(result.data as Record<string, unknown>),
+    data: normalizeItem(data),
     message: "تم التحديث",
   };
 }
