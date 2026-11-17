@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Briefcase,
+  FileText,
   GraduationCap,
   Languages,
   Layers,
@@ -25,6 +26,7 @@ import { useTheme } from "@/lib/theme";
 const ICONS = {
   GraduationCap,
   Layers,
+  FileText,
   PlayCircle,
   Briefcase,
   Users,

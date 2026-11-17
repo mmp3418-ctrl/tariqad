@@ -112,6 +112,8 @@ export function toResourceWritePayload(input: {
   file_url: string;
   description?: string | null;
   resource_category?: string | null;
+  target_audience?: string | null;
+  question_data?: unknown | null;
   order_index?: number;
   is_coming_soon?: boolean;
 }): Row {
@@ -121,11 +123,56 @@ export function toResourceWritePayload(input: {
     lesson_id: input.lesson_id?.trim() || null,
     type: input.type,
     title: input.title.trim(),
-    file_url: input.file_url.trim(),
+    file_url: input.file_url.trim() || null,
     description: input.description?.trim() || null,
     resource_category: input.resource_category || null,
+    target_audience: input.target_audience || null,
+    question_data: input.question_data ?? null,
     order_index: input.order_index ?? 0,
     is_coming_soon: input.is_coming_soon ?? false,
+  };
+}
+
+export function parseQuestionData(raw: unknown): {
+  question_text: string;
+  options: [string, string, string, string];
+  correct_index: 0 | 1 | 2 | 3;
+  difficulty: "easy" | "medium" | "hard";
+} | null {
+  if (!raw) return null;
+  let value = raw;
+  if (typeof raw === "string") {
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  if (!value || typeof value !== "object") return null;
+  const row = value as Row;
+  const optionsRaw = Array.isArray(row.options) ? row.options : ["", "", "", ""];
+  const options: [string, string, string, string] = [
+    String(optionsRaw[0] ?? ""),
+    String(optionsRaw[1] ?? ""),
+    String(optionsRaw[2] ?? ""),
+    String(optionsRaw[3] ?? ""),
+  ];
+  const correct = Number(row.correct_index);
+  const difficulty =
+    row.difficulty === "easy" ||
+    row.difficulty === "medium" ||
+    row.difficulty === "hard"
+      ? row.difficulty
+      : "medium";
+  return {
+    question_text: String(row.question_text ?? ""),
+    options,
+    correct_index: ([0, 1, 2, 3].includes(correct) ? correct : 0) as
+      | 0
+      | 1
+      | 2
+      | 3,
+    difficulty,
   };
 }
 

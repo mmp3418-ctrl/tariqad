@@ -81,6 +81,23 @@ alter table public.resources add column if not exists lesson_id uuid references 
 alter table public.resources add column if not exists resource_category text;
 alter table public.resources add column if not exists is_coming_soon boolean not null default false;
 alter table public.resources add column if not exists type text;
+alter table public.resources add column if not exists target_audience text;
+alter table public.resources add column if not exists question_data jsonb;
+
+do $$ begin
+  -- optional check constraint for target_audience
+  begin
+    alter table public.resources
+      drop constraint if exists resources_target_audience_check;
+  exception when undefined_object then null;
+  end;
+  begin
+    alter table public.resources
+      add constraint resources_target_audience_check
+      check (target_audience is null or target_audience in ('student', 'teacher'));
+  exception when others then null;
+  end;
+end $$;
 
 do $$ begin
   if exists (

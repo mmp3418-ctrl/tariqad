@@ -157,9 +157,50 @@ export const SOCIAL_ICON_OPTIONS: {
   { value: "globe", label: "موقع / أخرى" },
 ];
 
+/** Teacher PDF categories shown when Target = Teacher */
+export const PDF_TEACHER_CATEGORY_OPTIONS = [
+  {
+    value: "lesson_prep" as const,
+    label: "تحضير الدروس",
+    labelEn: "Lesson Plans",
+  },
+  {
+    value: "worksheets" as const,
+    label: "أوراق العمل",
+    labelEn: "Worksheets",
+  },
+  {
+    value: "question_banks" as const,
+    label: "بنك الأسئلة",
+    labelEn: "Question Bank",
+  },
+  {
+    value: "grammar_summaries" as const,
+    label: "ملخصات قواعد",
+    labelEn: "Grammar Summaries",
+  },
+  {
+    value: "classroom_guide" as const,
+    label: "دليل إدارة صف",
+    labelEn: "Classroom Management Guides",
+  },
+];
+
+export const QUESTION_DIFFICULTY_OPTIONS = [
+  { value: "easy" as const, label: "سهل", labelEn: "Easy" },
+  { value: "medium" as const, label: "متوسط", labelEn: "Medium" },
+  { value: "hard" as const, label: "صعب", labelEn: "Hard" },
+];
+
+export const TARGET_AUDIENCE_OPTIONS = [
+  { value: "student" as const, label: "طالب", labelEn: "Student" },
+  { value: "teacher" as const, label: "معلم", labelEn: "Teacher" },
+] as const;
+
 export const NAV_ITEMS = [
   { href: "/grades", labelKey: "grades", icon: "GraduationCap" },
   { href: "/units", labelKey: "units", icon: "Layers" },
+  { href: "/admin/pdf-books", labelKey: "pdfBooks", icon: "FileText" },
   { href: "/videos", labelKey: "videos", icon: "PlayCircle" },
   { href: "/teacher-space", labelKey: "teacherSpace", icon: "Briefcase" },
   { href: "/users", labelKey: "users", icon: "Users" },

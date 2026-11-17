@@ -35,6 +35,7 @@ const dict = {
     nav: {
       grades: "الصفوف الدراسية",
       units: "الوحدات والمواد",
+      pdfBooks: "الكتب والمستندات PDF",
       videos: "الشروحات المرئية",
       teacherSpace: "مساحة المعلم",
       users: "المشرفون والصلاحيات",
@@ -90,6 +91,7 @@ const dict = {
     nav: {
       grades: "Grades",
       units: "Units & Materials",
+      pdfBooks: "PDF Books & Documents",
       videos: "Video Lessons",
       teacherSpace: "Teacher Space",
       users: "Admins & Roles",

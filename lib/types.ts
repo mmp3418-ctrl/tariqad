@@ -17,6 +17,21 @@ export type TeacherSpaceCategory =
   | "grammar_summaries"
   | "classroom_guide";
 
+/** PDF books page — student vs teacher audience */
+export type TargetAudience = "student" | "teacher";
+
+export type QuestionDifficulty = "easy" | "medium" | "hard";
+
+export interface QuestionData {
+  question_text: string;
+  options: [string, string, string, string];
+  correct_index: 0 | 1 | 2 | 3;
+  difficulty: QuestionDifficulty;
+}
+
+/** Combined category values stored in resources.resource_category */
+export type PdfBookCategory = ResourceCategory | TeacherSpaceCategory;
+
 export type SocialIconKey =
   | "facebook"
   | "instagram"
@@ -95,7 +110,9 @@ export interface Resource {
   badge_color: string;
   icon_type: string;
   cover_image_url: string | null;
-  resource_category: ResourceCategory | null;
+  resource_category: ResourceCategory | PdfBookCategory | null;
+  target_audience: TargetAudience | null;
+  question_data: QuestionData | null;
   is_coming_soon: boolean;
 }
 
@@ -104,6 +121,9 @@ export type ResourceWithGrade = Resource & {
   units?: Pick<Unit, "id" | "title_ar"> | null;
   lessons?: Pick<Lesson, "id" | "title_ar"> | null;
 };
+
+/** Alias used by the PDF books manager */
+export type PdfBook = ResourceWithGrade;
 
 /** General school period timetable (`class_schedules`) */
 export interface ClassSchedule {

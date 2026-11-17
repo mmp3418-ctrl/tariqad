@@ -7,6 +7,7 @@ import { insertFlexible, updateFlexible } from "@/lib/supabase-write";
 import {
   normalizeRelatedTitle,
   normalizeResourceRow,
+  parseQuestionData,
   toResourceWritePayload,
 } from "@/lib/schema-compat";
 import type {
@@ -15,6 +16,7 @@ import type {
   ResourceCategory,
   ResourceType,
   ResourceWithGrade,
+  TargetAudience,
 } from "@/lib/types";
 
 export type MediaInput = {
@@ -72,6 +74,9 @@ function normalizeMediaRow(row: Record<string, unknown>): ResourceWithGrade {
     cover_image_url: (base.cover_image_url as string | null) ?? null,
     resource_category:
       (base.resource_category as ResourceWithGrade["resource_category"]) ?? null,
+    target_audience:
+      (base.target_audience as TargetAudience | null) ?? null,
+    question_data: parseQuestionData(base.question_data),
     is_coming_soon: Boolean(base.is_coming_soon),
     grades: grades
       ? {

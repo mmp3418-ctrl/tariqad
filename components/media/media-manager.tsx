@@ -163,7 +163,11 @@ export function MediaManager({ mode }: { mode: Mode }) {
       badge_color: item.badge_color || CARD_COLOR_PRESETS[0],
       icon_type: item.icon_type || iconOptions[0],
       cover_image_url: item.cover_image_url ?? "",
-      resource_category: item.resource_category ?? "",
+      resource_category: (RESOURCE_CATEGORY_OPTIONS.some(
+        (c) => c.value === item.resource_category
+      )
+        ? item.resource_category
+        : "") as ResourceCategory | "",
       is_coming_soon: item.is_coming_soon ?? false,
     });
     setModalOpen(true);

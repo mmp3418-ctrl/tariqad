@@ -111,6 +111,8 @@ alter table public.resources add column if not exists cover_image_url text;
 alter table public.resources add column if not exists unit_id uuid references public.units (id) on delete set null;
 alter table public.resources add column if not exists lesson_id uuid references public.lessons (id) on delete set null;
 alter table public.resources add column if not exists resource_category text;
+alter table public.resources add column if not exists target_audience text;
+alter table public.resources add column if not exists question_data jsonb;
 alter table public.resources add column if not exists is_coming_soon boolean not null default false;
 
 do $$ begin
