@@ -5,6 +5,11 @@ import { supabase } from "@/lib/supabase";
 import { requireAuth } from "@/lib/action-helpers";
 import type { ActionResult, TeacherSchedule } from "@/lib/types";
 
+function revalidateTeacherSpace() {
+  revalidatePath("/teacher-space");
+  revalidatePath("/schedules");
+}
+
 export async function getSchedules(
   teacherName?: string
 ): Promise<ActionResult<TeacherSchedule[]>> {
@@ -13,7 +18,7 @@ export async function getSchedules(
 
   let query = supabase
     .from("teacher_schedules")
-    .select("*")
+    .select("id, teacher_name, day_of_week, period_number, class_name, subject, is_active")
     .order("teacher_name", { ascending: true })
     .order("day_of_week", { ascending: true })
     .order("period_number", { ascending: true });
@@ -48,7 +53,6 @@ export async function createSchedule(input: {
   period_number: number;
   class_name: string;
   subject: string;
-  is_active?: boolean;
 }): Promise<ActionResult<TeacherSchedule>> {
   const authError = await requireAuth<TeacherSchedule>();
   if (authError) return authError;
@@ -69,13 +73,13 @@ export async function createSchedule(input: {
       period_number: Number(input.period_number),
       class_name: input.class_name.trim(),
       subject: input.subject.trim(),
-      is_active: input.is_active ?? true,
+      is_active: true,
     })
-    .select()
+    .select("id, teacher_name, day_of_week, period_number, class_name, subject, is_active")
     .single();
 
   if (error) return { success: false, error: error.message };
-  revalidatePath("/schedules");
+  revalidateTeacherSpace();
   return {
     success: true,
     data: data as TeacherSchedule,
@@ -91,7 +95,6 @@ export async function updateSchedule(
     period_number: number;
     class_name: string;
     subject: string;
-    is_active?: boolean;
   }
 ): Promise<ActionResult<TeacherSchedule>> {
   const authError = await requireAuth<TeacherSchedule>();
@@ -105,38 +108,18 @@ export async function updateSchedule(
       period_number: Number(input.period_number),
       class_name: input.class_name.trim(),
       subject: input.subject.trim(),
-      is_active: input.is_active ?? true,
+      is_active: true,
     })
     .eq("id", id)
-    .select()
+    .select("id, teacher_name, day_of_week, period_number, class_name, subject, is_active")
     .single();
 
   if (error) return { success: false, error: error.message };
-  revalidatePath("/schedules");
+  revalidateTeacherSpace();
   return {
     success: true,
     data: data as TeacherSchedule,
     message: "تم تحديث الحصة بنجاح",
-  };
-}
-
-export async function toggleScheduleActive(
-  id: string,
-  is_active: boolean
-): Promise<ActionResult> {
-  const authError = await requireAuth();
-  if (authError) return authError;
-
-  const { error } = await supabase
-    .from("teacher_schedules")
-    .update({ is_active })
-    .eq("id", id);
-
-  if (error) return { success: false, error: error.message };
-  revalidatePath("/schedules");
-  return {
-    success: true,
-    message: is_active ? "تم تفعيل الجدول" : "تم إيقاف الجدول",
   };
 }
 
@@ -150,6 +133,6 @@ export async function deleteSchedule(id: string): Promise<ActionResult> {
     .eq("id", id);
 
   if (error) return { success: false, error: error.message };
-  revalidatePath("/schedules");
+  revalidateTeacherSpace();
   return { success: true, message: "تم حذف الحصة" };
 }

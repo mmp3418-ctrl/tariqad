@@ -142,7 +142,6 @@ export const NAV_ITEMS = [
   { href: "/notes", label: "المذكرات والملخصات", icon: "FileText" },
   { href: "/videos", label: "الشروحات المرئية", icon: "PlayCircle" },
   { href: "/teacher-space", label: "مساحة المعلم", icon: "Briefcase" },
-  { href: "/schedules", label: "جداول المعلمين", icon: "CalendarDays" },
   { href: "/users", label: "المشرفون والصلاحيات", icon: "Users" },
   { href: "/settings", label: "إعدادات الموقع", icon: "Settings" },
 ] as const;

@@ -1,5 +1,6 @@
-import { SchedulesManager } from "@/components/schedules/schedules-manager";
+import { redirect } from "next/navigation";
 
+/** Schedules live inside unified /teacher-space — keep this route as a redirect. */
 export default function SchedulesPage() {
-  return <SchedulesManager />;
+  redirect("/teacher-space");
 }

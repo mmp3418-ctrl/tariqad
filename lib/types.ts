@@ -115,6 +115,7 @@ export interface TeacherSchedule {
   is_active: boolean;
 }
 
+/** Stored in `teacher_resources` table */
 export interface TeacherSpaceItem {
   id: string;
   category: TeacherSpaceCategory;
@@ -122,11 +123,13 @@ export interface TeacherSpaceItem {
   title_en: string;
   description_ar: string | null;
   url: string;
-  grade_id: string | null;
+  grade_id: string;
+  unit_id: string;
   is_coming_soon: boolean;
   sort_order: number;
   created_at: string;
   grades?: Pick<Grade, "id" | "title_ar"> | null;
+  units?: Pick<Unit, "id" | "title_ar"> | null;
 }
 
 export interface SocialLink {

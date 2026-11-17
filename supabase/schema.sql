@@ -112,7 +112,24 @@ create table if not exists public.teacher_schedules (
 );
 alter table public.teacher_schedules add column if not exists is_active boolean not null default true;
 
--- Teacher space items
+-- Teacher resources (tools per grade + unit)
+create table if not exists public.teacher_resources (
+  id uuid primary key default gen_random_uuid(),
+  category text not null check (category in (
+    'lesson_prep', 'worksheets', 'question_banks', 'grammar_summaries', 'classroom_guide'
+  )),
+  title_ar text not null,
+  title_en text not null default '',
+  description_ar text,
+  url text not null,
+  grade_id uuid not null references public.grades (id) on delete cascade,
+  unit_id uuid not null references public.units (id) on delete cascade,
+  is_coming_soon boolean not null default false,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+-- Legacy alias table (kept for older installs; prefer teacher_resources)
 create table if not exists public.teacher_space_items (
   id uuid primary key default gen_random_uuid(),
   category text not null check (category in (
@@ -123,10 +140,17 @@ create table if not exists public.teacher_space_items (
   description_ar text,
   url text not null,
   grade_id uuid references public.grades (id) on delete set null,
+  unit_id uuid references public.units (id) on delete set null,
   is_coming_soon boolean not null default false,
   sort_order integer not null default 0,
   created_at timestamptz not null default now()
 );
+
+alter table public.teacher_space_items add column if not exists unit_id uuid references public.units (id) on delete set null;
+alter table public.teacher_space_items add column if not exists is_coming_soon boolean not null default false;
+alter table public.teacher_resources add column if not exists grade_id uuid references public.grades (id) on delete cascade;
+alter table public.teacher_resources add column if not exists unit_id uuid references public.units (id) on delete cascade;
+alter table public.teacher_resources add column if not exists is_coming_soon boolean not null default false;
 
 -- Site settings
 create table if not exists public.site_settings (
@@ -167,6 +191,7 @@ alter table public.units enable row level security;
 alter table public.lessons enable row level security;
 alter table public.resources enable row level security;
 alter table public.teacher_schedules enable row level security;
+alter table public.teacher_resources enable row level security;
 alter table public.teacher_space_items enable row level security;
 alter table public.site_settings enable row level security;
 
@@ -177,6 +202,7 @@ drop policy if exists "Allow all units" on public.units;
 drop policy if exists "Allow all lessons" on public.lessons;
 drop policy if exists "Allow all resources" on public.resources;
 drop policy if exists "Allow all teacher_schedules" on public.teacher_schedules;
+drop policy if exists "Allow all teacher_resources" on public.teacher_resources;
 drop policy if exists "Allow all teacher_space_items" on public.teacher_space_items;
 drop policy if exists "Allow all site_settings" on public.site_settings;
 
@@ -187,5 +213,6 @@ create policy "Allow all units" on public.units for all using (true) with check 
 create policy "Allow all lessons" on public.lessons for all using (true) with check (true);
 create policy "Allow all resources" on public.resources for all using (true) with check (true);
 create policy "Allow all teacher_schedules" on public.teacher_schedules for all using (true) with check (true);
+create policy "Allow all teacher_resources" on public.teacher_resources for all using (true) with check (true);
 create policy "Allow all teacher_space_items" on public.teacher_space_items for all using (true) with check (true);
 create policy "Allow all site_settings" on public.site_settings for all using (true) with check (true);
