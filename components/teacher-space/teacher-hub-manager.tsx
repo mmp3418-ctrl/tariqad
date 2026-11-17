@@ -414,7 +414,6 @@ export function TeacherHubManager() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         title={editing ? "تعديل المورد" : "إضافة مورد للمعلم"}
-        size="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-4 overflow-x-hidden">
           <Select

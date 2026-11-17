@@ -396,7 +396,6 @@ export function CurriculumManager() {
         open={unitModal}
         onClose={() => setUnitModal(false)}
         title={editingUnit ? "إدارة الوحدة" : "وحدة جديدة"}
-        size="xl"
       >
         <div className="space-y-6 overflow-x-hidden">
           <form onSubmit={handleUnitSubmit} className="space-y-4">

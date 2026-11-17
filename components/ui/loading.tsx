@@ -27,15 +27,16 @@ export function EmptyState({
       <p className="text-base font-semibold text-slate-900 dark:text-slate-100">
         {title}
       </p>
-      {description && (
+      {description ? (
         <p className="mt-1 max-w-md text-sm text-slate-600 dark:text-slate-400">
           {description}
         </p>
-      )}
+      ) : null}
     </div>
   );
 }
 
+/** Confirm / delete dialog — same centering rules as Modal. */
 export function ConfirmDialog({
   open,
   title,
@@ -60,32 +61,25 @@ export function ConfirmDialog({
       if (e.key === "Escape") onCancel();
     };
 
-    const previousOverflow = document.body.style.overflow;
-    const previousPaddingRight = document.body.style.paddingRight;
-    const scrollbarGap =
-      window.innerWidth - document.documentElement.clientWidth;
+    const prevOverflow = document.body.style.overflow;
+    const prevPadding = document.body.style.paddingRight;
+    const gap = window.innerWidth - document.documentElement.clientWidth;
 
     document.body.style.overflow = "hidden";
-    if (scrollbarGap > 0) {
-      document.body.style.paddingRight = `${scrollbarGap}px`;
-    }
+    if (gap > 0) document.body.style.paddingRight = `${gap}px`;
 
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = previousOverflow;
-      document.body.style.paddingRight = previousPaddingRight;
+      document.body.style.overflow = prevOverflow;
+      document.body.style.paddingRight = prevPadding;
     };
   }, [open, onCancel]);
 
-  if (!open) return null;
-  if (typeof document === "undefined") return null;
+  if (!open || typeof document === "undefined") return null;
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
-      role="presentation"
-    >
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
       <button
         type="button"
         className="absolute inset-0 cursor-default"
@@ -96,7 +90,7 @@ export function ConfirmDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
-        className="relative z-10 w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 sm:p-8"
+        className="relative z-10 w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 sm:p-8"
       >
         <div className="mb-4 flex items-start justify-between gap-3">
           <h3
@@ -134,9 +128,9 @@ export function ConfirmDialog({
             disabled={loading}
             className="inline-flex h-10 items-center gap-2 rounded-xl bg-rose-600 px-4 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-70"
           >
-            {loading && (
+            {loading ? (
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-            )}
+            ) : null}
             {confirmLabel}
           </button>
         </div>

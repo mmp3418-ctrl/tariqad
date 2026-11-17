@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** Notes/summaries are managed inside /units */
+/** Legacy notes route — managed via PDF books + curriculum. */
 export default function NotesPage() {
-  redirect("/units");
+  redirect("/admin/pdf-books");
 }

@@ -10,18 +10,16 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: ReactNode;
-  /** Kept for call-site compatibility; all sizes use max-w-xl for stable centering. */
+  /** @deprecated Ignored — all modals use max-w-xl for stable centering. */
   size?: "md" | "lg" | "xl";
   footer?: ReactNode;
 }
 
-export function Modal({
-  open,
-  onClose,
-  title,
-  children,
-  footer,
-}: ModalProps) {
+/**
+ * Canonical admin modal — portaled to document.body so parent overflow
+ * never clips it. Always centered, scroll-safe, theme-contrast safe.
+ */
+export function Modal({ open, onClose, title, children, footer }: ModalProps) {
   const { t } = useLocale();
 
   useEffect(() => {
@@ -31,32 +29,25 @@ export function Modal({
       if (e.key === "Escape") onClose();
     };
 
-    const previousOverflow = document.body.style.overflow;
-    const previousPaddingRight = document.body.style.paddingRight;
-    const scrollbarGap =
-      window.innerWidth - document.documentElement.clientWidth;
+    const prevOverflow = document.body.style.overflow;
+    const prevPadding = document.body.style.paddingRight;
+    const gap = window.innerWidth - document.documentElement.clientWidth;
 
     document.body.style.overflow = "hidden";
-    if (scrollbarGap > 0) {
-      document.body.style.paddingRight = `${scrollbarGap}px`;
-    }
+    if (gap > 0) document.body.style.paddingRight = `${gap}px`;
 
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = previousOverflow;
-      document.body.style.paddingRight = previousPaddingRight;
+      document.body.style.overflow = prevOverflow;
+      document.body.style.paddingRight = prevPadding;
     };
   }, [open, onClose]);
 
-  if (!open) return null;
-  if (typeof document === "undefined") return null;
+  if (!open || typeof document === "undefined") return null;
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
-      role="presentation"
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
       <button
         type="button"
         className="absolute inset-0 cursor-default"
@@ -68,9 +59,9 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className="relative z-10 flex w-full max-w-xl max-h-[90vh] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+        className="relative z-10 flex w-full max-w-xl max-h-[90vh] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
       >
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-900 sm:px-8">
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-6 py-4 dark:border-slate-800 sm:px-8">
           <h2
             id="modal-title"
             className="min-w-0 truncate text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg"
@@ -86,16 +77,16 @@ export function Modal({
             <X className="h-5 w-5" />
             <span className="hidden sm:inline">{t.close}</span>
           </button>
-        </div>
+        </header>
 
         <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-6 sm:p-8">
-          <div className="w-full min-w-0 space-y-0">{children}</div>
+          {children}
         </div>
 
         {footer ? (
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-slate-200 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-900 sm:px-8">
+          <footer className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-slate-200 px-6 py-4 dark:border-slate-800 sm:px-8">
             {footer}
-          </div>
+          </footer>
         ) : null}
       </div>
     </div>,

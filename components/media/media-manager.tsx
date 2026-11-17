@@ -321,7 +321,6 @@ export function MediaManager({ mode }: { mode: Mode }) {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         title={editing ? "تعديل العنصر" : copy.addLabel}
-        size="xl"
       >
         <form onSubmit={handleSubmit} className="space-y-4 overflow-x-hidden">
           <div className="grid gap-4 sm:grid-cols-3">

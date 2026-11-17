@@ -193,8 +193,8 @@ export const QUESTION_DIFFICULTY_OPTIONS = [
 ];
 
 export const TARGET_AUDIENCE_OPTIONS = [
-  { value: "student" as const, label: "طالب", labelEn: "Student" },
-  { value: "teacher" as const, label: "معلم", labelEn: "Teacher" },
+  { value: "student" as const, label: "الطالب", labelEn: "Student" },
+  { value: "teacher" as const, label: "المعلم", labelEn: "Teacher" },
 ] as const;
 
 export const NAV_ITEMS = [

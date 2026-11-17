@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+/** Legacy route — PDFs live on the dedicated books page. */
 export default function LegacyResourcesPage() {
-  redirect("/notes");
+  redirect("/admin/pdf-books");
 }

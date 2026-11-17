@@ -69,8 +69,8 @@ function categoryLabel(value: string | null | undefined): string {
 }
 
 function audienceLabel(value: TargetAudience | null | undefined): string {
-  if (value === "teacher") return "معلم";
-  if (value === "student") return "طالب";
+  if (value === "teacher") return "المعلم";
+  if (value === "student") return "الطالب";
   return "—";
 }
 
@@ -375,7 +375,7 @@ export function PdfBooksManager() {
       >
         <form onSubmit={handleSubmit} className="space-y-4 transition-all">
           <Select
-            label="الفئة المستهدفة (Target)"
+            label="الفئة المستهدفة"
             name="target_audience"
             required
             value={form.target_audience}
