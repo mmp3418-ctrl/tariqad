@@ -45,7 +45,7 @@ const emptyForm = {
   title: "",
   unit_name: "",
   material_type: "كتاب حصة" as MaterialType,
-  file_path: "",
+  file_url: "",
   stage_id: "",
   grade_id: "",
   is_active: true,
@@ -119,12 +119,12 @@ export function MaterialsManager() {
       title: item.title,
       unit_name: item.unit_name,
       material_type: item.material_type,
-      file_path: item.file_path,
+      file_url: item.file_url,
       stage_id: item.stage_id ?? "",
       grade_id: item.grade_id ?? "",
       is_active: item.is_active,
     });
-    setFileName(item.file_path ? "ملف محفوظ" : null);
+    setFileName(item.file_url ? "ملف محفوظ" : null);
     setFormError(null);
     setModalOpen(true);
   }
@@ -136,7 +136,7 @@ export function MaterialsManager() {
     try {
       const result = await uploadMaterialPdf(file);
       if (result.success && result.data) {
-        setForm((f) => ({ ...f, file_path: result.data!.publicUrl }));
+        setForm((f) => ({ ...f, file_url: result.data!.publicUrl }));
         setFileName(file.name);
         success(
           result.message ??
@@ -173,7 +173,7 @@ export function MaterialsManager() {
       setFormError("اختر المرحلة والصف");
       return;
     }
-    if (!form.file_path.trim()) {
+    if (!form.file_url.trim()) {
       setFormError("يجب رفع ملف PDF");
       return;
     }
@@ -297,7 +297,7 @@ export function MaterialsManager() {
             </div>
           ) : (
             items.map((item) => {
-              const href = safeExternalHref(item.file_path);
+              const href = safeExternalHref(item.file_url);
               return (
                 <article
                   key={item.id}
@@ -480,9 +480,9 @@ export function MaterialsManager() {
                 }}
               />
             </label>
-            {form.file_path ? (
+            {form.file_url ? (
               <a
-                href={form.file_path}
+                href={form.file_url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-xs font-medium text-teal-400 hover:underline"

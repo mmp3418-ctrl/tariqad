@@ -15,15 +15,17 @@ function normalizeMaterial(row: Record<string, unknown>): EducationalMaterial {
     ? rawType
     : "كتاب حصة";
 
-  // Canonical column is file_path; accept legacy pdf_url when reading
-  const file_path = String(row.file_path ?? row.pdf_url ?? "").trim();
+  // Canonical DB column is file_url; accept legacy aliases when reading
+  const file_url = String(
+    row.file_url ?? row.file_path ?? row.pdf_url ?? ""
+  ).trim();
 
   return {
     id: String(row.id),
     title: String(row.title ?? ""),
     unit_name: String(row.unit_name ?? ""),
     material_type,
-    file_path,
+    file_url,
     stage_id: row.stage_id ? String(row.stage_id) : null,
     grade_id: row.grade_id ? String(row.grade_id) : null,
     is_active: row.is_active !== false,
@@ -35,14 +37,14 @@ function normalizeMaterial(row: Record<string, unknown>): EducationalMaterial {
 
 function mapDbError(message: string): string {
   const m = message.toLowerCase();
-  if (m.includes("file_path") && (m.includes("column") || m.includes("schema cache"))) {
-    return "عمود file_path غير موجود في الجدول. نفّذ supabase/schema.sql لإضافته ثم أعد المحاولة.";
+  if (
+    m.includes("file_url") &&
+    (m.includes("column") || m.includes("schema cache") || m.includes("null"))
+  ) {
+    return "عمود file_url غير جاهز أو فارغ. تأكد من رفع الملف وأن العمود موجود في الجدول.";
   }
-  if (m.includes("pdf_url") && (m.includes("null") || m.includes("not-null"))) {
-    return "عمود pdf_url ما زال إلزامياً في قاعدة البيانات. حدّث الجدول أو أعد تشغيل schema.sql.";
-  }
-  if (m.includes("unit_name") && m.includes("column")) {
-    return "عمود unit_name غير موجود. نفّذ supabase/schema.sql ثم أعد المحاولة.";
+  if (m.includes("file_path") && m.includes("column")) {
+    return "الجدول يتوقع file_url وليس file_path — تم تصحيح الكود. أعد المحاولة.";
   }
   return message;
 }
@@ -79,26 +81,21 @@ export type MaterialInput = {
   title: string;
   unit_name: string;
   material_type: MaterialType;
-  /** Public Storage URL stored in DB column `file_path` */
-  file_path: string;
+  /** Public Storage URL — must map to DB column `file_url` */
+  file_url: string;
   stage_id: string;
   grade_id: string;
   is_active: boolean;
 };
 
-/**
- * Payload matches DB columns exactly.
- * Writes `file_path` (canonical) and mirrors the same URL to legacy `pdf_url`
- * so older NOT NULL constraints never break inserts.
- */
+/** Insertion object uses exact DB column name `file_url`. */
 function buildPayload(input: MaterialInput) {
-  const file_path = input.file_path.trim();
+  const file_url = input.file_url.trim();
   return {
     title: input.title.trim(),
     unit_name: input.unit_name.trim(),
     material_type: input.material_type,
-    file_path,
-    pdf_url: file_path,
+    file_url,
     stage_id: input.stage_id || null,
     grade_id: input.grade_id || null,
     is_active: input.is_active !== false,
@@ -111,58 +108,64 @@ async function persistMaterial(
   input: MaterialInput,
   id?: string
 ): Promise<ActionResult<EducationalMaterial>> {
-  const base = buildPayload(input);
+  const file_url = input.file_url.trim();
+  if (!file_url) {
+    return {
+      success: false,
+      error: "رابط الملف (file_url) فارغ — ارفع ملف PDF أولاً",
+    };
+  }
 
-  const attempt = async (payload: Record<string, unknown>) => {
+  const payload = buildPayload({ ...input, file_url });
+
+  const run = async (body: Record<string, unknown>) => {
     if (mode === "insert") {
       const { count } = await supabase
         .from("educational_materials")
         .select("*", { count: "exact", head: true });
       return supabase
         .from("educational_materials")
-        .insert({ ...payload, sort_order: count ?? 0 })
+        .insert({ ...body, sort_order: count ?? 0 })
         .select("*")
         .single();
     }
     return supabase
       .from("educational_materials")
-      .update(payload)
+      .update(body)
       .eq("id", id!)
       .select("*")
       .single();
   };
 
-  // 1) Preferred: file_path + pdf_url mirror
-  let { data, error } = await attempt(base);
+  console.info("[materials] persist payload keys:", Object.keys(payload), {
+    file_url: payload.file_url,
+    mode,
+  });
 
-  // 2) If file_path column missing in remote schema cache — fall back to pdf_url only
+  let { data, error } = await run(payload);
+
+  // Legacy fallbacks if remote table still uses older column names
   if (
     error &&
-    /file_path/i.test(error.message) &&
+    /file_url/i.test(error.message) &&
     /(column|schema cache|does not exist)/i.test(error.message)
   ) {
-    console.warn(
-      "[materials] file_path column missing — retrying with pdf_url only"
-    );
-    const { file_path: _omit, ...legacy } = base;
-    const retry = await attempt({ ...legacy, pdf_url: base.file_path });
-    data = retry.data;
-    error = retry.error;
-  }
-
-  // 3) If pdf_url column missing — retry with file_path only
-  if (
-    error &&
-    /pdf_url/i.test(error.message) &&
-    /(column|schema cache|does not exist)/i.test(error.message)
-  ) {
-    console.warn(
-      "[materials] pdf_url column missing — retrying with file_path only"
-    );
-    const { pdf_url: _omit, ...modern } = base;
-    const retry = await attempt(modern);
-    data = retry.data;
-    error = retry.error;
+    console.warn("[materials] file_url missing — retry pdf_url / file_path");
+    const { file_url: url, ...rest } = payload;
+    const legacyAttempts = [
+      { ...rest, pdf_url: url },
+      { ...rest, file_path: url },
+      { ...rest, file_url: url, pdf_url: url },
+    ];
+    for (const attempt of legacyAttempts) {
+      const retry = await run(attempt);
+      if (!retry.error) {
+        data = retry.data;
+        error = null;
+        break;
+      }
+      error = retry.error;
+    }
   }
 
   if (error) {
@@ -170,7 +173,7 @@ async function persistMaterial(
       error,
       mode,
       id,
-      payload: base,
+      payload,
     });
     return { success: false, error: mapDbError(error.message) };
   }
@@ -199,8 +202,8 @@ export async function createMaterial(
     if (!isMaterialType(input.material_type)) {
       return { success: false, error: "نوع المادة غير صالح" };
     }
-    if (!input.file_path.trim()) {
-      return { success: false, error: "يجب رفع ملف PDF أولاً" };
+    if (!input.file_url?.trim()) {
+      return { success: false, error: "يجب رفع ملف PDF أولاً (file_url)" };
     }
     if (!input.stage_id || !input.grade_id) {
       return { success: false, error: "يجب اختيار المرحلة والصف" };
@@ -229,8 +232,8 @@ export async function updateMaterial(
     if (!isMaterialType(input.material_type)) {
       return { success: false, error: "نوع المادة غير صالح" };
     }
-    if (!input.file_path.trim()) {
-      return { success: false, error: "مسار الملف (file_path) مطلوب" };
+    if (!input.file_url?.trim()) {
+      return { success: false, error: "رابط الملف (file_url) مطلوب" };
     }
     if (!input.stage_id || !input.grade_id) {
       return { success: false, error: "يجب اختيار المرحلة والصف" };

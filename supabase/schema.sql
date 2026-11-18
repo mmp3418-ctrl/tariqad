@@ -430,3 +430,11 @@ set file_path = pdf_url
 where (file_path is null or file_path = '')
   and pdf_url is not null
   and pdf_url <> '';
+
+-- Canonical file column for educational_materials
+alter table public.educational_materials add column if not exists file_url text;
+
+-- Backfill file_url from legacy columns
+update public.educational_materials
+set file_url = coalesce(nullif(file_url, ''), nullif(file_path, ''), nullif(pdf_url, ''))
+where file_url is null or file_url = '';

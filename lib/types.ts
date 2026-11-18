@@ -116,7 +116,7 @@ export interface EducationalMaterial {
   unit_name: string;
   material_type: MaterialType;
   /** Canonical DB column — public Storage URL */
-  file_path: string;
+  file_url: string;
   stage_id: string | null;
   grade_id: string | null;
   is_active: boolean;
