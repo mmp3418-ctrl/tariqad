@@ -6,6 +6,9 @@ create table if not exists public.site_settings (
   phone_number text,
   whatsapp_number text,
   telegram_link text,
+  email text,
+  location_text text,
+  maps_url text,
   social_links jsonb not null default '[]'::jsonb,
   hero_subtitle_ar text,
   book_year_label text,
@@ -15,18 +18,17 @@ create table if not exists public.site_settings (
 alter table public.site_settings add column if not exists phone_number text;
 alter table public.site_settings add column if not exists whatsapp_number text;
 alter table public.site_settings add column if not exists telegram_link text;
+alter table public.site_settings add column if not exists email text;
+alter table public.site_settings add column if not exists location_text text;
+alter table public.site_settings add column if not exists maps_url text;
 alter table public.site_settings add column if not exists social_links jsonb not null default '[]'::jsonb;
 alter table public.site_settings add column if not exists hero_subtitle_ar text;
 alter table public.site_settings add column if not exists book_year_label text;
 alter table public.site_settings add column if not exists updated_at timestamptz not null default now();
 
-insert into public.site_settings (id, social_links, hero_subtitle_ar, book_year_label)
-values (
-  1,
-  '[]'::jsonb,
-  'منصتك التعليمية الشاملة للمنهج الليبي',
-  '2026 - 2027'
-)
+-- Empty row only — no seeded contact/location/social content
+insert into public.site_settings (id, social_links)
+values (1, '[]'::jsonb)
 on conflict (id) do nothing;
 
 alter table public.site_settings enable row level security;

@@ -14,6 +14,9 @@ function normalizeRow(row: Record<string, unknown>): SiteSettings {
     phone_number: (row.phone_number as string | null) ?? null,
     whatsapp_number: (row.whatsapp_number as string | null) ?? null,
     telegram_link: (row.telegram_link as string | null) ?? null,
+    email: (row.email as string | null) ?? null,
+    location_text: (row.location_text as string | null) ?? null,
+    maps_url: (row.maps_url as string | null) ?? null,
     social_links: links.map((link) => ({
       id: String(link.id ?? crypto.randomUUID()),
       platform: String(link.platform ?? ""),
@@ -28,13 +31,24 @@ function normalizeRow(row: Record<string, unknown>): SiteSettings {
   };
 }
 
+const EMPTY_SEED = {
+  id: 1,
+  phone_number: null,
+  whatsapp_number: null,
+  telegram_link: null,
+  email: null,
+  location_text: null,
+  maps_url: null,
+  social_links: [] as SocialLink[],
+  hero_subtitle_ar: null,
+  book_year_label: null,
+  updated_at: new Date().toISOString(),
+};
+
 export async function getSiteSettings(): Promise<ActionResult<SiteSettings>> {
   try {
     if (!hasSupabaseConfig()) {
-      return {
-        success: false,
-        error: "NO_SUPABASE",
-      };
+      return { success: false, error: "NO_SUPABASE" };
     }
 
     const { data, error } = await supabase
@@ -49,19 +63,9 @@ export async function getSiteSettings(): Promise<ActionResult<SiteSettings>> {
     }
 
     if (!data) {
-      const seed = {
-        id: 1,
-        phone_number: null,
-        whatsapp_number: null,
-        telegram_link: null,
-        social_links: [],
-        hero_subtitle_ar: "منصتك التعليمية الشاملة للمنهج الليبي",
-        book_year_label: "2026 - 2027",
-        updated_at: new Date().toISOString(),
-      };
       const inserted = await supabase
         .from("site_settings")
-        .upsert(seed)
+        .upsert(EMPTY_SEED)
         .select("*")
         .single();
       if (inserted.error) {
@@ -84,14 +88,21 @@ export async function getSiteSettings(): Promise<ActionResult<SiteSettings>> {
   }
 }
 
-export async function saveSiteSettings(input: {
+export type SaveSiteSettingsInput = {
   phone_number: string;
   whatsapp_number: string;
   telegram_link: string;
+  email: string;
+  location_text: string;
+  maps_url: string;
   hero_subtitle_ar: string;
   book_year_label: string;
   social_links: SocialLink[];
-}): Promise<ActionResult<SiteSettings>> {
+};
+
+export async function saveSiteSettings(
+  input: SaveSiteSettingsInput
+): Promise<ActionResult<SiteSettings>> {
   try {
     if (!hasSupabaseConfig()) {
       return { success: false, error: "NO_SUPABASE" };
@@ -102,6 +113,9 @@ export async function saveSiteSettings(input: {
       phone_number: input.phone_number.trim() || null,
       whatsapp_number: input.whatsapp_number.trim() || null,
       telegram_link: input.telegram_link.trim() || null,
+      email: input.email.trim() || null,
+      location_text: input.location_text.trim() || null,
+      maps_url: input.maps_url.trim() || null,
       hero_subtitle_ar: input.hero_subtitle_ar.trim() || null,
       book_year_label: input.book_year_label.trim() || null,
       social_links: input.social_links,

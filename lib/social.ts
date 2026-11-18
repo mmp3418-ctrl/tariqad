@@ -17,16 +17,12 @@ export const SOCIAL_ICON_OPTIONS: {
   { value: "globe", label: "موقع / أخرى" },
 ];
 
-export function normalizePhone(value: string): string {
-  return value.replace(/[^\d+]/g, "").trim();
-}
-
 export function toWhatsAppLink(value: string): string {
   const raw = value.trim();
   if (!raw) return "";
   if (/^https?:\/\//i.test(raw)) return raw;
   const digits = raw.replace(/\D/g, "");
-  return digits ? `https://wa.me/${digits}` : raw;
+  return digits ? `https://wa.me/${digits}` : "";
 }
 
 export function toTelegramLink(value: string): string {
@@ -34,7 +30,20 @@ export function toTelegramLink(value: string): string {
   if (!raw) return "";
   if (/^https?:\/\//i.test(raw)) return raw;
   const handle = raw.replace(/^@/, "");
-  return `https://t.me/${handle}`;
+  return handle ? `https://t.me/${handle}` : "";
+}
+
+export function toMailtoLink(value: string): string {
+  const raw = value.trim();
+  if (!raw) return "";
+  if (/^mailto:/i.test(raw)) return raw;
+  return `mailto:${raw}`;
+}
+
+export function toTelLink(value: string): string {
+  const digits = value.replace(/[^\d+]/g, "");
+  if (!digits) return "";
+  return digits.startsWith("+") ? `tel:${digits}` : `tel:+${digits}`;
 }
 
 export function isValidHttpUrl(value: string): boolean {
@@ -44,6 +53,34 @@ export function isValidHttpUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+export function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+export function isValidMapsUrl(value: string): boolean {
+  if (!isValidHttpUrl(value)) return false;
+  try {
+    const host = new URL(value).hostname.toLowerCase();
+    return (
+      host.includes("google.") ||
+      host.includes("maps.app.goo.gl") ||
+      host.includes("goo.gl") ||
+      host.includes("maps.apple.com") ||
+      host.includes("openstreetmap.org")
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Only allow absolute external protocols — never relative paths (avoids Next 404). */
+export function safeExternalHref(value: string): string | null {
+  const raw = value.trim();
+  if (!raw) return null;
+  if (/^(https?:|mailto:|tel:)/i.test(raw)) return raw;
+  return null;
 }
 
 export function validateSocialUrl(
@@ -62,13 +99,15 @@ export function validateSocialUrl(
 
   if (icon === "whatsapp") {
     const link = toWhatsAppLink(trimmed);
-    if (!isValidHttpUrl(link)) return "رابط واتساب غير صالح (مثال: https://wa.me/2189...)";
+    if (!link || !isValidHttpUrl(link)) {
+      return "رابط واتساب غير صالح (مثال: https://wa.me/2189...)";
+    }
     return null;
   }
 
   if (icon === "telegram") {
     const link = toTelegramLink(trimmed);
-    if (!isValidHttpUrl(link)) return "رابط تيليجرام غير صالح";
+    if (!link || !isValidHttpUrl(link)) return "رابط تيليجرام غير صالح";
     return null;
   }
 
@@ -82,9 +121,6 @@ export function normalizeSocialUrl(icon: SocialIconKey, url: string): string {
   const trimmed = url.trim();
   if (icon === "whatsapp") return toWhatsAppLink(trimmed);
   if (icon === "telegram") return toTelegramLink(trimmed);
-  if (icon === "phone") {
-    const digits = trimmed.replace(/\D/g, "");
-    return digits ? `tel:+${digits.replace(/^\+/, "")}` : trimmed;
-  }
+  if (icon === "phone") return toTelLink(trimmed);
   return trimmed;
 }

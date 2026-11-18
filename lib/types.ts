@@ -29,6 +29,9 @@ export interface SiteSettings {
   phone_number: string | null;
   whatsapp_number: string | null;
   telegram_link: string | null;
+  email: string | null;
+  location_text: string | null;
+  maps_url: string | null;
   social_links: SocialLink[];
   hero_subtitle_ar: string | null;
   book_year_label: string | null;

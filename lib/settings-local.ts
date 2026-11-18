@@ -1,16 +1,20 @@
 import type { SiteSettings, SocialLink } from "@/lib/types";
 
-const KEY = "tariq-site-settings-v1";
+const KEY = "tariq-site-settings-v2";
 
+/** Empty shell only — no hardcoded contact/location/social values. */
 export function defaultSettings(): SiteSettings {
   return {
     id: 1,
     phone_number: null,
     whatsapp_number: null,
     telegram_link: null,
+    email: null,
+    location_text: null,
+    maps_url: null,
     social_links: [],
-    hero_subtitle_ar: "منصتك التعليمية الشاملة للمنهج الليبي",
-    book_year_label: "2026 - 2027",
+    hero_subtitle_ar: null,
+    book_year_label: null,
     updated_at: new Date().toISOString(),
   };
 }
@@ -20,10 +24,11 @@ export function readLocalSettings(): SiteSettings {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return defaultSettings();
-    const parsed = JSON.parse(raw) as SiteSettings;
+    const parsed = JSON.parse(raw) as Partial<SiteSettings>;
     return {
       ...defaultSettings(),
       ...parsed,
+      id: 1,
       social_links: Array.isArray(parsed.social_links)
         ? (parsed.social_links as SocialLink[])
         : [],
