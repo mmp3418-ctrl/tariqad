@@ -142,11 +142,18 @@ export interface VideoPlaylist {
   updated_at?: string;
 }
 
+/** Interactive timetable cells: day name → period subjects */
+export type TimetableGridData = Record<string, string[]>;
+
 /** مساحة المعلم — جدول الحصص */
 export interface TeacherTimetable {
   id: string;
   title: string;
-  file_url: string;
+  /** Public Storage PDF URL (generated or uploaded) */
+  file_url: string | null;
+  /** Editable weekly grid saved for re-edit / hub preview */
+  grid_data: TimetableGridData | null;
+  period_count: number;
   stage_id: string | null;
   grade_id: string | null;
   is_active: boolean;

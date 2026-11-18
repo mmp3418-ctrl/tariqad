@@ -90,7 +90,7 @@ export function RowActions({
       <Switch
         checked={isActive}
         onChange={onToggle}
-        label={isActive ? "مفعّل" : "متوقف"}
+        label={isActive ? "تفعيل" : "إيقاف"}
         disabled={pending}
       />
       <button
@@ -161,8 +161,14 @@ export function ActiveField({
 }) {
   return (
     <div className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-3 dark:border-slate-700">
-      <span className="text-sm">مفعّل على الموقع</span>
-      <Switch checked={checked} onChange={onChange} />
+      <span className="text-sm font-medium">
+        {checked ? "تفعيل — ظاهر للطلاب" : "إيقاف — مخفي عن الزوار"}
+      </span>
+      <Switch
+        checked={checked}
+        onChange={onChange}
+        label={checked ? "تفعيل" : "إيقاف"}
+      />
     </div>
   );
 }

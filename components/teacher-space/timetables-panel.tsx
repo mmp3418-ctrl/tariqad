@@ -115,18 +115,22 @@ export function TimetablesPanel({ stages, grades }: StageGradeProps) {
   }
 
   function openEdit(item: TeacherTimetable) {
+    const periods = Math.min(10, Math.max(3, item.period_count || 6));
+    const restored = item.grid_data
+      ? resizeTimetableGrid(item.grid_data, TIMETABLE_DAYS, periods)
+      : emptyTimetableGrid(TIMETABLE_DAYS, periods);
     setEditing(item);
     setForm({
       title: item.title,
-      file_url: item.file_url,
+      file_url: item.file_url ?? "",
       stage_id: item.stage_id ?? "",
       grade_id: item.grade_id ?? "",
       is_active: item.is_active,
     });
     setFileName(item.file_url ? "ملف محفوظ" : null);
     setFormError(null);
-    setPeriodCount(6);
-    setGrid(emptyTimetableGrid(TIMETABLE_DAYS, 6));
+    setPeriodCount(periods);
+    setGrid(restored);
     setModalOpen(true);
   }
 
@@ -171,9 +175,9 @@ export function TimetablesPanel({ stages, grades }: StageGradeProps) {
     }
   }
 
-  async function handleGeneratePdf(andUpload: boolean) {
+  async function handleExportAndDownload() {
     if (!form.title.trim()) {
-      setFormError("أدخل عنوان الجدول قبل التوليد");
+      setFormError("أدخل عنوان الجدول قبل التصدير");
       return;
     }
     if (!previewRef.current) {
@@ -194,20 +198,21 @@ export function TimetablesPanel({ stages, grades }: StageGradeProps) {
         `${form.title.trim() || "جدول-حصص"}.pdf`
       );
 
-      success("تم توليد ملف PDF وتنزيله");
-
-      if (andUpload) {
-        const file = new File(
-          [blob],
-          `${form.title.trim() || "timetable"}.pdf`,
-          { type: "application/pdf" }
-        );
-        await uploadPdfFile(file);
+      const file = new File(
+        [blob],
+        `${form.title.trim() || "timetable"}.pdf`,
+        { type: "application/pdf" }
+      );
+      const uploaded = await uploadPdfFile(file);
+      if (uploaded) {
+        success("تم تصدير وتحميل PDF ورفعه للحفظ");
+      } else {
+        success("تم تصدير وتحميل PDF — ارفع الملف يدوياً إن لزم");
       }
     } catch (err) {
       console.error("[timetables-panel] generate:", err);
       const message =
-        err instanceof Error ? err.message : "فشل توليد ملف PDF";
+        err instanceof Error ? err.message : "فشل تصدير ملف PDF";
       setFormError(message);
       error(message);
     } finally {
@@ -222,19 +227,24 @@ export function TimetablesPanel({ stages, grades }: StageGradeProps) {
       setFormError("العنوان مطلوب");
       return;
     }
-    if (!form.file_url.trim()) {
-      setFormError("ولّد PDF أو ارفع ملفاً قبل الحفظ");
+    if (!form.file_url.trim() && !Object.values(grid).some((row) => row.some((c) => c.trim()))) {
+      setFormError("صدّر PDF أو أدخل الحصص قبل الحفظ");
       return;
     }
     if (!form.stage_id || !form.grade_id) {
       setFormError("اختر المرحلة والصف");
       return;
     }
+    const payload = {
+      ...form,
+      grid_data: grid,
+      period_count: periodCount,
+    };
     startTransition(async () => {
       try {
         const result = editing
-          ? await updateTimetable(editing.id, form)
-          : await createTimetable(form);
+          ? await updateTimetable(editing.id, payload)
+          : await createTimetable(payload);
         if (result.success && result.data) {
           setItems((prev) =>
             editing
@@ -307,14 +317,14 @@ export function TimetablesPanel({ stages, grades }: StageGradeProps) {
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-slate-400">
-          صانع جداول الحصص — أدخل الحصص ثم ولّد PDF واحفظه مع مفتاح التفعيل.
+          صانع جداول تفاعلي — مرحلة، صف، شبكة أيام/حصص، ثم تصدير PDF مع تفعيل/إيقاف.
         </p>
         <AddButton label="إنشاء جدول جديد" onClick={openCreate} />
       </div>
 
       <ListShell empty={items.length === 0} emptyText="لا توجد جداول بعد — أنشئ أول جدول">
         {items.map((item) => {
-          const href = safeExternalHref(item.file_url);
+          const href = safeExternalHref(item.file_url ?? "");
           return (
             <article key={item.id} className={rowClass}>
               <div className="min-w-0">
@@ -499,25 +509,22 @@ export function TimetablesPanel({ stages, grades }: StageGradeProps) {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 disabled={generating || uploading || pending}
-                onClick={() => void handleGeneratePdf(false)}
-                className="inline-flex h-10 items-center gap-2 rounded-xl border border-teal-500/40 bg-teal-500/10 px-3 text-sm font-semibold text-teal-200 transition hover:bg-teal-500/20 disabled:opacity-50"
+                onClick={() => void handleExportAndDownload()}
+                className="inline-flex h-11 items-center gap-2 rounded-xl bg-gradient-to-l from-teal-700 to-teal-600 px-4 text-sm font-bold text-white shadow-lg shadow-teal-950/40 disabled:opacity-50"
               >
                 <Download className="h-4 w-4" />
-                {generating ? "جاري التوليد..." : "توليد وتصدير PDF"}
+                {generating || uploading
+                  ? "جاري التصدير..."
+                  : "تصدير وتحميل PDF"}
               </button>
-              <button
-                type="button"
-                disabled={generating || uploading || pending}
-                onClick={() => void handleGeneratePdf(true)}
-                className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-l from-teal-700 to-teal-600 px-3 text-sm font-semibold text-white shadow-lg shadow-teal-950/40 disabled:opacity-50"
-              >
-                <Sparkles className="h-4 w-4" />
-                توليد ورفع للحفظ
-              </button>
+              <p className="flex items-center gap-1.5 text-xs text-slate-500">
+                <Sparkles className="h-3.5 w-3.5 text-teal-400" />
+                يُنزَّل محلياً ويُرفع تلقائياً للحفظ في Supabase
+              </p>
             </div>
           </div>
 

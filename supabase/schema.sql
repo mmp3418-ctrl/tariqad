@@ -695,6 +695,11 @@ create index if not exists teacher_timetables_sort_idx
 create index if not exists teacher_timetables_stage_grade_idx
   on public.teacher_timetables (stage_id, grade_id);
 
+-- Interactive timetable grid (days → periods[]) + period count
+alter table public.teacher_timetables add column if not exists grid_data jsonb;
+alter table public.teacher_timetables add column if not exists period_count integer default 6;
+alter table public.teacher_timetables alter column file_url drop not null;
+
 create index if not exists teacher_tutorials_sort_idx
   on public.teacher_tutorials (sort_order asc, created_at desc);
 create index if not exists teacher_tutorials_stage_grade_idx

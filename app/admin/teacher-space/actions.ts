@@ -38,11 +38,24 @@ function letterIndex(value: unknown): number {
   return index >= 0 ? index : 0;
 }
 
+function normalizeGridData(value: unknown): TeacherTimetable["grid_data"] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const out: NonNullable<TeacherTimetable["grid_data"]> = {};
+  for (const [day, periods] of Object.entries(value as Record<string, unknown>)) {
+    if (!Array.isArray(periods)) continue;
+    out[day] = periods.map((cell) => String(cell ?? ""));
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 function normalizeTimetable(row: Record<string, unknown>): TeacherTimetable {
+  const file = String(row.file_url ?? "").trim();
   return {
     id: String(row.id),
     title: String(row.title ?? ""),
-    file_url: String(row.file_url ?? "").trim(),
+    file_url: file || null,
+    grid_data: normalizeGridData(row.grid_data),
+    period_count: Math.min(10, Math.max(3, Number(row.period_count ?? 6) || 6)),
     stage_id: row.stage_id ? String(row.stage_id) : null,
     grade_id: row.grade_id ? String(row.grade_id) : null,
     is_active: asBool(row.is_active),
@@ -150,37 +163,86 @@ export type TimetableInput = {
   stage_id: string;
   grade_id: string;
   is_active: boolean;
+  grid_data?: TeacherTimetable["grid_data"];
+  period_count?: number;
 };
+
+function timetablePayload(input: TimetableInput) {
+  const file_url = input.file_url.trim() || null;
+  const period_count = Math.min(
+    10,
+    Math.max(3, Number(input.period_count ?? 6) || 6)
+  );
+  return {
+    title: input.title.trim(),
+    file_url,
+    grid_data: input.grid_data ?? null,
+    period_count,
+    stage_id: input.stage_id || null,
+    grade_id: input.grade_id || null,
+    is_active: input.is_active !== false,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+async function persistTimetable(
+  mode: "insert" | "update",
+  input: TimetableInput,
+  id?: string
+): Promise<ActionResult<TeacherTimetable>> {
+  const payload = timetablePayload(input);
+  const run = async (body: Record<string, unknown>) => {
+    if (mode === "insert") {
+      return supabase
+        .from("teacher_timetables")
+        .insert({ ...body, sort_order: await nextSort("teacher_timetables") })
+        .select("*")
+        .single();
+    }
+    return supabase
+      .from("teacher_timetables")
+      .update(body)
+      .eq("id", id!)
+      .select("*")
+      .single();
+  };
+
+  let { data, error } = await run(payload);
+
+  // Legacy tables without grid_data / period_count
+  if (
+    error &&
+    /(grid_data|period_count)/i.test(error.message) &&
+    /(column|schema cache|does not exist)/i.test(error.message)
+  ) {
+    const { grid_data: _g, period_count: _p, ...legacy } = payload;
+    const retry = await run(legacy);
+    data = retry.data;
+    error = retry.error;
+  }
+
+  if (error) return { success: false, error: error.message };
+  revalidatePath(REVALIDATE);
+  revalidatePath("/admin/timetables");
+  return {
+    success: true,
+    data: normalizeTimetable(data as Record<string, unknown>),
+    message: mode === "insert" ? "تمت إضافة الجدول" : "تم تحديث الجدول",
+  };
+}
 
 export async function createTimetable(
   input: TimetableInput
 ): Promise<ActionResult<TeacherTimetable>> {
   try {
     if (!input.title.trim()) return { success: false, error: "العنوان مطلوب" };
-    if (!input.file_url.trim()) return { success: false, error: "يجب رفع ملف PDF" };
+    if (!input.file_url.trim() && !input.grid_data) {
+      return { success: false, error: "ولّد PDF أو أدخل شبكة الحصص قبل الحفظ" };
+    }
     if (!input.stage_id || !input.grade_id) {
       return { success: false, error: "اختر المرحلة والصف" };
     }
-    const { data, error } = await supabase
-      .from("teacher_timetables")
-      .insert({
-        title: input.title.trim(),
-        file_url: input.file_url.trim(),
-        stage_id: input.stage_id,
-        grade_id: input.grade_id,
-        is_active: input.is_active !== false,
-        sort_order: await nextSort("teacher_timetables"),
-        updated_at: new Date().toISOString(),
-      })
-      .select("*")
-      .single();
-    if (error) return { success: false, error: error.message };
-    revalidatePath(REVALIDATE);
-    return {
-      success: true,
-      data: normalizeTimetable(data as Record<string, unknown>),
-      message: "تمت إضافة الجدول",
-    };
+    return await persistTimetable("insert", input);
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : String(err) };
   }
@@ -193,30 +255,13 @@ export async function updateTimetable(
   try {
     if (!id) return { success: false, error: "معرّف غير صالح" };
     if (!input.title.trim()) return { success: false, error: "العنوان مطلوب" };
-    if (!input.file_url.trim()) return { success: false, error: "يجب رفع ملف PDF" };
+    if (!input.file_url.trim() && !input.grid_data) {
+      return { success: false, error: "ولّد PDF أو أدخل شبكة الحصص قبل الحفظ" };
+    }
     if (!input.stage_id || !input.grade_id) {
       return { success: false, error: "اختر المرحلة والصف" };
     }
-    const { data, error } = await supabase
-      .from("teacher_timetables")
-      .update({
-        title: input.title.trim(),
-        file_url: input.file_url.trim(),
-        stage_id: input.stage_id,
-        grade_id: input.grade_id,
-        is_active: input.is_active !== false,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id)
-      .select("*")
-      .single();
-    if (error) return { success: false, error: error.message };
-    revalidatePath(REVALIDATE);
-    return {
-      success: true,
-      data: normalizeTimetable(data as Record<string, unknown>),
-      message: "تم تحديث الجدول",
-    };
+    return await persistTimetable("update", input, id);
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : String(err) };
   }

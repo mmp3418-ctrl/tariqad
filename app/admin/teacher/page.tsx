@@ -2,7 +2,7 @@ import Link from "next/link";
 import { BookMarked, Calculator, CalendarDays, CirclePlay, HelpCircle, School } from "lucide-react";
 
 const CARDS = [
-  { href: "/admin/teacher/timetables", title: "جدول الحصص", desc: "جداول PDF مرتبطة بالمرحلة والصف", icon: CalendarDays },
+  { href: "/admin/teacher/timetables", title: "جدول الحصص", desc: "صانع تفاعلي + تصدير PDF وتفعيل على المنصة", icon: CalendarDays },
   { href: "/admin/teacher/tutorials", title: "شروحات المعلمين", desc: "فيديوهات يوتيوب مع غلاف اختياري", icon: CirclePlay },
   { href: "/admin/teacher/references", title: "مرجع المعلمين", desc: "ملفات PDF مرجعية للمعلمين", icon: BookMarked },
   { href: "/admin/teacher/questions", title: "بنك الأسئلة", desc: "أسئلة اختيار من متعدد مع الإجابة الصحيحة", icon: HelpCircle },
