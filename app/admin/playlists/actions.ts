@@ -1,17 +1,28 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { isMaterialType } from "@/lib/academic";
 import { supabase } from "@/lib/supabase";
-import type { ActionResult, VideoPlaylist } from "@/lib/types";
+import type {
+  ActionResult,
+  MaterialType,
+  VideoPlaylist,
+} from "@/lib/types";
 
 function normalizePlaylist(row: Record<string, unknown>): VideoPlaylist {
+  const rawType = String(row.material_type ?? "كتاب حصة");
+  const material_type: MaterialType = isMaterialType(rawType)
+    ? rawType
+    : "كتاب حصة";
+
   return {
     id: String(row.id),
     title: String(row.title ?? ""),
     youtube_url: String(row.youtube_url ?? ""),
+    unit_name: String(row.unit_name ?? ""),
+    material_type,
     stage_id: row.stage_id ? String(row.stage_id) : null,
     grade_id: row.grade_id ? String(row.grade_id) : null,
-    unit_id: row.unit_id ? String(row.unit_id) : null,
     is_active: row.is_active !== false,
     sort_order: Number(row.sort_order ?? 0),
     created_at: row.created_at ? String(row.created_at) : undefined,
@@ -48,9 +59,10 @@ export async function getPlaylists(): Promise<ActionResult<VideoPlaylist[]>> {
 export type PlaylistInput = {
   title: string;
   youtube_url: string;
+  unit_name: string;
+  material_type: MaterialType;
   stage_id: string;
   grade_id: string;
-  unit_id: string;
   is_active: boolean;
 };
 
@@ -58,9 +70,10 @@ function buildPayload(input: PlaylistInput) {
   return {
     title: input.title.trim(),
     youtube_url: input.youtube_url.trim(),
+    unit_name: input.unit_name.trim(),
+    material_type: input.material_type,
     stage_id: input.stage_id || null,
     grade_id: input.grade_id || null,
-    unit_id: input.unit_id || null,
     is_active: input.is_active !== false,
     updated_at: new Date().toISOString(),
   };
@@ -76,11 +89,14 @@ export async function createPlaylist(
     if (!input.youtube_url.trim()) {
       return { success: false, error: "رابط يوتيوب مطلوب" };
     }
-    if (!input.stage_id || !input.grade_id || !input.unit_id) {
-      return {
-        success: false,
-        error: "يجب اختيار المرحلة والصف والوحدة",
-      };
+    if (!input.unit_name.trim()) {
+      return { success: false, error: "اسم الوحدة مطلوب" };
+    }
+    if (!isMaterialType(input.material_type)) {
+      return { success: false, error: "نوع المادة غير صالح" };
+    }
+    if (!input.stage_id || !input.grade_id) {
+      return { success: false, error: "يجب اختيار المرحلة والصف" };
     }
 
     const { count } = await supabase
@@ -110,7 +126,7 @@ export async function createPlaylist(
     return {
       success: true,
       data: normalizePlaylist(data as Record<string, unknown>),
-      message: "تمت إضافة قائمة الفيديوهات",
+      message: "تمت إضافة قائمة التشغيل بنجاح",
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -131,11 +147,14 @@ export async function updatePlaylist(
     if (!input.youtube_url.trim()) {
       return { success: false, error: "رابط يوتيوب مطلوب" };
     }
-    if (!input.stage_id || !input.grade_id || !input.unit_id) {
-      return {
-        success: false,
-        error: "يجب اختيار المرحلة والصف والوحدة",
-      };
+    if (!input.unit_name.trim()) {
+      return { success: false, error: "اسم الوحدة مطلوب" };
+    }
+    if (!isMaterialType(input.material_type)) {
+      return { success: false, error: "نوع المادة غير صالح" };
+    }
+    if (!input.stage_id || !input.grade_id) {
+      return { success: false, error: "يجب اختيار المرحلة والصف" };
     }
 
     const payload = buildPayload(input);
@@ -159,7 +178,7 @@ export async function updatePlaylist(
     return {
       success: true,
       data: normalizePlaylist(data as Record<string, unknown>),
-      message: "تم تحديث قائمة الفيديوهات",
+      message: "تم تحديث قائمة التشغيل بنجاح",
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

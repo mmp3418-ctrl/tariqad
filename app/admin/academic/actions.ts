@@ -45,8 +45,152 @@ function normalizeUnit(row: Record<string, unknown>): AcademicUnit {
   };
 }
 
+
+const DEFAULT_STAGES = [
+  "المرحلة الابتدائية",
+  "المرحلة الاعدادية",
+  "المرحلة الثانوية",
+] as const;
+
+const PRIMARY_GRADES = [
+  "الصف الأول",
+  "الصف الثاني",
+  "الصف الثالث",
+  "الصف الرابع",
+  "الصف الخامس",
+  "الصف السادس",
+] as const;
+
+const PREPARATORY_GRADES = [
+  "الصف السابع",
+  "الصف الثامن",
+  "الصف التاسع",
+] as const;
+
+const SECONDARY_GRADES = [
+  "الصف الأول الثانوي",
+  "الصف الثاني الثانوي",
+  "الصف الثالث الثانوي",
+] as const;
+
+/** Seed canonical stages + grades once when tables are empty. */
+async function ensureDefaultAcademicStructure(): Promise<void> {
+  try {
+    const { count, error: countError } = await supabase
+      .from("academic_stages")
+      .select("*", { count: "exact", head: true });
+
+    if (countError) {
+      console.error("[academic] ensureDefault count:", countError.message);
+      return;
+    }
+    // If stages already exist but grades are empty, continue seeding grades below
+    // by re-fetching stages; only full-skip when both have data.
+    const { count: gradeCount, error: gradeCountError } = await supabase
+      .from("academic_grades")
+      .select("*", { count: "exact", head: true });
+    if (gradeCountError) {
+      console.error("[academic] ensureDefault grade count:", gradeCountError.message);
+      return;
+    }
+    if ((count ?? 0) > 0 && (gradeCount ?? 0) > 0) return;
+
+    console.info("[academic] Seeding default stages and grades...");
+
+    let stages: { id: string; name: string }[] = [];
+
+    if ((count ?? 0) === 0) {
+      const stageRows = DEFAULT_STAGES.map((name, i) => ({
+        name,
+        sort_order: i,
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      }));
+
+      const { data: insertedStages, error: stageError } = await supabase
+        .from("academic_stages")
+        .insert(stageRows)
+        .select("*");
+
+      if (stageError || !insertedStages?.length) {
+        console.error(
+          "[academic] ensureDefault stages insert:",
+          stageError?.message,
+          stageError
+        );
+        return;
+      }
+      stages = insertedStages.map((s) => ({
+        id: String((s as { id: string }).id),
+        name: String((s as { name: string }).name),
+      }));
+    } else {
+      const { data: existingStages, error: fetchError } = await supabase
+        .from("academic_stages")
+        .select("id, name");
+      if (fetchError || !existingStages?.length) {
+        console.error(
+          "[academic] ensureDefault stages fetch:",
+          fetchError?.message,
+          fetchError
+        );
+        return;
+      }
+      stages = existingStages.map((s) => ({
+        id: String((s as { id: string }).id),
+        name: String((s as { name: string }).name),
+      }));
+    }
+
+    const byName = new Map(stages.map((s) => [s.name, s]));
+
+    const gradePayload: {
+      stage_id: string;
+      name: string;
+      sort_order: number;
+      is_active: boolean;
+      updated_at: string;
+    }[] = [];
+
+    const pushGrades = (stageName: string, names: readonly string[]) => {
+      const stage = byName.get(stageName);
+      if (!stage) return;
+      names.forEach((name, i) => {
+        gradePayload.push({
+          stage_id: stage.id,
+          name,
+          sort_order: i,
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        });
+      });
+    };
+
+    pushGrades("المرحلة الابتدائية", PRIMARY_GRADES);
+    pushGrades("المرحلة الاعدادية", PREPARATORY_GRADES);
+    pushGrades("المرحلة الثانوية", SECONDARY_GRADES);
+
+    if (gradePayload.length) {
+      const { error: gradeError } = await supabase
+        .from("academic_grades")
+        .insert(gradePayload);
+      if (gradeError) {
+        console.error(
+          "[academic] ensureDefault grades insert:",
+          gradeError.message,
+          gradeError
+        );
+      }
+    }
+  } catch (err) {
+    console.error("[academic] ensureDefaultAcademicStructure exception:", err);
+  }
+}
+
 export async function getAcademicTree(): Promise<ActionResult<AcademicTree>> {
   try {
+    await ensureDefaultAcademicStructure();
+
     const [stagesRes, gradesRes, unitsRes] = await Promise.all([
       supabase
         .from("academic_stages")

@@ -398,3 +398,13 @@ drop policy if exists "Public delete materials" on storage.objects;
 create policy "Public delete materials"
   on storage.objects for delete
   using (bucket_id = 'materials');
+
+
+-- ---------------------------------------------------------------------------
+-- video_playlists: manual unit_name + material_type (Arabic)
+-- ---------------------------------------------------------------------------
+alter table public.video_playlists add column if not exists unit_name text;
+alter table public.video_playlists add column if not exists material_type text;
+
+-- Seed academic stages/grades if empty (idempotent via app seed; SQL helper)
+-- Prefer running admin once so ensureDefaultAcademicStructure populates rows.

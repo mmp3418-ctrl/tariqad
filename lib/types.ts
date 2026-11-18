@@ -128,9 +128,10 @@ export interface VideoPlaylist {
   id: string;
   title: string;
   youtube_url: string;
+  unit_name: string;
+  material_type: MaterialType;
   stage_id: string | null;
   grade_id: string | null;
-  unit_id: string | null;
   is_active: boolean;
   sort_order: number;
   created_at?: string;

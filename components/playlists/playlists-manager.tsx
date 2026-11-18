@@ -4,16 +4,17 @@ import {
   FormEvent,
   useCallback,
   useEffect,
+  useMemo,
   useState,
   useTransition,
 } from "react";
 import {
+  CirclePlay,
   ExternalLink,
   Pencil,
   Plus,
   Save,
   Trash2,
-  CirclePlay,
 } from "lucide-react";
 import { getAcademicTree } from "@/app/admin/academic/actions";
 import {
@@ -23,28 +24,32 @@ import {
   togglePlaylistActive,
   updatePlaylist,
 } from "@/app/admin/playlists/actions";
-import { isValidYoutubeUrl } from "@/lib/academic";
+import {
+  MATERIAL_TYPE_OPTIONS,
+  isValidYoutubeUrl,
+  materialTypeLabel,
+} from "@/lib/academic";
 import { safeExternalHref } from "@/lib/social";
 import type {
   AcademicGrade,
   AcademicStage,
-  AcademicUnit,
+  MaterialType,
   VideoPlaylist,
 } from "@/lib/types";
-import {
-  AcademicCascadeSelects,
-  resolveAcademicLabels,
-} from "@/components/academic/cascade-selects";
 import { Modal } from "@/components/ui/modal";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
 
+const selectClass =
+  "w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100";
+
 const emptyForm = {
   title: "",
   youtube_url: "",
+  unit_name: "",
+  material_type: "كتاب حصة" as MaterialType,
   stage_id: "",
   grade_id: "",
-  unit_id: "",
   is_active: true,
 };
 
@@ -55,13 +60,20 @@ export function PlaylistsManager() {
   const [items, setItems] = useState<VideoPlaylist[]>([]);
   const [stages, setStages] = useState<AcademicStage[]>([]);
   const [grades, setGrades] = useState<AcademicGrade[]>([]);
-  const [units, setUnits] = useState<AcademicUnit[]>([]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editing, setEditing] = useState<VideoPlaylist | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
+
+  const filteredGrades = useMemo(
+    () =>
+      grades.filter(
+        (g) => g.stage_id === form.stage_id && g.is_active !== false
+      ),
+    [grades, form.stage_id]
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -73,7 +85,6 @@ export function PlaylistsManager() {
       if (tree.success && tree.data) {
         setStages(tree.data.stages);
         setGrades(tree.data.grades);
-        setUnits(tree.data.units);
       } else if (!tree.success) {
         error(tree.error);
       }
@@ -84,7 +95,7 @@ export function PlaylistsManager() {
       }
     } catch (err) {
       console.error("[playlists-manager] load:", err);
-      error("تعذر تحميل قوائم الفيديو");
+      error("تعذر تحميل قوائم التشغيل");
     } finally {
       setLoading(false);
     }
@@ -106,9 +117,10 @@ export function PlaylistsManager() {
     setForm({
       title: item.title,
       youtube_url: item.youtube_url,
+      unit_name: item.unit_name,
+      material_type: item.material_type,
       stage_id: item.stage_id ?? "",
       grade_id: item.grade_id ?? "",
-      unit_id: item.unit_id ?? "",
       is_active: item.is_active,
     });
     setFormError(null);
@@ -127,8 +139,12 @@ export function PlaylistsManager() {
       setFormError("رابط يوتيوب غير صالح");
       return;
     }
-    if (!form.stage_id || !form.grade_id || !form.unit_id) {
-      setFormError("اختر المرحلة والصف والوحدة");
+    if (!form.unit_name.trim()) {
+      setFormError("اسم الوحدة مطلوب");
+      return;
+    }
+    if (!form.stage_id || !form.grade_id) {
+      setFormError("اختر المرحلة والصف");
       return;
     }
 
@@ -157,10 +173,11 @@ export function PlaylistsManager() {
   }
 
   function handleToggle(id: string, is_active: boolean) {
+    const previous = items;
+    setItems((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, is_active } : p))
+    );
     startTransition(async () => {
-      setItems((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, is_active } : p))
-      );
       try {
         const result = await togglePlaylistActive(id, is_active);
         if (result.success && result.data) {
@@ -169,15 +186,12 @@ export function PlaylistsManager() {
           );
           success(result.message ?? "تم");
         } else if (!result.success) {
-          setItems((prev) =>
-            prev.map((p) =>
-              p.id === id ? { ...p, is_active: !is_active } : p
-            )
-          );
+          setItems(previous);
           error(result.error);
         }
       } catch (err) {
         console.error("[playlists-manager] toggle:", err);
+        setItems(previous);
         error("تعذر التحديث");
       }
     });
@@ -205,10 +219,17 @@ export function PlaylistsManager() {
     });
   }
 
+  function stageName(id: string | null) {
+    return stages.find((s) => s.id === id)?.name ?? "—";
+  }
+  function gradeName(id: string | null) {
+    return grades.find((g) => g.id === id)?.name ?? "—";
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center text-slate-400">
-        جاري تحميل قوائم الفيديو...
+        جاري تحميل قوائم التشغيل...
       </div>
     );
   }
@@ -221,11 +242,9 @@ export function PlaylistsManager() {
             <CirclePlay className="h-5 w-5" />
             <span className="text-sm font-semibold">الشروحات المرئية</span>
           </div>
-          <h2 className="text-2xl font-extrabold text-white">
-            قوائم فيديو يوتيوب
-          </h2>
+          <h2 className="text-2xl font-extrabold text-white">قوائم التشغيل</h2>
           <p className="mt-1 text-sm text-slate-400">
-            ربط قوائم التشغيل بالمرحلة والصف والوحدة
+            رابط يوتيوب + نوع المادة + اسم الوحدة يدوياً مع ربط المرحلة والصف
           </p>
         </div>
         <button
@@ -242,18 +261,10 @@ export function PlaylistsManager() {
         <div className="space-y-2">
           {items.length === 0 ? (
             <div className="rounded-xl border border-dashed border-white/15 px-4 py-10 text-center text-sm text-slate-500">
-              لا توجد قوائم بعد — أضف أول قائمة يوتيوب
+              لا توجد قوائم بعد — أضف أول قائمة تشغيل
             </div>
           ) : (
             items.map((item) => {
-              const labels = resolveAcademicLabels(
-                stages,
-                grades,
-                units,
-                item.stage_id,
-                item.grade_id,
-                item.unit_id
-              );
               const href = safeExternalHref(item.youtube_url);
               return (
                 <article
@@ -261,11 +272,17 @@ export function PlaylistsManager() {
                   className="flex flex-col gap-3 rounded-xl border border-white/8 bg-white/[0.03] p-4 transition hover:border-teal-500/30 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="min-w-0">
-                    <p className="truncate font-semibold text-white">
-                      {item.title}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate font-semibold text-white">
+                        {item.title}
+                      </p>
+                      <span className="rounded-md bg-teal-500/15 px-2 py-0.5 text-[11px] font-semibold text-teal-300">
+                        {materialTypeLabel(item.material_type)}
+                      </span>
+                    </div>
                     <p className="mt-1 truncate text-xs text-slate-500">
-                      {labels.stage} · {labels.grade} · {labels.unit}
+                      {stageName(item.stage_id)} · {gradeName(item.grade_id)} ·{" "}
+                      {item.unit_name || "—"}
                     </p>
                     {href ? (
                       <a
@@ -313,7 +330,7 @@ export function PlaylistsManager() {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editing ? "تعديل قائمة" : "إضافة قائمة فيديو"}
+        title={editing ? "تعديل قائمة" : "إضافة قائمة تشغيل"}
       >
         <form onSubmit={handleSave} className="space-y-4">
           <label className="block space-y-1.5">
@@ -323,7 +340,7 @@ export function PlaylistsManager() {
               onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
               required
               placeholder="عنوان الشرح / القائمة"
-              className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              className={selectClass}
             />
           </label>
 
@@ -336,34 +353,88 @@ export function PlaylistsManager() {
               }
               required
               placeholder="https://www.youtube.com/playlist?list=..."
-              className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              className={selectClass}
             />
           </label>
 
-          <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-            <p className="mb-3 text-xs font-semibold text-slate-500">
-              الربط الأكاديمي
-            </p>
-            <AcademicCascadeSelects
-              stages={stages}
-              grades={grades}
-              units={units}
-              stageId={form.stage_id}
-              gradeId={form.grade_id}
-              unitId={form.unit_id}
-              onStageChange={(id) =>
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium">اسم الوحدة</span>
+            <input
+              value={form.unit_name}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, unit_name: e.target.value }))
+              }
+              required
+              placeholder="اكتب اسم الوحدة يدوياً"
+              className={selectClass}
+            />
+          </label>
+
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium">نوع المادة</span>
+            <select
+              value={form.material_type}
+              onChange={(e) =>
                 setForm((f) => ({
                   ...f,
-                  stage_id: id,
-                  grade_id: "",
-                  unit_id: "",
+                  material_type: e.target.value as MaterialType,
                 }))
               }
-              onGradeChange={(id) =>
-                setForm((f) => ({ ...f, grade_id: id, unit_id: "" }))
-              }
-              onUnitChange={(id) => setForm((f) => ({ ...f, unit_id: id }))}
-            />
+              className={selectClass}
+            >
+              {MATERIAL_TYPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block space-y-1.5">
+              <span className="text-sm font-medium">المرحلة</span>
+              <select
+                value={form.stage_id}
+                required
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    stage_id: e.target.value,
+                    grade_id: "",
+                  }))
+                }
+                className={selectClass}
+              >
+                <option value="">اختر المرحلة</option>
+                {stages
+                  .filter((s) => s.is_active)
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+
+            <label className="block space-y-1.5">
+              <span className="text-sm font-medium">الصف</span>
+              <select
+                value={form.grade_id}
+                required
+                disabled={!form.stage_id}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, grade_id: e.target.value }))
+                }
+                className={`${selectClass} disabled:opacity-40`}
+              >
+                <option value="">اختر الصف</option>
+                {filteredGrades.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
           <div className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-3 dark:border-slate-700">
@@ -411,7 +482,7 @@ export function PlaylistsManager() {
           <div className="relative z-10 w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl border border-white/10 bg-slate-900 p-6 sm:p-8">
             <h3 className="text-lg font-bold text-white">حذف القائمة</h3>
             <p className="mt-2 text-sm text-slate-400">
-              هل أنت متأكد من حذف قائمة الفيديو؟
+              هل أنت متأكد من حذف قائمة التشغيل؟
             </p>
             <div className="mt-6 flex justify-end gap-2">
               <button
