@@ -202,3 +202,10 @@ export interface TeacherSpaceSettings {
   grade_calculator_active: boolean;
   updated_at?: string;
 }
+
+/** Single-row global visibility for the public universal timetable */
+export interface SiteTimetableStatus {
+  id: number;
+  is_active: boolean;
+  updated_at?: string;
+}
