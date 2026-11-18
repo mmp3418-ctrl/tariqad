@@ -446,3 +446,310 @@ where playlist_url is null or playlist_url = '';
 
 -- Optional playlist cover image (public Storage URL or external URL)
 alter table public.video_playlists add column if not exists cover_image_url text;
+
+-- =============================================================================
+-- Teacher Space (مساحة المعلم)
+-- =============================================================================
+
+-- 1) جدول الحصص — schedule PDFs
+create table if not exists public.teacher_timetables (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  file_url text not null,
+  stage_id uuid,
+  grade_id uuid,
+  is_active boolean not null default true,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.teacher_timetables enable row level security;
+drop policy if exists "Allow all teacher_timetables" on public.teacher_timetables;
+create policy "Allow all teacher_timetables" on public.teacher_timetables for all using (true) with check (true);
+
+-- 2) شروحات المعلمين — YouTube tutorials
+create table if not exists public.teacher_tutorials (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  youtube_url text not null,
+  cover_image_url text,
+  stage_id uuid,
+  grade_id uuid,
+  is_active boolean not null default true,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.teacher_tutorials enable row level security;
+drop policy if exists "Allow all teacher_tutorials" on public.teacher_tutorials;
+create policy "Allow all teacher_tutorials" on public.teacher_tutorials for all using (true) with check (true);
+
+-- 3) مرجع المعلمين — reference PDFs
+create table if not exists public.teacher_references (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  description text,
+  file_url text not null,
+  stage_id uuid,
+  grade_id uuid,
+  is_active boolean not null default true,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.teacher_references add column if not exists description text;
+alter table public.teacher_references enable row level security;
+drop policy if exists "Allow all teacher_references" on public.teacher_references;
+create policy "Allow all teacher_references" on public.teacher_references for all using (true) with check (true);
+
+-- 4) بنك الأسئلة
+create table if not exists public.question_bank (
+  id uuid primary key default gen_random_uuid(),
+  question_text text not null,
+  option_a text,
+  option_b text,
+  option_c text,
+  option_d text,
+  correct_answer text,
+  options jsonb,
+  correct_index integer,
+  stage_id uuid,
+  grade_id uuid,
+  is_active boolean not null default true,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.question_bank add column if not exists options jsonb;
+alter table public.question_bank add column if not exists correct_index integer;
+alter table public.question_bank add column if not exists option_a text;
+alter table public.question_bank add column if not exists option_b text;
+alter table public.question_bank add column if not exists option_c text;
+alter table public.question_bank add column if not exists option_d text;
+alter table public.question_bank add column if not exists correct_answer text;
+alter table public.question_bank enable row level security;
+drop policy if exists "Allow all question_bank" on public.question_bank;
+create policy "Allow all question_bank" on public.question_bank for all using (true) with check (true);
+
+-- 5) أدوات مساحة المعلم (آلة حساب الدرجات)
+create table if not exists public.teacher_space_settings (
+  id integer primary key default 1 check (id = 1),
+  grade_calculator_active boolean not null default true,
+  updated_at timestamptz not null default now()
+);
+alter table public.teacher_space_settings enable row level security;
+drop policy if exists "Allow all teacher_space_settings" on public.teacher_space_settings;
+create policy "Allow all teacher_space_settings" on public.teacher_space_settings for all using (true) with check (true);
+
+insert into public.teacher_space_settings (id, grade_calculator_active)
+values (1, true)
+on conflict (id) do nothing;
+
+-- ---------------------------------------------------------------------------
+-- Teacher Space completion: columns, FKs, question options, site tools
+-- ---------------------------------------------------------------------------
+alter table public.teacher_timetables add column if not exists title text;
+alter table public.teacher_timetables add column if not exists file_url text;
+alter table public.teacher_timetables add column if not exists stage_id uuid;
+alter table public.teacher_timetables add column if not exists grade_id uuid;
+alter table public.teacher_timetables add column if not exists is_active boolean not null default true;
+alter table public.teacher_timetables add column if not exists sort_order integer not null default 0;
+alter table public.teacher_timetables add column if not exists created_at timestamptz not null default now();
+alter table public.teacher_timetables add column if not exists updated_at timestamptz not null default now();
+
+alter table public.teacher_tutorials add column if not exists title text;
+alter table public.teacher_tutorials add column if not exists youtube_url text;
+alter table public.teacher_tutorials add column if not exists cover_image_url text;
+alter table public.teacher_tutorials add column if not exists stage_id uuid;
+alter table public.teacher_tutorials add column if not exists grade_id uuid;
+alter table public.teacher_tutorials add column if not exists is_active boolean not null default true;
+alter table public.teacher_tutorials add column if not exists sort_order integer not null default 0;
+alter table public.teacher_tutorials add column if not exists created_at timestamptz not null default now();
+alter table public.teacher_tutorials add column if not exists updated_at timestamptz not null default now();
+
+alter table public.teacher_references add column if not exists title text;
+alter table public.teacher_references add column if not exists description text;
+alter table public.teacher_references add column if not exists file_url text;
+alter table public.teacher_references add column if not exists stage_id uuid;
+alter table public.teacher_references add column if not exists grade_id uuid;
+alter table public.teacher_references add column if not exists is_active boolean not null default true;
+alter table public.teacher_references add column if not exists sort_order integer not null default 0;
+alter table public.teacher_references add column if not exists created_at timestamptz not null default now();
+alter table public.teacher_references add column if not exists updated_at timestamptz not null default now();
+
+alter table public.question_bank add column if not exists question_text text;
+alter table public.question_bank add column if not exists options jsonb;
+alter table public.question_bank add column if not exists correct_index integer;
+alter table public.question_bank add column if not exists stage_id uuid;
+alter table public.question_bank add column if not exists grade_id uuid;
+alter table public.question_bank add column if not exists is_active boolean not null default true;
+alter table public.question_bank add column if not exists sort_order integer not null default 0;
+alter table public.question_bank add column if not exists created_at timestamptz not null default now();
+alter table public.question_bank add column if not exists updated_at timestamptz not null default now();
+
+alter table public.question_bank alter column options set default '[]'::jsonb;
+alter table public.question_bank alter column correct_index set default 0;
+
+update public.question_bank
+set options = '[]'::jsonb
+where options is null;
+
+update public.question_bank
+set correct_index = 0
+where correct_index is null;
+
+-- Backfill options / correct_index from legacy a–d columns, then relax them
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'question_bank'
+      and column_name = 'option_a'
+  ) then
+    update public.question_bank
+    set
+      options = jsonb_build_array(
+        coalesce(option_a, ''),
+        coalesce(option_b, ''),
+        coalesce(option_c, ''),
+        coalesce(option_d, '')
+      ),
+      correct_index = case lower(coalesce(correct_answer, 'a'))
+        when 'b' then 1
+        when 'c' then 2
+        when 'd' then 3
+        else 0
+      end
+    where options is null or options = '[]'::jsonb;
+
+    alter table public.question_bank alter column option_a drop not null;
+    alter table public.question_bank alter column option_b drop not null;
+    alter table public.question_bank alter column option_c drop not null;
+    alter table public.question_bank alter column option_d drop not null;
+    alter table public.question_bank alter column correct_answer drop not null;
+    alter table public.question_bank drop constraint if exists question_bank_correct_answer_check;
+  end if;
+end $$;
+
+update public.question_bank
+set options = '[]'::jsonb
+where options is null;
+
+update public.question_bank
+set correct_index = 0
+where correct_index is null;
+
+alter table public.question_bank alter column options set not null;
+alter table public.question_bank alter column correct_index set not null;
+
+alter table public.question_bank drop constraint if exists question_bank_correct_index_check;
+alter table public.question_bank
+  add constraint question_bank_correct_index_check
+  check (correct_index >= 0);
+
+-- Foreign keys → academic_stages / academic_grades
+alter table public.teacher_timetables drop constraint if exists teacher_timetables_stage_id_fkey;
+alter table public.teacher_timetables
+  add constraint teacher_timetables_stage_id_fkey
+  foreign key (stage_id) references public.academic_stages(id) on delete set null;
+
+alter table public.teacher_timetables drop constraint if exists teacher_timetables_grade_id_fkey;
+alter table public.teacher_timetables
+  add constraint teacher_timetables_grade_id_fkey
+  foreign key (grade_id) references public.academic_grades(id) on delete set null;
+
+alter table public.teacher_tutorials drop constraint if exists teacher_tutorials_stage_id_fkey;
+alter table public.teacher_tutorials
+  add constraint teacher_tutorials_stage_id_fkey
+  foreign key (stage_id) references public.academic_stages(id) on delete set null;
+
+alter table public.teacher_tutorials drop constraint if exists teacher_tutorials_grade_id_fkey;
+alter table public.teacher_tutorials
+  add constraint teacher_tutorials_grade_id_fkey
+  foreign key (grade_id) references public.academic_grades(id) on delete set null;
+
+alter table public.teacher_references drop constraint if exists teacher_references_stage_id_fkey;
+alter table public.teacher_references
+  add constraint teacher_references_stage_id_fkey
+  foreign key (stage_id) references public.academic_stages(id) on delete set null;
+
+alter table public.teacher_references drop constraint if exists teacher_references_grade_id_fkey;
+alter table public.teacher_references
+  add constraint teacher_references_grade_id_fkey
+  foreign key (grade_id) references public.academic_grades(id) on delete set null;
+
+alter table public.question_bank drop constraint if exists question_bank_stage_id_fkey;
+alter table public.question_bank
+  add constraint question_bank_stage_id_fkey
+  foreign key (stage_id) references public.academic_stages(id) on delete set null;
+
+alter table public.question_bank drop constraint if exists question_bank_grade_id_fkey;
+alter table public.question_bank
+  add constraint question_bank_grade_id_fkey
+  foreign key (grade_id) references public.academic_grades(id) on delete set null;
+
+create index if not exists teacher_timetables_sort_idx
+  on public.teacher_timetables (sort_order asc, created_at desc);
+create index if not exists teacher_timetables_stage_grade_idx
+  on public.teacher_timetables (stage_id, grade_id);
+
+create index if not exists teacher_tutorials_sort_idx
+  on public.teacher_tutorials (sort_order asc, created_at desc);
+create index if not exists teacher_tutorials_stage_grade_idx
+  on public.teacher_tutorials (stage_id, grade_id);
+
+create index if not exists teacher_references_sort_idx
+  on public.teacher_references (sort_order asc, created_at desc);
+create index if not exists teacher_references_stage_grade_idx
+  on public.teacher_references (stage_id, grade_id);
+
+create index if not exists question_bank_sort_idx
+  on public.question_bank (sort_order asc, created_at desc);
+create index if not exists question_bank_stage_grade_idx
+  on public.question_bank (stage_id, grade_id);
+
+-- 5b) site_tool_settings — canonical tool toggles (seed grade_calculator)
+create table if not exists public.site_tool_settings (
+  id uuid primary key default gen_random_uuid(),
+  tool_key text not null unique,
+  is_active boolean not null default true,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.site_tool_settings add column if not exists tool_key text;
+alter table public.site_tool_settings add column if not exists is_active boolean not null default true;
+alter table public.site_tool_settings add column if not exists updated_at timestamptz not null default now();
+
+create unique index if not exists site_tool_settings_tool_key_key
+  on public.site_tool_settings (tool_key);
+
+alter table public.site_tool_settings enable row level security;
+drop policy if exists "Allow all site_tool_settings" on public.site_tool_settings;
+create policy "Allow all site_tool_settings"
+  on public.site_tool_settings
+  for all
+  using (true)
+  with check (true);
+
+-- Prefer an existing teacher_space_settings value when present, else default on
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.tables
+    where table_schema = 'public'
+      and table_name = 'teacher_space_settings'
+  ) then
+    insert into public.site_tool_settings (tool_key, is_active)
+    select 'grade_calculator', grade_calculator_active
+    from public.teacher_space_settings
+    where id = 1
+    on conflict (tool_key) do nothing;
+  end if;
+end $$;
+
+insert into public.site_tool_settings (tool_key, is_active)
+values ('grade_calculator', true)
+on conflict (tool_key) do nothing;

@@ -141,3 +141,77 @@ export interface VideoPlaylist {
   created_at?: string;
   updated_at?: string;
 }
+
+/** مساحة المعلم — جدول الحصص */
+export interface TeacherTimetable {
+  id: string;
+  title: string;
+  file_url: string;
+  stage_id: string | null;
+  grade_id: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** مساحة المعلم — شروحات المعلمين */
+export interface TeacherTutorial {
+  id: string;
+  title: string;
+  youtube_url: string;
+  cover_image_url: string | null;
+  stage_id: string | null;
+  grade_id: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** مساحة المعلم — مرجع المعلمين */
+export interface TeacherReference {
+  id: string;
+  title: string;
+  description: string | null;
+  file_url: string;
+  stage_id: string | null;
+  grade_id: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type CorrectAnswerKey = "a" | "b" | "c" | "d";
+
+/** مساحة المعلم — بنك الأسئلة */
+export interface QuestionBankItem {
+  id: string;
+  question_text: string;
+  /** Answer choices stored as a JSON array (preferred) */
+  options: string[];
+  /** Zero-based index into `options` */
+  correct_index: number;
+  stage_id: string | null;
+  grade_id: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** Row from public.site_tool_settings (e.g. grade_calculator) */
+export interface SiteToolSetting {
+  id: string;
+  tool_key: string;
+  is_active: boolean;
+  updated_at?: string;
+}
+
+/** Legacy single-row toggle kept in sync with site_tool_settings */
+export interface TeacherSpaceSettings {
+  id: number;
+  grade_calculator_active: boolean;
+  updated_at?: string;
+}

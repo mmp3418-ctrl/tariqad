@@ -13,6 +13,7 @@ import {
   Menu,
   Settings,
   CirclePlay,
+  School,
   X,
 } from "lucide-react";
 import { clearSession, readSession } from "@/lib/auth";
@@ -38,6 +39,12 @@ const NAV = [
     href: "/admin/playlists",
     label: "قوائم الفيديو",
     icon: CirclePlay,
+    exact: false,
+  },
+  {
+    href: "/admin/teacher-space",
+    label: "مساحة المعلم",
+    icon: School,
     exact: false,
   },
   {

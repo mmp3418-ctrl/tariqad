@@ -7,6 +7,7 @@ import {
   Settings,
   Shield,
   CirclePlay,
+  School,
 } from "lucide-react";
 
 const CARDS = [
@@ -39,6 +40,12 @@ const CARDS = [
     title: "قوائم الفيديو",
     desc: "شروحات يوتيوب مرتبطة بالمنهج",
     icon: CirclePlay,
+  },
+  {
+    href: "/admin/teacher-space",
+    title: "مساحة المعلم",
+    desc: "الجداول، الشروحات، المراجع، بنك الأسئلة، وآلة الدرجات",
+    icon: School,
   },
   {
     href: "/admin/settings",
