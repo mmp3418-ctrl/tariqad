@@ -42,7 +42,7 @@ const CARDS = [
     icon: CirclePlay,
   },
   {
-    href: "/admin/teacher-space",
+    href: "/admin/teacher",
     title: "مساحة المعلم",
     desc: "الجداول، الشروحات، المراجع، بنك الأسئلة، وآلة الدرجات",
     icon: School,

@@ -42,7 +42,7 @@ const NAV = [
     exact: false,
   },
   {
-    href: "/admin/teacher-space",
+    href: "/admin/teacher",
     label: "مساحة المعلم",
     icon: School,
     exact: false,

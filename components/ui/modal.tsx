@@ -10,9 +10,24 @@ interface ModalProps {
   title: string;
   children: ReactNode;
   footer?: ReactNode;
+  /** Default xl; use 2xl/3xl for wide builders (e.g. timetable grid). */
+  size?: "xl" | "2xl" | "3xl";
 }
 
-export function Modal({ open, onClose, title, children, footer }: ModalProps) {
+const SIZE_CLASS = {
+  xl: "max-w-xl",
+  "2xl": "max-w-2xl",
+  "3xl": "max-w-4xl",
+} as const;
+
+export function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  footer,
+  size = "xl",
+}: ModalProps) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -41,7 +56,7 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className="relative z-10 flex w-full max-w-xl max-h-[90vh] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+        className={`relative z-10 flex w-full ${SIZE_CLASS[size]} max-h-[90vh] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100`}
       >
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-6 py-4 dark:border-slate-800 sm:px-8">
           <h2

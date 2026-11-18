@@ -1,5 +1,6 @@
-import { TeacherSpaceManager } from "@/components/teacher-space/teacher-space-manager";
+import { redirect } from "next/navigation";
 
-export default function Page() {
-  return <TeacherSpaceManager />;
+/** Legacy path — canonical Teacher Space lives at `/admin/teacher`. */
+export default function TeacherSpaceRedirectPage() {
+  redirect("/admin/teacher");
 }
