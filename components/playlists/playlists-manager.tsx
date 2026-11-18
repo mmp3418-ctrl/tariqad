@@ -45,7 +45,7 @@ const selectClass =
 
 const emptyForm = {
   title: "",
-  youtube_url: "",
+  playlist_url: "",
   unit_name: "",
   material_type: "كتاب حصة" as MaterialType,
   stage_id: "",
@@ -116,7 +116,7 @@ export function PlaylistsManager() {
     setEditing(item);
     setForm({
       title: item.title,
-      youtube_url: item.youtube_url,
+      playlist_url: item.playlist_url,
       unit_name: item.unit_name,
       material_type: item.material_type,
       stage_id: item.stage_id ?? "",
@@ -135,7 +135,7 @@ export function PlaylistsManager() {
       setFormError("العنوان مطلوب");
       return;
     }
-    if (!isValidYoutubeUrl(form.youtube_url)) {
+    if (!isValidYoutubeUrl(form.playlist_url)) {
       setFormError("رابط يوتيوب غير صالح");
       return;
     }
@@ -265,7 +265,7 @@ export function PlaylistsManager() {
             </div>
           ) : (
             items.map((item) => {
-              const href = safeExternalHref(item.youtube_url);
+              const href = safeExternalHref(item.playlist_url);
               return (
                 <article
                   key={item.id}
@@ -292,7 +292,7 @@ export function PlaylistsManager() {
                         className="mt-1 inline-flex max-w-full items-center gap-1 truncate text-xs font-medium text-teal-400 hover:underline"
                       >
                         <ExternalLink className="h-3 w-3 shrink-0" />
-                        <span className="truncate">{item.youtube_url}</span>
+                        <span className="truncate">{item.playlist_url}</span>
                       </a>
                     ) : null}
                   </div>
@@ -347,9 +347,9 @@ export function PlaylistsManager() {
           <label className="block space-y-1.5">
             <span className="text-sm font-medium">رابط يوتيوب</span>
             <input
-              value={form.youtube_url}
+              value={form.playlist_url}
               onChange={(e) =>
-                setForm((f) => ({ ...f, youtube_url: e.target.value }))
+                setForm((f) => ({ ...f, playlist_url: e.target.value }))
               }
               required
               placeholder="https://www.youtube.com/playlist?list=..."

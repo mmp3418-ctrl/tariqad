@@ -438,3 +438,8 @@ alter table public.educational_materials add column if not exists file_url text;
 update public.educational_materials
 set file_url = coalesce(nullif(file_url, ''), nullif(file_path, ''), nullif(pdf_url, ''))
 where file_url is null or file_url = '';
+
+alter table public.video_playlists add column if not exists playlist_url text;
+update public.video_playlists
+set playlist_url = coalesce(nullif(playlist_url, ''), nullif(youtube_url, ''))
+where playlist_url is null or playlist_url = '';

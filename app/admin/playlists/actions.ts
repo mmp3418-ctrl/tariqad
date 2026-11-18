@@ -18,7 +18,9 @@ function normalizePlaylist(row: Record<string, unknown>): VideoPlaylist {
   return {
     id: String(row.id),
     title: String(row.title ?? ""),
-    youtube_url: String(row.youtube_url ?? ""),
+    playlist_url: String(
+      row.playlist_url ?? row.youtube_url ?? ""
+    ).trim(),
     unit_name: String(row.unit_name ?? ""),
     material_type,
     stage_id: row.stage_id ? String(row.stage_id) : null,
@@ -58,7 +60,8 @@ export async function getPlaylists(): Promise<ActionResult<VideoPlaylist[]>> {
 
 export type PlaylistInput = {
   title: string;
-  youtube_url: string;
+  /** Maps to DB column `playlist_url` */
+  playlist_url: string;
   unit_name: string;
   material_type: MaterialType;
   stage_id: string;
@@ -66,10 +69,12 @@ export type PlaylistInput = {
   is_active: boolean;
 };
 
+/** Insertion object uses exact DB column name `playlist_url`. */
 function buildPayload(input: PlaylistInput) {
+  const playlist_url = input.playlist_url.trim();
   return {
     title: input.title.trim(),
-    youtube_url: input.youtube_url.trim(),
+    playlist_url,
     unit_name: input.unit_name.trim(),
     material_type: input.material_type,
     stage_id: input.stage_id || null,
@@ -86,8 +91,11 @@ export async function createPlaylist(
     if (!input.title.trim()) {
       return { success: false, error: "عنوان القائمة مطلوب" };
     }
-    if (!input.youtube_url.trim()) {
-      return { success: false, error: "رابط يوتيوب مطلوب" };
+    if (!input.playlist_url.trim()) {
+      return {
+        success: false,
+        error: "رابط قائمة التشغيل (playlist_url) مطلوب",
+      };
     }
     if (!input.unit_name.trim()) {
       return { success: false, error: "اسم الوحدة مطلوب" };
@@ -107,6 +115,11 @@ export async function createPlaylist(
       ...buildPayload(input),
       sort_order: count ?? 0,
     };
+
+    console.info("[playlists] create payload:", {
+      keys: Object.keys(payload),
+      playlist_url: payload.playlist_url,
+    });
 
     const { data, error } = await supabase
       .from("video_playlists")
@@ -144,8 +157,11 @@ export async function updatePlaylist(
     if (!input.title.trim()) {
       return { success: false, error: "عنوان القائمة مطلوب" };
     }
-    if (!input.youtube_url.trim()) {
-      return { success: false, error: "رابط يوتيوب مطلوب" };
+    if (!input.playlist_url.trim()) {
+      return {
+        success: false,
+        error: "رابط قائمة التشغيل (playlist_url) مطلوب",
+      };
     }
     if (!input.unit_name.trim()) {
       return { success: false, error: "اسم الوحدة مطلوب" };

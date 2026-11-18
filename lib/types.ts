@@ -128,7 +128,8 @@ export interface EducationalMaterial {
 export interface VideoPlaylist {
   id: string;
   title: string;
-  youtube_url: string;
+  /** Canonical DB column for the YouTube playlist link */
+  playlist_url: string;
   unit_name: string;
   material_type: MaterialType;
   stage_id: string | null;
