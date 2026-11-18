@@ -17,7 +17,6 @@ import {
   MapPin,
   MessageCircle,
   Pencil,
-  Phone,
   Plus,
   Save,
   Send,
@@ -26,13 +25,17 @@ import {
   Trash2,
 } from "lucide-react";
 import {
-  getSiteSettings,
+  createSocialLink,
+  deleteSocialLink,
+  getSettingsBundle,
   saveSiteSettings,
+  toggleSocialLinkActive,
+  updateSocialLink,
 } from "@/app/admin/settings/actions";
 import {
-  defaultSettings,
-  readLocalSettings,
-  writeLocalSettings,
+  defaultBundle,
+  readLocalBundle,
+  writeLocalBundle,
 } from "@/lib/settings-local";
 import {
   isValidEmail,
@@ -42,56 +45,50 @@ import {
   SOCIAL_ICON_OPTIONS,
   toMailtoLink,
   toTelegramLink,
-  toTelLink,
   toWhatsAppLink,
   validateSocialUrl,
 } from "@/lib/social";
-import type { SiteSettings, SocialIconKey, SocialLink } from "@/lib/types";
+import type {
+  SettingsBundle,
+  SiteSettings,
+  SocialIconKey,
+  SocialLink,
+} from "@/lib/types";
 import { Modal } from "@/components/ui/modal";
 import { Switch } from "@/components/ui/switch";
 import { SocialIcon } from "@/components/ui/social-icon";
 import { useToast } from "@/components/ui/toast";
 
 const emptyLinkForm = {
-  platform: "",
-  label: "",
+  platform_name: "",
   url: "",
-  icon: "globe" as SocialIconKey,
-  is_visible: true,
+  icon_name: "globe" as SocialIconKey,
+  is_active: true,
 };
 
 type ContactForm = {
-  phone_number: string;
-  whatsapp_number: string;
-  telegram_link: string;
   email: string;
-  location_text: string;
-  maps_url: string;
-  hero_subtitle_ar: string;
-  book_year_label: string;
+  location: string;
+  whatsapp: string;
+  telegram: string;
+  google_maps_url: string;
 };
 
 const emptyContact = (): ContactForm => ({
-  phone_number: "",
-  whatsapp_number: "",
-  telegram_link: "",
   email: "",
-  location_text: "",
-  maps_url: "",
-  hero_subtitle_ar: "",
-  book_year_label: "",
+  location: "",
+  whatsapp: "",
+  telegram: "",
+  google_maps_url: "",
 });
 
 function fromSettings(data: SiteSettings): ContactForm {
   return {
-    phone_number: data.phone_number ?? "",
-    whatsapp_number: data.whatsapp_number ?? "",
-    telegram_link: data.telegram_link ?? "",
     email: data.email ?? "",
-    location_text: data.location_text ?? "",
-    maps_url: data.maps_url ?? "",
-    hero_subtitle_ar: data.hero_subtitle_ar ?? "",
-    book_year_label: data.book_year_label ?? "",
+    location: data.location ?? "",
+    whatsapp: data.whatsapp ?? "",
+    telegram: data.telegram ?? "",
+    google_maps_url: data.google_maps_url ?? "",
   };
 }
 
@@ -100,7 +97,10 @@ export function SettingsManager() {
   const [pending, startTransition] = useTransition();
   const [loading, setLoading] = useState(true);
   const [usingLocal, setUsingLocal] = useState(false);
-  const [settings, setSettings] = useState<SiteSettings>(defaultSettings());
+  const [settings, setSettings] = useState<SiteSettings>(
+    defaultBundle().settings
+  );
+  const [links, setLinks] = useState<SocialLink[]>([]);
   const [contact, setContact] = useState<ContactForm>(emptyContact());
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -110,86 +110,62 @@ export function SettingsManager() {
   const [linkForm, setLinkForm] = useState(emptyLinkForm);
   const [linkError, setLinkError] = useState<string | null>(null);
 
-  const visibleCount = useMemo(
-    () => settings.social_links.filter((l) => l.is_visible).length,
-    [settings.social_links]
+  const activeCount = useMemo(
+    () => links.filter((l) => l.is_active).length,
+    [links]
   );
 
   const emailPreview = contact.email.trim()
     ? toMailtoLink(contact.email)
     : null;
-  const phonePreview = contact.phone_number.trim()
-    ? toTelLink(contact.phone_number)
+  const waPreview = contact.whatsapp.trim()
+    ? toWhatsAppLink(contact.whatsapp)
     : null;
-  const waPreview = contact.whatsapp_number.trim()
-    ? toWhatsAppLink(contact.whatsapp_number)
+  const tgPreview = contact.telegram.trim()
+    ? toTelegramLink(contact.telegram)
     : null;
-  const tgPreview = contact.telegram_link.trim()
-    ? toTelegramLink(contact.telegram_link)
-    : null;
-  const mapsPreview = safeExternalHref(contact.maps_url);
+  const mapsPreview = safeExternalHref(contact.google_maps_url);
+
+  const applyBundle = useCallback((bundle: SettingsBundle) => {
+    setSettings(bundle.settings);
+    setLinks(bundle.social_links);
+    setContact(fromSettings(bundle.settings));
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const result = await getSiteSettings();
-    if (result.success && result.data) {
-      setUsingLocal(false);
-      setSettings(result.data);
-      setContact(fromSettings(result.data));
-    } else {
-      if (result.success === false && result.error !== "NO_SUPABASE") {
-        error(result.error);
+    try {
+      const result = await getSettingsBundle();
+      if (result.success && result.data) {
+        setUsingLocal(false);
+        applyBundle(result.data);
+      } else {
+        if (result.success === false && result.error !== "NO_SUPABASE") {
+          error(result.error);
+        }
+        const local = readLocalBundle();
+        setUsingLocal(true);
+        applyBundle(local);
       }
-      const local = readLocalSettings();
+    } catch (err) {
+      console.error("[settings-manager] load:", err);
+      error("تعذر تحميل الإعدادات");
+      const local = readLocalBundle();
       setUsingLocal(true);
-      setSettings(local);
-      setContact(fromSettings(local));
+      applyBundle(local);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }, [error]);
+  }, [applyBundle, error]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  function persist(next: SiteSettings, message?: string) {
-    startTransition(async () => {
-      if (usingLocal) {
-        writeLocalSettings(next);
-        setSettings(next);
-        setContact(fromSettings(next));
-        success(message ?? "تم الحفظ محلياً");
-        return;
-      }
-
-      const result = await saveSiteSettings({
-        phone_number: next.phone_number ?? "",
-        whatsapp_number: next.whatsapp_number ?? "",
-        telegram_link: next.telegram_link ?? "",
-        email: next.email ?? "",
-        location_text: next.location_text ?? "",
-        maps_url: next.maps_url ?? "",
-        hero_subtitle_ar: next.hero_subtitle_ar ?? "",
-        book_year_label: next.book_year_label ?? "",
-        social_links: next.social_links,
-      });
-
-      if (result.success && result.data) {
-        setSettings(result.data);
-        setContact(fromSettings(result.data));
-        success(result.message ?? "تم الحفظ بنجاح");
-      } else if (!result.success) {
-        if (result.error === "NO_SUPABASE") {
-          writeLocalSettings(next);
-          setUsingLocal(true);
-          setSettings(next);
-          setContact(fromSettings(next));
-          success("تم الحفظ محلياً (Supabase غير متصل)");
-        } else {
-          error(result.error);
-        }
-      }
-    });
+  function persistLocal(next: SettingsBundle, message: string) {
+    writeLocalBundle(next);
+    applyBundle(next);
+    success(message);
   }
 
   function handleSaveContact(e: FormEvent) {
@@ -200,25 +176,79 @@ export function SettingsManager() {
       setFormError("صيغة البريد الإلكتروني غير صحيحة");
       return;
     }
-    if (contact.maps_url.trim() && !isValidMapsUrl(contact.maps_url.trim())) {
+    if (
+      contact.google_maps_url.trim() &&
+      !isValidMapsUrl(contact.google_maps_url.trim())
+    ) {
       setFormError(
-        "رابط الخريطة غير صالح — استخدم رابط Google Maps أو خرائط أخرى بصيغة https://"
+        "رابط الخريطة غير صالح — استخدم رابط Google Maps بصيغة https://"
       );
       return;
     }
 
-    const next: SiteSettings = {
-      ...settings,
-      phone_number: contact.phone_number.trim() || null,
-      whatsapp_number: contact.whatsapp_number.trim() || null,
-      telegram_link: contact.telegram_link.trim() || null,
-      email: contact.email.trim() || null,
-      location_text: contact.location_text.trim() || null,
-      maps_url: contact.maps_url.trim() || null,
-      hero_subtitle_ar: contact.hero_subtitle_ar.trim() || null,
-      book_year_label: contact.book_year_label.trim() || null,
+    const payload = {
+      email: contact.email.trim(),
+      location: contact.location.trim(),
+      whatsapp: contact.whatsapp.trim(),
+      telegram: contact.telegram.trim(),
+      google_maps_url: contact.google_maps_url.trim(),
     };
-    persist(next, "تم حفظ بيانات التواصل والموقع");
+
+    startTransition(async () => {
+      if (usingLocal) {
+        persistLocal(
+          {
+            settings: {
+              ...settings,
+              ...payload,
+              email: payload.email || null,
+              location: payload.location || null,
+              whatsapp: payload.whatsapp || null,
+              telegram: payload.telegram || null,
+              google_maps_url: payload.google_maps_url || null,
+              updated_at: new Date().toISOString(),
+            },
+            social_links: links,
+          },
+          "تم الحفظ محلياً"
+        );
+        return;
+      }
+
+      try {
+        const result = await saveSiteSettings(payload);
+        if (result.success && result.data) {
+          setSettings(result.data);
+          setContact(fromSettings(result.data));
+          success(result.message ?? "تم الحفظ بنجاح");
+        } else if (!result.success) {
+          if (result.error === "NO_SUPABASE") {
+            setUsingLocal(true);
+            persistLocal(
+              {
+                settings: {
+                  ...settings,
+                  ...payload,
+                  email: payload.email || null,
+                  location: payload.location || null,
+                  whatsapp: payload.whatsapp || null,
+                  telegram: payload.telegram || null,
+                  google_maps_url: payload.google_maps_url || null,
+                  updated_at: new Date().toISOString(),
+                },
+                social_links: links,
+              },
+              "تم الحفظ محلياً (Supabase غير متصل)"
+            );
+          } else {
+            error(result.error);
+          }
+        }
+      } catch (err) {
+        console.error("[settings-manager] saveSiteSettings:", err);
+        error("حدث خطأ أثناء الحفظ");
+      }
+    });
   }
 
   function openCreateLink() {
@@ -231,11 +261,10 @@ export function SettingsManager() {
   function openEditLink(link: SocialLink) {
     setEditing(link);
     setLinkForm({
-      platform: link.platform,
-      label: link.label,
+      platform_name: link.platform_name,
       url: link.url,
-      icon: link.icon,
-      is_visible: link.is_visible,
+      icon_name: link.icon_name,
+      is_active: link.is_active,
     });
     setLinkError(null);
     setModalOpen(true);
@@ -243,57 +272,164 @@ export function SettingsManager() {
 
   function handleSaveLink(e: FormEvent) {
     e.preventDefault();
-    const validation = validateSocialUrl(linkForm.icon, linkForm.url);
+    const validation = validateSocialUrl(linkForm.icon_name, linkForm.url);
     if (validation) {
       setLinkError(validation);
       return;
     }
-    if (!linkForm.label.trim() && !linkForm.platform.trim()) {
-      setLinkError("اسم المنصة أو التسمية مطلوب");
+    if (!linkForm.platform_name.trim()) {
+      setLinkError("اسم المنصة مطلوب");
       return;
     }
 
-    const normalizedUrl = normalizeSocialUrl(linkForm.icon, linkForm.url);
+    const normalizedUrl = normalizeSocialUrl(
+      linkForm.icon_name,
+      linkForm.url
+    );
     if (!safeExternalHref(normalizedUrl)) {
-      setLinkError("الرابط يجب أن يكون خارجياً بصيغة https:// أو tel: أو mailto:");
+      setLinkError(
+        "الرابط يجب أن يكون خارجياً بصيغة https:// أو tel: أو mailto:"
+      );
       return;
     }
 
-    const item: SocialLink = {
-      id: editing?.id ?? crypto.randomUUID(),
-      platform: linkForm.platform.trim() || linkForm.label.trim(),
-      label: linkForm.label.trim() || linkForm.platform.trim(),
+    const input = {
+      platform_name: linkForm.platform_name.trim(),
       url: normalizedUrl,
-      icon: linkForm.icon,
-      is_visible: linkForm.is_visible,
+      icon_name: linkForm.icon_name,
+      is_active: linkForm.is_active,
     };
 
-    const social_links = editing
-      ? settings.social_links.map((l) => (l.id === editing.id ? item : l))
-      : [...settings.social_links, item];
+    startTransition(async () => {
+      if (usingLocal) {
+        const item: SocialLink = {
+          id: editing?.id ?? crypto.randomUUID(),
+          platform_name: input.platform_name,
+          url: input.url,
+          icon_name: input.icon_name,
+          is_active: input.is_active,
+          sort_order: editing?.sort_order ?? links.length,
+          updated_at: new Date().toISOString(),
+        };
+        const social_links = editing
+          ? links.map((l) => (l.id === editing.id ? item : l))
+          : [...links, item];
+        setModalOpen(false);
+        persistLocal(
+          { settings, social_links },
+          editing ? "تم تحديث القناة محلياً" : "تمت إضافة القناة محلياً"
+        );
+        return;
+      }
 
-    setModalOpen(false);
-    persist(
-      { ...settings, social_links },
-      editing ? "تم تحديث الرابط" : "تم إضافة الرابط"
-    );
+      try {
+        const result = editing
+          ? await updateSocialLink(editing.id, input)
+          : await createSocialLink(input);
+
+        if (result.success && result.data) {
+          setLinks((prev) =>
+            editing
+              ? prev.map((l) => (l.id === editing.id ? result.data! : l))
+              : [...prev, result.data!]
+          );
+          setModalOpen(false);
+          success(result.message ?? "تم الحفظ");
+        } else if (!result.success) {
+          if (result.error === "NO_SUPABASE") {
+            setUsingLocal(true);
+            setLinkError("Supabase غير متصل — سيتم الحفظ محلياً");
+          } else {
+            setLinkError(result.error);
+            error(result.error);
+          }
+        }
+      } catch (err) {
+        console.error("[settings-manager] saveSocialLink:", err);
+        error("حدث خطأ أثناء حفظ القناة");
+      }
+    });
   }
 
-  function toggleVisibility(id: string, is_visible: boolean) {
-    const social_links = settings.social_links.map((l) =>
-      l.id === id ? { ...l, is_visible } : l
-    );
-    persist(
-      { ...settings, social_links },
-      is_visible ? "تم إظهار الرابط" : "تم إخفاء الرابط"
-    );
+  function handleToggleActive(id: string, is_active: boolean) {
+    startTransition(async () => {
+      if (usingLocal) {
+        const social_links = links.map((l) =>
+          l.id === id ? { ...l, is_active } : l
+        );
+        persistLocal(
+          { settings, social_links },
+          is_active ? "تم تفعيل القناة" : "تم إيقاف القناة"
+        );
+        return;
+      }
+
+      // Optimistic UI — no full-page navigation
+      setLinks((prev) =>
+        prev.map((l) => (l.id === id ? { ...l, is_active } : l))
+      );
+
+      try {
+        const result = await toggleSocialLinkActive(id, is_active);
+        if (result.success && result.data) {
+          setLinks((prev) =>
+            prev.map((l) => (l.id === id ? result.data! : l))
+          );
+          success(result.message ?? "تم التحديث");
+        } else if (!result.success) {
+          setLinks((prev) =>
+            prev.map((l) =>
+              l.id === id ? { ...l, is_active: !is_active } : l
+            )
+          );
+          error(result.error);
+        }
+      } catch (err) {
+        console.error("[settings-manager] toggleSocialLinkActive:", err);
+        setLinks((prev) =>
+          prev.map((l) =>
+            l.id === id ? { ...l, is_active: !is_active } : l
+          )
+        );
+        error("تعذر تحديث حالة القناة");
+      }
+    });
   }
 
   function confirmDelete() {
     if (!deleteId) return;
-    const social_links = settings.social_links.filter((l) => l.id !== deleteId);
+    const id = deleteId;
     setDeleteId(null);
-    persist({ ...settings, social_links }, "تم حذف الرابط");
+
+    startTransition(async () => {
+      if (usingLocal) {
+        persistLocal(
+          {
+            settings,
+            social_links: links.filter((l) => l.id !== id),
+          },
+          "تم حذف القناة محلياً"
+        );
+        return;
+      }
+
+      const previous = links;
+      setLinks((prev) => prev.filter((l) => l.id !== id));
+
+      try {
+        const result = await deleteSocialLink(id);
+        if (result.success) {
+          success(result.message ?? "تم الحذف");
+        } else {
+          setLinks(previous);
+          error(result.error);
+        }
+      } catch (err) {
+        console.error("[settings-manager] deleteSocialLink:", err);
+        setLinks(previous);
+        error("تعذر حذف القناة");
+      }
+    });
   }
 
   if (loading) {
@@ -316,14 +452,20 @@ export function SettingsManager() {
             التواصل والموقع والقنوات
           </h2>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-            إدارة ديناميكية بالكامل للبريد والموقع الجغرافي ووسائل التواصل —
-            بدون أي بيانات ثابتة
+            مزامنة مباشرة مع جداول{" "}
+            <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">
+              site_settings
+            </code>{" "}
+            و{" "}
+            <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">
+              social_links
+            </code>
           </p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-          قنوات ظاهرة:{" "}
+          قنوات مفعّلة:{" "}
           <span className="font-bold text-teal-700 dark:text-teal-300">
-            {visibleCount}
+            {activeCount}
           </span>
         </div>
       </header>
@@ -336,31 +478,23 @@ export function SettingsManager() {
       ) : null}
 
       <form onSubmit={handleSaveContact} className="space-y-4">
-        {/* Card 1 — Official contact & email */}
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
           <div className="mb-5 flex items-start gap-3">
             <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300">
-              <Phone className="h-5 w-5" />
+              <Mail className="h-5 w-5" />
             </span>
             <div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                التواصل الرسمي والبريد
+                التواصل الرسمي
               </h3>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                الهاتف، واتساب، تيليجرام، والبريد الإلكتروني الرسمي
+                البريد، واتساب، وتيليجرام — أعمدة{" "}
+                <span className="font-mono text-xs">email / whatsapp / telegram</span>
               </p>
             </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field
-              label="الهواتف"
-              value={contact.phone_number}
-              onChange={(v) => setContact((c) => ({ ...c, phone_number: v }))}
-              placeholder="مثال: +2189xxxxxxxx"
-              hint={phonePreview ? `معاينة الاتصال: ${phonePreview}` : undefined}
-              previewHref={safeExternalHref(phonePreview ?? "")}
-            />
             <Field
               label="البريد الإلكتروني الرسمي"
               type="email"
@@ -373,10 +507,8 @@ export function SettingsManager() {
             />
             <Field
               label="واتساب"
-              value={contact.whatsapp_number}
-              onChange={(v) =>
-                setContact((c) => ({ ...c, whatsapp_number: v }))
-              }
+              value={contact.whatsapp}
+              onChange={(v) => setContact((c) => ({ ...c, whatsapp: v }))}
               placeholder="رقم أو https://wa.me/..."
               hint={waPreview ? `معاينة: ${waPreview}` : undefined}
               previewHref={safeExternalHref(waPreview ?? "")}
@@ -384,10 +516,8 @@ export function SettingsManager() {
             />
             <Field
               label="تيليجرام"
-              value={contact.telegram_link}
-              onChange={(v) =>
-                setContact((c) => ({ ...c, telegram_link: v }))
-              }
+              value={contact.telegram}
+              onChange={(v) => setContact((c) => ({ ...c, telegram: v }))}
               placeholder="@channel أو https://t.me/..."
               hint={tgPreview ? `معاينة: ${tgPreview}` : undefined}
               previewHref={safeExternalHref(tgPreview ?? "")}
@@ -396,7 +526,6 @@ export function SettingsManager() {
           </div>
         </section>
 
-        {/* Card 2 — Location & maps */}
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
           <div className="mb-5 flex items-start gap-3">
             <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300">
@@ -407,7 +536,8 @@ export function SettingsManager() {
                 الموقع الجغرافي / اللوكيشن
               </h3>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                عنوان نصي واضح + رابط مباشر لخرائط جوجل
+                أعمدة{" "}
+                <span className="font-mono text-xs">location / google_maps_url</span>
               </p>
             </div>
           </div>
@@ -415,54 +545,26 @@ export function SettingsManager() {
           <div className="grid gap-4">
             <Field
               label="العنوان النصي"
-              value={contact.location_text}
-              onChange={(v) =>
-                setContact((c) => ({ ...c, location_text: v }))
-              }
+              value={contact.location}
+              onChange={(v) => setContact((c) => ({ ...c, location: v }))}
               placeholder="مثال: طرابلس، ليبيا — حي …"
             />
             <Field
               label="رابط خرائط جوجل"
-              value={contact.maps_url}
-              onChange={(v) => setContact((c) => ({ ...c, maps_url: v }))}
+              value={contact.google_maps_url}
+              onChange={(v) =>
+                setContact((c) => ({ ...c, google_maps_url: v }))
+              }
               placeholder="https://maps.google.com/..."
               hint={
                 mapsPreview
                   ? "الرابط صالح — يمكن فتحه مباشرة"
-                  : contact.maps_url
+                  : contact.google_maps_url
                     ? "تحقق من صيغة الرابط"
                     : undefined
               }
               previewHref={mapsPreview}
               icon={<ExternalLink className="h-4 w-4" />}
-            />
-          </div>
-        </section>
-
-        {/* Optional public copy */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
-          <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-            نصوص الواجهة العامة
-          </h3>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-            اختيارية — تُعرض على المنصة التعريفية إن وُجدت
-          </p>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <Field
-              label="النص التعريفي (عربي)"
-              value={contact.hero_subtitle_ar}
-              onChange={(v) =>
-                setContact((c) => ({ ...c, hero_subtitle_ar: v }))
-              }
-              placeholder="أدخل النص من لوحة التحكم"
-            />
-            <Field
-              label="سنة الكتاب على الغلاف"
-              value={contact.book_year_label}
-              onChange={(v) =>
-                setContact((c) => ({ ...c, book_year_label: v }))
-              }
-              placeholder="أدخل السنة يدوياً"
             />
           </div>
         </section>
@@ -479,11 +581,10 @@ export function SettingsManager() {
           className="inline-flex h-11 items-center gap-2 rounded-xl bg-teal-700 px-5 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-70"
         >
           <Save className="h-4 w-4" />
-          حفظ التواصل والموقع
+          حفظ إعدادات التواصل والموقع
         </button>
       </form>
 
-      {/* Card 3 — Social channels */}
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-start gap-3">
@@ -495,7 +596,9 @@ export function SettingsManager() {
                 قنوات وسائل التواصل
               </h3>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                إضافة / تعديل / حذف مع أيقونة وإظهار/إخفاء لكل قناة
+                جدول{" "}
+                <span className="font-mono text-xs">social_links</span> —{" "}
+                platform_name / url / icon_name / is_active
               </p>
             </div>
           </div>
@@ -510,12 +613,12 @@ export function SettingsManager() {
         </div>
 
         <div className="mt-5 space-y-3">
-          {settings.social_links.length === 0 ? (
+          {links.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-400">
               لا توجد قنوات بعد — أضف أول منصة اجتماعية من هنا
             </div>
           ) : (
-            settings.social_links.map((link) => {
+            links.map((link) => {
               const href = safeExternalHref(link.url);
               return (
                 <article
@@ -524,14 +627,17 @@ export function SettingsManager() {
                 >
                   <div className="flex min-w-0 items-start gap-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300">
-                      <SocialIcon name={link.icon} className="h-5 w-5" />
+                      <SocialIcon
+                        name={link.icon_name}
+                        className="h-5 w-5"
+                      />
                     </span>
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-slate-900 dark:text-slate-100">
-                        {link.label}
+                        {link.platform_name}
                       </p>
                       <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                        {link.platform} · {link.icon}
+                        {link.icon_name}
                       </p>
                       {href ? (
                         <a
@@ -553,9 +659,9 @@ export function SettingsManager() {
 
                   <div className="flex flex-wrap items-center gap-2">
                     <Switch
-                      checked={link.is_visible}
-                      onChange={(v) => toggleVisibility(link.id, v)}
-                      label={link.is_visible ? "ظاهر" : "مخفي"}
+                      checked={link.is_active}
+                      onChange={(v) => handleToggleActive(link.id, v)}
+                      label={link.is_active ? "مفعّل" : "متوقف"}
                       disabled={pending}
                     />
                     <button
@@ -590,14 +696,14 @@ export function SettingsManager() {
         <form onSubmit={handleSaveLink} className="space-y-4">
           <label className="block space-y-1.5">
             <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-              الأيقونة
+              الأيقونة (icon_name)
             </span>
             <select
-              value={linkForm.icon}
+              value={linkForm.icon_name}
               onChange={(e) =>
                 setLinkForm((f) => ({
                   ...f,
-                  icon: e.target.value as SocialIconKey,
+                  icon_name: e.target.value as SocialIconKey,
                 }))
               }
               className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
@@ -609,42 +715,32 @@ export function SettingsManager() {
               ))}
             </select>
             <span className="mt-2 inline-flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-              <SocialIcon name={linkForm.icon} />
-              معاينة الأيقونة على المنصة التعريفية
+              <SocialIcon name={linkForm.icon_name} />
+              معاينة أيقونة Lucide
             </span>
           </label>
 
           <label className="block space-y-1.5">
             <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-              اسم المنصة
+              اسم المنصة (platform_name)
             </span>
             <input
-              value={linkForm.platform}
+              value={linkForm.platform_name}
               onChange={(e) =>
-                setLinkForm((f) => ({ ...f, platform: e.target.value }))
+                setLinkForm((f) => ({
+                  ...f,
+                  platform_name: e.target.value,
+                }))
               }
               placeholder="Facebook"
               className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              required
             />
           </label>
 
           <label className="block space-y-1.5">
             <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-              التسمية المعروضة
-            </span>
-            <input
-              value={linkForm.label}
-              onChange={(e) =>
-                setLinkForm((f) => ({ ...f, label: e.target.value }))
-              }
-              placeholder="صفحتنا على فيسبوك"
-              className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-            />
-          </label>
-
-          <label className="block space-y-1.5">
-            <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-              الرابط / الرقم
+              الرابط (url)
             </span>
             <input
               value={linkForm.url}
@@ -659,16 +755,16 @@ export function SettingsManager() {
 
           <div className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-3 dark:border-slate-800">
             <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-              {linkForm.is_visible ? (
+              {linkForm.is_active ? (
                 <Eye className="h-4 w-4 text-teal-700" />
               ) : (
                 <EyeOff className="h-4 w-4 text-slate-400" />
               )}
-              إظهار على الموقع العام
+              مفعّل على الموقع العام (is_active)
             </div>
             <Switch
-              checked={linkForm.is_visible}
-              onChange={(v) => setLinkForm((f) => ({ ...f, is_visible: v }))}
+              checked={linkForm.is_active}
+              onChange={(v) => setLinkForm((f) => ({ ...f, is_active: v }))}
             />
           </div>
 
@@ -711,8 +807,7 @@ export function SettingsManager() {
               حذف القناة
             </h3>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-              هل أنت متأكد من حذف قناة التواصل؟ لن تظهر بعد ذلك على المنصة
-              التعريفية.
+              هل أنت متأكد من حذف هذه القناة من جدول social_links؟
             </p>
             <div className="mt-6 flex justify-end gap-2">
               <button

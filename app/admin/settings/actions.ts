@@ -2,102 +2,170 @@
 
 import { revalidatePath } from "next/cache";
 import { hasSupabaseConfig, supabase } from "@/lib/supabase";
-import type { ActionResult, SiteSettings, SocialLink } from "@/lib/types";
+import type {
+  ActionResult,
+  SettingsBundle,
+  SiteSettings,
+  SocialIconKey,
+  SocialLink,
+} from "@/lib/types";
 
-function normalizeRow(row: Record<string, unknown>): SiteSettings {
-  const links = Array.isArray(row.social_links)
-    ? (row.social_links as SocialLink[])
-    : [];
+const SETTINGS_ID = 1;
 
+function pickText(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (trimmed) return trimmed;
+  }
+  return null;
+}
+
+/** Prefer clean columns; fall back to legacy aliases during migration. */
+function normalizeSettings(row: Record<string, unknown>): SiteSettings {
   return {
-    id: 1,
-    phone_number: (row.phone_number as string | null) ?? null,
-    whatsapp_number: (row.whatsapp_number as string | null) ?? null,
-    telegram_link: (row.telegram_link as string | null) ?? null,
-    email: (row.email as string | null) ?? null,
-    location_text: (row.location_text as string | null) ?? null,
-    maps_url: (row.maps_url as string | null) ?? null,
-    social_links: links.map((link) => ({
-      id: String(link.id ?? crypto.randomUUID()),
-      platform: String(link.platform ?? ""),
-      label: String(link.label ?? link.platform ?? ""),
-      url: String(link.url ?? ""),
-      icon: (link.icon as SocialLink["icon"]) || "globe",
-      is_visible: link.is_visible !== false,
-    })),
-    hero_subtitle_ar: (row.hero_subtitle_ar as string | null) ?? null,
-    book_year_label: (row.book_year_label as string | null) ?? null,
+    id: SETTINGS_ID,
+    email: pickText(row.email, row.contact_email),
+    location: pickText(row.location, row.location_text, row.address, row.address_text),
+    whatsapp: pickText(row.whatsapp, row.whatsapp_number),
+    telegram: pickText(row.telegram, row.telegram_link),
+    google_maps_url: pickText(row.google_maps_url, row.maps_url, row.location_url),
     updated_at: String(row.updated_at ?? new Date().toISOString()),
   };
 }
 
-const EMPTY_SEED = {
-  id: 1,
-  phone_number: null,
-  whatsapp_number: null,
-  telegram_link: null,
+function normalizeSocialLink(row: Record<string, unknown>): SocialLink {
+  const icon = String(
+    row.icon_name ?? row.icon ?? "globe"
+  ) as SocialIconKey;
+  const platform = String(
+    row.platform_name ?? row.platform ?? row.label ?? ""
+  );
+  const active =
+    row.is_active !== false && row.is_visible !== false;
+  return {
+    id: String(row.id),
+    platform_name: platform,
+    url: String(row.url ?? row.href ?? ""),
+    icon_name: icon || "globe",
+    is_active: active,
+    sort_order: Number(row.sort_order ?? 0),
+    created_at: row.created_at ? String(row.created_at) : undefined,
+    updated_at: row.updated_at ? String(row.updated_at) : undefined,
+  };
+}
+
+const EMPTY_SETTINGS_SEED = {
+  id: SETTINGS_ID,
   email: null,
-  location_text: null,
-  maps_url: null,
-  social_links: [] as SocialLink[],
-  hero_subtitle_ar: null,
-  book_year_label: null,
+  location: null,
+  whatsapp: null,
+  telegram: null,
+  google_maps_url: null,
   updated_at: new Date().toISOString(),
 };
 
-export async function getSiteSettings(): Promise<ActionResult<SiteSettings>> {
+async function ensureSettingsRow(): Promise<
+  ActionResult<SiteSettings>
+> {
+  const { data, error } = await supabase
+    .from("site_settings")
+    .select("*")
+    .eq("id", SETTINGS_ID)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[settings] ensureSettingsRow select:", error.message, error);
+    return { success: false, error: error.message };
+  }
+
+  if (data) {
+    return {
+      success: true,
+      data: normalizeSettings(data as Record<string, unknown>),
+    };
+  }
+
+  const inserted = await supabase
+    .from("site_settings")
+    .upsert(EMPTY_SETTINGS_SEED)
+    .select("*")
+    .single();
+
+  if (inserted.error) {
+    console.error(
+      "[settings] ensureSettingsRow upsert:",
+      inserted.error.message,
+      inserted.error
+    );
+    return { success: false, error: inserted.error.message };
+  }
+
+  return {
+    success: true,
+    data: normalizeSettings(inserted.data as Record<string, unknown>),
+  };
+}
+
+async function fetchSocialLinks(): Promise<ActionResult<SocialLink[]>> {
+  const { data, error } = await supabase
+    .from("social_links")
+    .select("*")
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("[settings] fetchSocialLinks:", error.message, error);
+    return { success: false, error: error.message };
+  }
+
+  const links = (data ?? []).map((row) =>
+    normalizeSocialLink(row as Record<string, unknown>)
+  );
+  return { success: true, data: links };
+}
+
+/** Load site_settings + social_links together for the admin UI. */
+export async function getSettingsBundle(): Promise<
+  ActionResult<SettingsBundle>
+> {
   try {
     if (!hasSupabaseConfig()) {
       return { success: false, error: "NO_SUPABASE" };
     }
 
-    const { data, error } = await supabase
-      .from("site_settings")
-      .select("*")
-      .eq("id", 1)
-      .maybeSingle();
+    const [settingsResult, linksResult] = await Promise.all([
+      ensureSettingsRow(),
+      fetchSocialLinks(),
+    ]);
 
-    if (error) {
-      console.error("[settings] getSiteSettings:", error.message);
-      return { success: false, error: error.message };
+    if (!settingsResult.success) {
+      return { success: false, error: settingsResult.error };
     }
-
-    if (!data) {
-      const inserted = await supabase
-        .from("site_settings")
-        .upsert(EMPTY_SEED)
-        .select("*")
-        .single();
-      if (inserted.error) {
-        return { success: false, error: inserted.error.message };
-      }
-      return {
-        success: true,
-        data: normalizeRow(inserted.data as Record<string, unknown>),
-      };
+    if (!linksResult.success) {
+      return { success: false, error: linksResult.error };
     }
 
     return {
       success: true,
-      data: normalizeRow(data as Record<string, unknown>),
+      data: {
+        settings: settingsResult.data!,
+        social_links: linksResult.data ?? [],
+      },
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error("[settings] getSiteSettings exception:", err);
+    console.error("[settings] getSettingsBundle exception:", err);
     return { success: false, error: message };
   }
 }
 
 export type SaveSiteSettingsInput = {
-  phone_number: string;
-  whatsapp_number: string;
-  telegram_link: string;
   email: string;
-  location_text: string;
-  maps_url: string;
-  hero_subtitle_ar: string;
-  book_year_label: string;
-  social_links: SocialLink[];
+  location: string;
+  whatsapp: string;
+  telegram: string;
+  google_maps_url: string;
 };
 
 export async function saveSiteSettings(
@@ -109,16 +177,12 @@ export async function saveSiteSettings(
     }
 
     const payload = {
-      id: 1,
-      phone_number: input.phone_number.trim() || null,
-      whatsapp_number: input.whatsapp_number.trim() || null,
-      telegram_link: input.telegram_link.trim() || null,
+      id: SETTINGS_ID,
       email: input.email.trim() || null,
-      location_text: input.location_text.trim() || null,
-      maps_url: input.maps_url.trim() || null,
-      hero_subtitle_ar: input.hero_subtitle_ar.trim() || null,
-      book_year_label: input.book_year_label.trim() || null,
-      social_links: input.social_links,
+      location: input.location.trim() || null,
+      whatsapp: input.whatsapp.trim() || null,
+      telegram: input.telegram.trim() || null,
+      google_maps_url: input.google_maps_url.trim() || null,
       updated_at: new Date().toISOString(),
     };
 
@@ -129,19 +193,221 @@ export async function saveSiteSettings(
       .single();
 
     if (error) {
-      console.error("[settings] saveSiteSettings:", error.message, payload);
+      console.error("[settings] saveSiteSettings:", error.message, {
+        error,
+        payload,
+      });
       return { success: false, error: error.message };
     }
 
     revalidatePath("/admin/settings");
     return {
       success: true,
-      data: normalizeRow(data as Record<string, unknown>),
-      message: "تم حفظ إعدادات الموقع بنجاح",
+      data: normalizeSettings(data as Record<string, unknown>),
+      message: "تم حفظ إعدادات التواصل والموقع بنجاح",
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[settings] saveSiteSettings exception:", err);
+    return { success: false, error: message };
+  }
+}
+
+export type SocialLinkInput = {
+  platform_name: string;
+  url: string;
+  icon_name: SocialIconKey;
+  is_active: boolean;
+};
+
+export async function createSocialLink(
+  input: SocialLinkInput
+): Promise<ActionResult<SocialLink>> {
+  try {
+    if (!hasSupabaseConfig()) {
+      return { success: false, error: "NO_SUPABASE" };
+    }
+
+    const platform_name = input.platform_name.trim();
+    const url = input.url.trim();
+    if (!platform_name) {
+      return { success: false, error: "اسم المنصة مطلوب" };
+    }
+    if (!url) {
+      return { success: false, error: "الرابط مطلوب" };
+    }
+
+    const { count } = await supabase
+      .from("social_links")
+      .select("*", { count: "exact", head: true });
+
+    const payload = {
+      platform_name,
+      url,
+      icon_name: input.icon_name || "globe",
+      is_active: input.is_active !== false,
+      sort_order: count ?? 0,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
+      .from("social_links")
+      .insert(payload)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("[settings] createSocialLink:", error.message, {
+        error,
+        payload,
+      });
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath("/admin/settings");
+    return {
+      success: true,
+      data: normalizeSocialLink(data as Record<string, unknown>),
+      message: "تمت إضافة القناة بنجاح",
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[settings] createSocialLink exception:", err);
+    return { success: false, error: message };
+  }
+}
+
+export async function updateSocialLink(
+  id: string,
+  input: SocialLinkInput
+): Promise<ActionResult<SocialLink>> {
+  try {
+    if (!hasSupabaseConfig()) {
+      return { success: false, error: "NO_SUPABASE" };
+    }
+
+    if (!id) {
+      return { success: false, error: "معرّف القناة غير صالح" };
+    }
+
+    const platform_name = input.platform_name.trim();
+    const url = input.url.trim();
+    if (!platform_name) {
+      return { success: false, error: "اسم المنصة مطلوب" };
+    }
+    if (!url) {
+      return { success: false, error: "الرابط مطلوب" };
+    }
+
+    const payload = {
+      platform_name,
+      url,
+      icon_name: input.icon_name || "globe",
+      is_active: input.is_active !== false,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
+      .from("social_links")
+      .update(payload)
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("[settings] updateSocialLink:", error.message, {
+        error,
+        id,
+        payload,
+      });
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath("/admin/settings");
+    return {
+      success: true,
+      data: normalizeSocialLink(data as Record<string, unknown>),
+      message: "تم تحديث القناة بنجاح",
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[settings] updateSocialLink exception:", err);
+    return { success: false, error: message };
+  }
+}
+
+export async function toggleSocialLinkActive(
+  id: string,
+  is_active: boolean
+): Promise<ActionResult<SocialLink>> {
+  try {
+    if (!hasSupabaseConfig()) {
+      return { success: false, error: "NO_SUPABASE" };
+    }
+
+    if (!id) {
+      return { success: false, error: "معرّف القناة غير صالح" };
+    }
+
+    const { data, error } = await supabase
+      .from("social_links")
+      .update({ is_active, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("[settings] toggleSocialLinkActive:", error.message, {
+        error,
+        id,
+        is_active,
+      });
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath("/admin/settings");
+    return {
+      success: true,
+      data: normalizeSocialLink(data as Record<string, unknown>),
+      message: is_active ? "تم تفعيل القناة" : "تم إيقاف القناة",
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[settings] toggleSocialLinkActive exception:", err);
+    return { success: false, error: message };
+  }
+}
+
+export async function deleteSocialLink(
+  id: string
+): Promise<ActionResult> {
+  try {
+    if (!hasSupabaseConfig()) {
+      return { success: false, error: "NO_SUPABASE" };
+    }
+
+    if (!id) {
+      return { success: false, error: "معرّف القناة غير صالح" };
+    }
+
+    const { error } = await supabase
+      .from("social_links")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error("[settings] deleteSocialLink:", error.message, {
+        error,
+        id,
+      });
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath("/admin/settings");
+    return { success: true, message: "تم حذف القناة بنجاح" };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[settings] deleteSocialLink exception:", err);
     return { success: false, error: message };
   }
 }
