@@ -15,9 +15,8 @@ function normalizeMaterial(row: Record<string, unknown>): EducationalMaterial {
     ? rawType
     : "كتاب حصة";
 
-  const file_path = String(
-    row.file_path ?? row.pdf_url ?? ""
-  );
+  // Canonical column is file_path; accept legacy pdf_url when reading
+  const file_path = String(row.file_path ?? row.pdf_url ?? "").trim();
 
   return {
     id: String(row.id),
@@ -34,6 +33,20 @@ function normalizeMaterial(row: Record<string, unknown>): EducationalMaterial {
   };
 }
 
+function mapDbError(message: string): string {
+  const m = message.toLowerCase();
+  if (m.includes("file_path") && (m.includes("column") || m.includes("schema cache"))) {
+    return "عمود file_path غير موجود في الجدول. نفّذ supabase/schema.sql لإضافته ثم أعد المحاولة.";
+  }
+  if (m.includes("pdf_url") && (m.includes("null") || m.includes("not-null"))) {
+    return "عمود pdf_url ما زال إلزامياً في قاعدة البيانات. حدّث الجدول أو أعد تشغيل schema.sql.";
+  }
+  if (m.includes("unit_name") && m.includes("column")) {
+    return "عمود unit_name غير موجود. نفّذ supabase/schema.sql ثم أعد المحاولة.";
+  }
+  return message;
+}
+
 export async function getMaterials(): Promise<
   ActionResult<EducationalMaterial[]>
 > {
@@ -46,7 +59,7 @@ export async function getMaterials(): Promise<
 
     if (error) {
       console.error("[materials] getMaterials:", error.message, error);
-      return { success: false, error: error.message };
+      return { success: false, error: mapDbError(error.message) };
     }
 
     return {
@@ -66,22 +79,110 @@ export type MaterialInput = {
   title: string;
   unit_name: string;
   material_type: MaterialType;
+  /** Public Storage URL stored in DB column `file_path` */
   file_path: string;
   stage_id: string;
   grade_id: string;
   is_active: boolean;
 };
 
+/**
+ * Payload matches DB columns exactly.
+ * Writes `file_path` (canonical) and mirrors the same URL to legacy `pdf_url`
+ * so older NOT NULL constraints never break inserts.
+ */
 function buildPayload(input: MaterialInput) {
+  const file_path = input.file_path.trim();
   return {
     title: input.title.trim(),
     unit_name: input.unit_name.trim(),
     material_type: input.material_type,
-    file_path: input.file_path.trim(),
+    file_path,
+    pdf_url: file_path,
     stage_id: input.stage_id || null,
     grade_id: input.grade_id || null,
     is_active: input.is_active !== false,
     updated_at: new Date().toISOString(),
+  };
+}
+
+async function persistMaterial(
+  mode: "insert" | "update",
+  input: MaterialInput,
+  id?: string
+): Promise<ActionResult<EducationalMaterial>> {
+  const base = buildPayload(input);
+
+  const attempt = async (payload: Record<string, unknown>) => {
+    if (mode === "insert") {
+      const { count } = await supabase
+        .from("educational_materials")
+        .select("*", { count: "exact", head: true });
+      return supabase
+        .from("educational_materials")
+        .insert({ ...payload, sort_order: count ?? 0 })
+        .select("*")
+        .single();
+    }
+    return supabase
+      .from("educational_materials")
+      .update(payload)
+      .eq("id", id!)
+      .select("*")
+      .single();
+  };
+
+  // 1) Preferred: file_path + pdf_url mirror
+  let { data, error } = await attempt(base);
+
+  // 2) If file_path column missing in remote schema cache — fall back to pdf_url only
+  if (
+    error &&
+    /file_path/i.test(error.message) &&
+    /(column|schema cache|does not exist)/i.test(error.message)
+  ) {
+    console.warn(
+      "[materials] file_path column missing — retrying with pdf_url only"
+    );
+    const { file_path: _omit, ...legacy } = base;
+    const retry = await attempt({ ...legacy, pdf_url: base.file_path });
+    data = retry.data;
+    error = retry.error;
+  }
+
+  // 3) If pdf_url column missing — retry with file_path only
+  if (
+    error &&
+    /pdf_url/i.test(error.message) &&
+    /(column|schema cache|does not exist)/i.test(error.message)
+  ) {
+    console.warn(
+      "[materials] pdf_url column missing — retrying with file_path only"
+    );
+    const { pdf_url: _omit, ...modern } = base;
+    const retry = await attempt(modern);
+    data = retry.data;
+    error = retry.error;
+  }
+
+  if (error) {
+    console.error("[materials] persistMaterial:", error.message, {
+      error,
+      mode,
+      id,
+      payload: base,
+    });
+    return { success: false, error: mapDbError(error.message) };
+  }
+
+  revalidatePath("/admin/materials");
+  return {
+    success: true,
+    data: normalizeMaterial(data as Record<string, unknown>),
+    message:
+      mode === "insert"
+        ? "تمت إضافة المادة التعليمية بنجاح"
+        : "تم تحديث المادة التعليمية بنجاح",
   };
 }
 
@@ -105,35 +206,7 @@ export async function createMaterial(
       return { success: false, error: "يجب اختيار المرحلة والصف" };
     }
 
-    const { count } = await supabase
-      .from("educational_materials")
-      .select("*", { count: "exact", head: true });
-
-    const payload = {
-      ...buildPayload(input),
-      sort_order: count ?? 0,
-    };
-
-    const { data, error } = await supabase
-      .from("educational_materials")
-      .insert(payload)
-      .select("*")
-      .single();
-
-    if (error) {
-      console.error("[materials] createMaterial:", error.message, {
-        error,
-        payload,
-      });
-      return { success: false, error: error.message };
-    }
-
-    revalidatePath("/admin/materials");
-    return {
-      success: true,
-      data: normalizeMaterial(data as Record<string, unknown>),
-      message: "تمت إضافة المادة التعليمية بنجاح",
-    };
+    return await persistMaterial("insert", input);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[materials] createMaterial exception:", err);
@@ -157,35 +230,13 @@ export async function updateMaterial(
       return { success: false, error: "نوع المادة غير صالح" };
     }
     if (!input.file_path.trim()) {
-      return { success: false, error: "مسار الملف مطلوب" };
+      return { success: false, error: "مسار الملف (file_path) مطلوب" };
     }
     if (!input.stage_id || !input.grade_id) {
       return { success: false, error: "يجب اختيار المرحلة والصف" };
     }
 
-    const payload = buildPayload(input);
-    const { data, error } = await supabase
-      .from("educational_materials")
-      .update(payload)
-      .eq("id", id)
-      .select("*")
-      .single();
-
-    if (error) {
-      console.error("[materials] updateMaterial:", error.message, {
-        error,
-        id,
-        payload,
-      });
-      return { success: false, error: error.message };
-    }
-
-    revalidatePath("/admin/materials");
-    return {
-      success: true,
-      data: normalizeMaterial(data as Record<string, unknown>),
-      message: "تم تحديث المادة التعليمية بنجاح",
-    };
+    return await persistMaterial("update", input, id);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[materials] updateMaterial exception:", err);
@@ -207,7 +258,7 @@ export async function toggleMaterialActive(
       .single();
     if (error) {
       console.error("[materials] toggleMaterialActive:", error.message, error);
-      return { success: false, error: error.message };
+      return { success: false, error: mapDbError(error.message) };
     }
     revalidatePath("/admin/materials");
     return {
@@ -231,7 +282,7 @@ export async function deleteMaterial(id: string): Promise<ActionResult> {
       .eq("id", id);
     if (error) {
       console.error("[materials] deleteMaterial:", error.message, { error, id });
-      return { success: false, error: error.message };
+      return { success: false, error: mapDbError(error.message) };
     }
     revalidatePath("/admin/materials");
     return { success: true, message: "تم حذف المادة" };

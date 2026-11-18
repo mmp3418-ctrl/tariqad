@@ -418,3 +418,15 @@ alter table public.video_playlists add column if not exists material_type text;
 
 -- Seed academic stages/grades if empty (idempotent via app seed; SQL helper)
 -- Prefer running admin once so ensureDefaultAcademicStructure populates rows.
+
+-- Unify educational_materials file column on file_path
+alter table public.educational_materials add column if not exists file_path text;
+alter table public.educational_materials add column if not exists pdf_url text;
+alter table public.educational_materials alter column pdf_url drop not null;
+
+-- Backfill file_path from legacy pdf_url when empty
+update public.educational_materials
+set file_path = pdf_url
+where (file_path is null or file_path = '')
+  and pdf_url is not null
+  and pdf_url <> '';
