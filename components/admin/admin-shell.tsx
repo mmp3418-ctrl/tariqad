@@ -5,11 +5,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   BookOpen,
+  FileText,
+  GraduationCap,
   Home,
   LayoutDashboard,
   LogOut,
   Menu,
   Settings,
+  CirclePlay,
   X,
 } from "lucide-react";
 import { clearSession, readSession } from "@/lib/auth";
@@ -19,6 +22,24 @@ const NAV = [
   { href: "/admin", label: "نظرة عامة", icon: LayoutDashboard, exact: true },
   { href: "/admin/home", label: "الصفحة الرئيسية", icon: Home, exact: false },
   { href: "/admin/books", label: "الكتب", icon: BookOpen, exact: false },
+  {
+    href: "/admin/academic",
+    label: "الهيكل الأكاديمي",
+    icon: GraduationCap,
+    exact: false,
+  },
+  {
+    href: "/admin/materials",
+    label: "المواد التعليمية",
+    icon: FileText,
+    exact: false,
+  },
+  {
+    href: "/admin/playlists",
+    label: "قوائم الفيديو",
+    icon: CirclePlay,
+    exact: false,
+  },
   {
     href: "/admin/settings",
     label: "إعدادات الموقع",
@@ -41,6 +62,13 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const [username, setUsername] = useState("admin");
 
   useEffect(() => {
+    document.documentElement.classList.add("dark");
+    return () => {
+      document.documentElement.classList.remove("dark");
+    };
+  }, []);
+
+  useEffect(() => {
     const session = readSession();
     if (!session) {
       router.replace("/login");
@@ -57,7 +85,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   if (!ready) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-600 dark:bg-slate-950 dark:text-slate-400">
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-400">
         جاري التحميل...
       </div>
     );
@@ -65,35 +93,35 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   return (
     <ToastProvider>
-      <div className="flex min-h-screen max-w-[100vw] overflow-x-hidden bg-slate-50 dark:bg-slate-950">
+      <div className="flex min-h-screen max-w-[100vw] overflow-x-hidden bg-[#070b12] text-slate-100">
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="fixed start-3 top-3 z-40 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm lg:hidden dark:border-slate-800 dark:bg-slate-900"
+          className="fixed start-3 top-3 z-40 rounded-xl border border-white/10 bg-slate-900 p-2.5 shadow-lg lg:hidden"
           aria-label="فتح القائمة"
         >
-          <Menu className="h-5 w-5 text-slate-900 dark:text-slate-100" />
+          <Menu className="h-5 w-5 text-slate-100" />
         </button>
 
         {open ? (
           <button
             type="button"
-            className="fixed inset-0 z-40 bg-slate-900/45 lg:hidden"
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
             aria-label="إغلاق"
             onClick={() => setOpen(false)}
           />
         ) : null}
 
         <aside
-          className={`fixed inset-y-0 start-0 z-50 flex w-[min(18rem,88vw)] flex-col bg-[#0b3d3a] text-white shadow-2xl transition-transform duration-300 lg:static lg:w-72 lg:translate-x-0 ${
+          className={`fixed inset-y-0 start-0 z-50 flex w-[min(18rem,88vw)] flex-col border-e border-white/5 bg-gradient-to-b from-[#0c2f2c] via-[#0a2422] to-[#071816] text-white shadow-2xl transition-transform duration-300 lg:static lg:w-72 lg:translate-x-0 ${
             open ? "translate-x-0" : "translate-x-full lg:translate-x-0"
           }`}
         >
           <div className="flex items-center justify-between border-b border-white/10 px-5 py-5">
             <div>
-              <p className="text-xs font-medium text-teal-200/80">لوحة التحكم</p>
-              <h1 className="text-xl font-extrabold">منصة طارق</h1>
-              <p className="mt-1 truncate text-xs text-teal-100/70">{username}</p>
+              <p className="text-xs font-medium text-teal-200/70">لوحة التحكم</p>
+              <h1 className="text-xl font-extrabold tracking-tight">منصة طارق</h1>
+              <p className="mt-1 truncate text-xs text-teal-100/60">{username}</p>
             </div>
             <button
               type="button"
@@ -122,8 +150,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
                   onClick={() => setOpen(false)}
                   className={`flex items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-medium transition ${
                     active
-                      ? "bg-white text-teal-900 shadow-sm"
-                      : "text-teal-50/90 hover:bg-white/10"
+                      ? "bg-white text-teal-950 shadow-md shadow-black/20"
+                      : "text-teal-50/85 hover:bg-white/10"
                   }`}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
@@ -137,7 +165,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <button
               type="button"
               onClick={logout}
-              className="flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-medium text-teal-50/90 transition hover:bg-rose-500/20 hover:text-white"
+              className="flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-medium text-teal-50/85 transition hover:bg-rose-500/20 hover:text-white"
             >
               <LogOut className="h-5 w-5" />
               تسجيل الخروج

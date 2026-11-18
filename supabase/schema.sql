@@ -139,3 +139,221 @@ create policy "Allow all books"
 
 create index if not exists books_sort_idx
   on public.books (sort_order asc, created_at asc);
+
+-- ---------------------------------------------------------------------------
+-- Curriculum: grades → units → lessons + resources (PDF / playlist)
+-- ---------------------------------------------------------------------------
+create table if not exists public.grades (
+  id uuid primary key default gen_random_uuid(),
+  stage text not null check (stage in ('primary', 'preparatory', 'secondary')),
+  title_ar text not null,
+  title_en text not null,
+  slug text not null unique,
+  sort_order integer not null default 0,
+  is_coming_soon boolean not null default false
+);
+
+create table if not exists public.units (
+  id uuid primary key default gen_random_uuid(),
+  grade_id uuid not null references public.grades(id) on delete cascade,
+  title text,
+  title_ar text,
+  title_en text,
+  sort_order integer not null default 0,
+  is_coming_soon boolean not null default false
+);
+
+create table if not exists public.lessons (
+  id uuid primary key default gen_random_uuid(),
+  unit_id uuid not null references public.units(id) on delete cascade,
+  title text,
+  title_ar text,
+  title_en text,
+  sort_order integer not null default 0,
+  is_coming_soon boolean not null default false
+);
+
+create table if not exists public.resources (
+  id uuid primary key default gen_random_uuid(),
+  grade_id uuid not null references public.grades(id) on delete cascade,
+  unit_id uuid references public.units(id) on delete set null,
+  lesson_id uuid references public.lessons(id) on delete set null,
+  type text not null check (type in ('pdf', 'playlist', 'video')),
+  title_ar text not null,
+  title_en text not null,
+  subject_ar text not null default '',
+  subject_en text not null default '',
+  term text,
+  url text not null,
+  description text,
+  description_ar text,
+  description_en text,
+  resource_category text,
+  cover_image_url text,
+  cover_image text,
+  card_color text,
+  badge_color text,
+  icon_type text,
+  icon_name text,
+  is_coming_soon boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists units_grade_idx on public.units (grade_id, sort_order);
+create index if not exists lessons_unit_idx on public.lessons (unit_id, sort_order);
+create index if not exists resources_grade_unit_idx on public.resources (grade_id, unit_id);
+
+alter table public.grades enable row level security;
+alter table public.units enable row level security;
+alter table public.lessons enable row level security;
+alter table public.resources enable row level security;
+
+drop policy if exists "Allow all grades" on public.grades;
+create policy "Allow all grades" on public.grades for all using (true) with check (true);
+
+drop policy if exists "Allow all units" on public.units;
+create policy "Allow all units" on public.units for all using (true) with check (true);
+
+drop policy if exists "Allow all lessons" on public.lessons;
+create policy "Allow all lessons" on public.lessons for all using (true) with check (true);
+
+drop policy if exists "Allow all resources" on public.resources;
+create policy "Allow all resources" on public.resources for all using (true) with check (true);
+
+
+-- ---------------------------------------------------------------------------
+-- academic_stages → academic_grades → academic_units
+-- ---------------------------------------------------------------------------
+create table if not exists public.academic_stages (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  sort_order integer not null default 0,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.academic_stages add column if not exists name text;
+alter table public.academic_stages add column if not exists sort_order integer not null default 0;
+alter table public.academic_stages add column if not exists is_active boolean not null default true;
+alter table public.academic_stages add column if not exists created_at timestamptz not null default now();
+alter table public.academic_stages add column if not exists updated_at timestamptz not null default now();
+
+create table if not exists public.academic_grades (
+  id uuid primary key default gen_random_uuid(),
+  stage_id uuid not null references public.academic_stages(id) on delete cascade,
+  name text not null,
+  sort_order integer not null default 0,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.academic_grades add column if not exists stage_id uuid;
+alter table public.academic_grades add column if not exists name text;
+alter table public.academic_grades add column if not exists sort_order integer not null default 0;
+alter table public.academic_grades add column if not exists is_active boolean not null default true;
+alter table public.academic_grades add column if not exists created_at timestamptz not null default now();
+alter table public.academic_grades add column if not exists updated_at timestamptz not null default now();
+
+create table if not exists public.academic_units (
+  id uuid primary key default gen_random_uuid(),
+  grade_id uuid not null references public.academic_grades(id) on delete cascade,
+  name text not null,
+  sort_order integer not null default 0,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.academic_units add column if not exists grade_id uuid;
+alter table public.academic_units add column if not exists name text;
+alter table public.academic_units add column if not exists sort_order integer not null default 0;
+alter table public.academic_units add column if not exists is_active boolean not null default true;
+alter table public.academic_units add column if not exists created_at timestamptz not null default now();
+alter table public.academic_units add column if not exists updated_at timestamptz not null default now();
+
+alter table public.academic_stages enable row level security;
+alter table public.academic_grades enable row level security;
+alter table public.academic_units enable row level security;
+
+drop policy if exists "Allow all academic_stages" on public.academic_stages;
+create policy "Allow all academic_stages" on public.academic_stages for all using (true) with check (true);
+
+drop policy if exists "Allow all academic_grades" on public.academic_grades;
+create policy "Allow all academic_grades" on public.academic_grades for all using (true) with check (true);
+
+drop policy if exists "Allow all academic_units" on public.academic_units;
+create policy "Allow all academic_units" on public.academic_units for all using (true) with check (true);
+
+create index if not exists academic_stages_sort_idx on public.academic_stages (sort_order asc, created_at asc);
+create index if not exists academic_grades_stage_idx on public.academic_grades (stage_id, sort_order asc);
+create index if not exists academic_units_grade_idx on public.academic_units (grade_id, sort_order asc);
+
+-- ---------------------------------------------------------------------------
+-- educational_materials (PDFs: book / note / worksheet)
+-- ---------------------------------------------------------------------------
+create table if not exists public.educational_materials (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  material_type text not null check (material_type in ('book', 'note', 'worksheet')),
+  pdf_url text not null,
+  stage_id uuid references public.academic_stages(id) on delete set null,
+  grade_id uuid references public.academic_grades(id) on delete set null,
+  unit_id uuid references public.academic_units(id) on delete set null,
+  is_active boolean not null default true,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.educational_materials add column if not exists title text;
+alter table public.educational_materials add column if not exists material_type text;
+alter table public.educational_materials add column if not exists pdf_url text;
+alter table public.educational_materials add column if not exists stage_id uuid;
+alter table public.educational_materials add column if not exists grade_id uuid;
+alter table public.educational_materials add column if not exists unit_id uuid;
+alter table public.educational_materials add column if not exists is_active boolean not null default true;
+alter table public.educational_materials add column if not exists sort_order integer not null default 0;
+alter table public.educational_materials add column if not exists created_at timestamptz not null default now();
+alter table public.educational_materials add column if not exists updated_at timestamptz not null default now();
+
+alter table public.educational_materials enable row level security;
+drop policy if exists "Allow all educational_materials" on public.educational_materials;
+create policy "Allow all educational_materials" on public.educational_materials for all using (true) with check (true);
+
+create index if not exists educational_materials_sort_idx
+  on public.educational_materials (sort_order asc, created_at desc);
+
+-- ---------------------------------------------------------------------------
+-- video_playlists (YouTube educational playlists)
+-- ---------------------------------------------------------------------------
+create table if not exists public.video_playlists (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  youtube_url text not null,
+  stage_id uuid references public.academic_stages(id) on delete set null,
+  grade_id uuid references public.academic_grades(id) on delete set null,
+  unit_id uuid references public.academic_units(id) on delete set null,
+  is_active boolean not null default true,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.video_playlists add column if not exists title text;
+alter table public.video_playlists add column if not exists youtube_url text;
+alter table public.video_playlists add column if not exists stage_id uuid;
+alter table public.video_playlists add column if not exists grade_id uuid;
+alter table public.video_playlists add column if not exists unit_id uuid;
+alter table public.video_playlists add column if not exists is_active boolean not null default true;
+alter table public.video_playlists add column if not exists sort_order integer not null default 0;
+alter table public.video_playlists add column if not exists created_at timestamptz not null default now();
+alter table public.video_playlists add column if not exists updated_at timestamptz not null default now();
+
+alter table public.video_playlists enable row level security;
+drop policy if exists "Allow all video_playlists" on public.video_playlists;
+create policy "Allow all video_playlists" on public.video_playlists for all using (true) with check (true);
+
+create index if not exists video_playlists_sort_idx
+  on public.video_playlists (sort_order asc, created_at desc);

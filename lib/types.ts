@@ -66,3 +66,67 @@ export interface Book {
   created_at?: string;
   updated_at?: string;
 }
+
+export type MaterialType = "book" | "note" | "worksheet";
+
+export interface AcademicStage {
+  id: string;
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AcademicGrade {
+  id: string;
+  stage_id: string;
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AcademicUnit {
+  id: string;
+  grade_id: string;
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AcademicTree {
+  stages: AcademicStage[];
+  grades: AcademicGrade[];
+  units: AcademicUnit[];
+}
+
+export interface EducationalMaterial {
+  id: string;
+  title: string;
+  material_type: MaterialType;
+  pdf_url: string;
+  stage_id: string | null;
+  grade_id: string | null;
+  unit_id: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface VideoPlaylist {
+  id: string;
+  title: string;
+  youtube_url: string;
+  stage_id: string | null;
+  grade_id: string | null;
+  unit_id: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
