@@ -15,8 +15,19 @@ import { ToastProvider } from "@/components/ui/toast";
 
 const NAV = [
   { href: "/admin", label: "نظرة عامة", icon: LayoutDashboard, exact: true },
-  { href: "/admin/settings", label: "إعدادات الموقع", icon: Settings },
+  {
+    href: "/admin/settings",
+    label: "إعدادات الموقع",
+    icon: Settings,
+    exact: false,
+  },
 ] as const;
+
+function normalizePath(path: string): string {
+  if (!path) return "/";
+  const trimmed = path.replace(/\/+$/, "");
+  return trimmed.length ? trimmed : "/";
+}
 
 export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -93,13 +104,17 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <nav className="flex-1 space-y-1 overflow-y-auto p-3">
             {NAV.map((item) => {
               const Icon = item.icon;
-              const active = "exact" in item && item.exact
-                ? pathname === item.href
-                : pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const current = normalizePath(pathname);
+              const target = normalizePath(item.href);
+              const active = item.exact
+                ? current === target
+                : current === target || current.startsWith(`${target}/`);
               return (
                 <Link
                   key={item.href}
                   href={item.href}
+                  prefetch
+                  scroll
                   onClick={() => setOpen(false)}
                   className={`flex items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-medium transition ${
                     active

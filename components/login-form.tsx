@@ -67,6 +67,7 @@ export function LoginForm() {
 
     persistSession(createSession(username.trim()));
     router.replace("/admin");
+    router.refresh();
   }
 
   return (
