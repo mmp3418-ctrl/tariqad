@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import {
+  BookOpen,
+  Home,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -15,6 +17,8 @@ import { ToastProvider } from "@/components/ui/toast";
 
 const NAV = [
   { href: "/admin", label: "نظرة عامة", icon: LayoutDashboard, exact: true },
+  { href: "/admin/home", label: "الصفحة الرئيسية", icon: Home, exact: false },
+  { href: "/admin/books", label: "الكتب", icon: BookOpen, exact: false },
   {
     href: "/admin/settings",
     label: "إعدادات الموقع",

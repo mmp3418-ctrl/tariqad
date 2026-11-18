@@ -42,3 +42,27 @@ export interface SettingsBundle {
   settings: SiteSettings;
   social_links: SocialLink[];
 }
+
+/** Single-row public.home_content */
+export interface HomeContent {
+  id: number;
+  hero_title: string | null;
+  hero_subtitle: string | null;
+  cta_button: string | null;
+  about_text: string | null;
+  updated_at: string;
+}
+
+/** Row from public.books */
+export interface Book {
+  id: string;
+  title: string;
+  description: string | null;
+  cover_image_url: string | null;
+  download_link: string | null;
+  price: string | null;
+  is_visible: boolean;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+}

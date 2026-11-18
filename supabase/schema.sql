@@ -1,4 +1,4 @@
-﻿-- منصة طارق — إعدادات الموقع وقنوات التواصل
+-- منصة طارق — إعدادات الموقع وقنوات التواصل
 -- Run in Supabase SQL Editor
 
 -- ---------------------------------------------------------------------------
@@ -67,3 +67,75 @@ create policy "Allow all social_links"
 
 create index if not exists social_links_sort_idx
   on public.social_links (sort_order asc, created_at asc);
+
+
+-- ---------------------------------------------------------------------------
+-- home_content: single-row homepage copy (id = 1)
+-- ---------------------------------------------------------------------------
+create table if not exists public.home_content (
+  id integer primary key check (id = 1),
+  hero_title text,
+  hero_subtitle text,
+  hero_cta_text text,
+  hero_cta_url text,
+  about_text text,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.home_content add column if not exists hero_title text;
+alter table public.home_content add column if not exists hero_subtitle text;
+alter table public.home_content add column if not exists hero_cta_text text;
+alter table public.home_content add column if not exists hero_cta_url text;
+alter table public.home_content add column if not exists about_text text;
+alter table public.home_content add column if not exists updated_at timestamptz not null default now();
+
+insert into public.home_content (id)
+values (1)
+on conflict (id) do nothing;
+
+alter table public.home_content enable row level security;
+
+drop policy if exists "Allow all home_content" on public.home_content;
+create policy "Allow all home_content"
+  on public.home_content
+  for all
+  using (true)
+  with check (true);
+
+-- ---------------------------------------------------------------------------
+-- books: publications catalog (active rows shown on hub)
+-- ---------------------------------------------------------------------------
+create table if not exists public.books (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  description text,
+  cover_image text,
+  download_url text,
+  price text,
+  is_active boolean not null default true,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.books add column if not exists title text;
+alter table public.books add column if not exists description text;
+alter table public.books add column if not exists cover_image text;
+alter table public.books add column if not exists download_url text;
+alter table public.books add column if not exists price text;
+alter table public.books add column if not exists is_active boolean not null default true;
+alter table public.books add column if not exists sort_order integer not null default 0;
+alter table public.books add column if not exists created_at timestamptz not null default now();
+alter table public.books add column if not exists updated_at timestamptz not null default now();
+
+alter table public.books enable row level security;
+
+drop policy if exists "Allow all books" on public.books;
+create policy "Allow all books"
+  on public.books
+  for all
+  using (true)
+  with check (true);
+
+create index if not exists books_sort_idx
+  on public.books (sort_order asc, created_at asc);
