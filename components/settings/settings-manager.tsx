@@ -33,11 +33,6 @@ import {
   updateSocialLink,
 } from "@/app/admin/settings/actions";
 import {
-  defaultBundle,
-  readLocalBundle,
-  writeLocalBundle,
-} from "@/lib/settings-local";
-import {
   isValidEmail,
   isValidMapsUrl,
   normalizeSocialUrl,
@@ -49,7 +44,6 @@ import {
   validateSocialUrl,
 } from "@/lib/social";
 import type {
-  SettingsBundle,
   SiteSettings,
   SocialIconKey,
   SocialLink,
@@ -82,6 +76,16 @@ const emptyContact = (): ContactForm => ({
   google_maps_url: "",
 });
 
+const emptySettings = (): SiteSettings => ({
+  id: 1,
+  email: null,
+  location: null,
+  whatsapp: null,
+  telegram: null,
+  google_maps_url: null,
+  updated_at: new Date().toISOString(),
+});
+
 function fromSettings(data: SiteSettings): ContactForm {
   return {
     email: data.email ?? "",
@@ -96,10 +100,7 @@ export function SettingsManager() {
   const { success, error } = useToast();
   const [pending, startTransition] = useTransition();
   const [loading, setLoading] = useState(true);
-  const [usingLocal, setUsingLocal] = useState(false);
-  const [settings, setSettings] = useState<SiteSettings>(
-    defaultBundle().settings
-  );
+  const [settings, setSettings] = useState<SiteSettings>(emptySettings());
   const [links, setLinks] = useState<SocialLink[]>([]);
   const [contact, setContact] = useState<ContactForm>(emptyContact());
   const [formError, setFormError] = useState<string | null>(null);
@@ -126,47 +127,28 @@ export function SettingsManager() {
     : null;
   const mapsPreview = safeExternalHref(contact.google_maps_url);
 
-  const applyBundle = useCallback((bundle: SettingsBundle) => {
-    setSettings(bundle.settings);
-    setLinks(bundle.social_links);
-    setContact(fromSettings(bundle.settings));
-  }, []);
-
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const result = await getSettingsBundle();
       if (result.success && result.data) {
-        setUsingLocal(false);
-        applyBundle(result.data);
-      } else {
-        if (result.success === false && result.error !== "NO_SUPABASE") {
-          error(result.error);
-        }
-        const local = readLocalBundle();
-        setUsingLocal(true);
-        applyBundle(local);
+        setSettings(result.data.settings);
+        setLinks(result.data.social_links);
+        setContact(fromSettings(result.data.settings));
+      } else if (!result.success) {
+        error(result.error || "تعذر تحميل الإعدادات من Supabase");
       }
     } catch (err) {
       console.error("[settings-manager] load:", err);
-      error("تعذر تحميل الإعدادات");
-      const local = readLocalBundle();
-      setUsingLocal(true);
-      applyBundle(local);
+      error("تعذر تحميل الإعدادات من Supabase");
     } finally {
       setLoading(false);
     }
-  }, [applyBundle, error]);
+  }, [error]);
 
   useEffect(() => {
     void load();
   }, [load]);
-
-  function persistLocal(next: SettingsBundle, message: string) {
-    writeLocalBundle(next);
-    applyBundle(next);
-    success(message);
-  }
 
   function handleSaveContact(e: FormEvent) {
     e.preventDefault();
@@ -195,26 +177,6 @@ export function SettingsManager() {
     };
 
     startTransition(async () => {
-      if (usingLocal) {
-        persistLocal(
-          {
-            settings: {
-              ...settings,
-              ...payload,
-              email: payload.email || null,
-              location: payload.location || null,
-              whatsapp: payload.whatsapp || null,
-              telegram: payload.telegram || null,
-              google_maps_url: payload.google_maps_url || null,
-              updated_at: new Date().toISOString(),
-            },
-            social_links: links,
-          },
-          "تم الحفظ محلياً"
-        );
-        return;
-      }
-
       try {
         const result = await saveSiteSettings(payload);
         if (result.success && result.data) {
@@ -222,27 +184,7 @@ export function SettingsManager() {
           setContact(fromSettings(result.data));
           success(result.message ?? "تم الحفظ بنجاح");
         } else if (!result.success) {
-          if (result.error === "NO_SUPABASE") {
-            setUsingLocal(true);
-            persistLocal(
-              {
-                settings: {
-                  ...settings,
-                  ...payload,
-                  email: payload.email || null,
-                  location: payload.location || null,
-                  whatsapp: payload.whatsapp || null,
-                  telegram: payload.telegram || null,
-                  google_maps_url: payload.google_maps_url || null,
-                  updated_at: new Date().toISOString(),
-                },
-                social_links: links,
-              },
-              "تم الحفظ محلياً (Supabase غير متصل)"
-            );
-          } else {
-            error(result.error);
-          }
+          error(result.error);
         }
       } catch (err) {
         console.error("[settings-manager] saveSiteSettings:", err);
@@ -301,27 +243,6 @@ export function SettingsManager() {
     };
 
     startTransition(async () => {
-      if (usingLocal) {
-        const item: SocialLink = {
-          id: editing?.id ?? crypto.randomUUID(),
-          platform_name: input.platform_name,
-          url: input.url,
-          icon_name: input.icon_name,
-          is_active: input.is_active,
-          sort_order: editing?.sort_order ?? links.length,
-          updated_at: new Date().toISOString(),
-        };
-        const social_links = editing
-          ? links.map((l) => (l.id === editing.id ? item : l))
-          : [...links, item];
-        setModalOpen(false);
-        persistLocal(
-          { settings, social_links },
-          editing ? "تم تحديث القناة محلياً" : "تمت إضافة القناة محلياً"
-        );
-        return;
-      }
-
       try {
         const result = editing
           ? await updateSocialLink(editing.id, input)
@@ -336,13 +257,8 @@ export function SettingsManager() {
           setModalOpen(false);
           success(result.message ?? "تم الحفظ");
         } else if (!result.success) {
-          if (result.error === "NO_SUPABASE") {
-            setUsingLocal(true);
-            setLinkError("Supabase غير متصل — سيتم الحفظ محلياً");
-          } else {
-            setLinkError(result.error);
-            error(result.error);
-          }
+          setLinkError(result.error);
+          error(result.error);
         }
       } catch (err) {
         console.error("[settings-manager] saveSocialLink:", err);
@@ -353,18 +269,6 @@ export function SettingsManager() {
 
   function handleToggleActive(id: string, is_active: boolean) {
     startTransition(async () => {
-      if (usingLocal) {
-        const social_links = links.map((l) =>
-          l.id === id ? { ...l, is_active } : l
-        );
-        persistLocal(
-          { settings, social_links },
-          is_active ? "تم تفعيل القناة" : "تم إيقاف القناة"
-        );
-        return;
-      }
-
-      // Optimistic UI — no full-page navigation
       setLinks((prev) =>
         prev.map((l) => (l.id === id ? { ...l, is_active } : l))
       );
@@ -402,17 +306,6 @@ export function SettingsManager() {
     setDeleteId(null);
 
     startTransition(async () => {
-      if (usingLocal) {
-        persistLocal(
-          {
-            settings,
-            social_links: links.filter((l) => l.id !== id),
-          },
-          "تم حذف القناة محلياً"
-        );
-        return;
-      }
-
       const previous = links;
       setLinks((prev) => prev.filter((l) => l.id !== id));
 
@@ -435,7 +328,7 @@ export function SettingsManager() {
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center text-slate-600 dark:text-slate-400">
-        جاري تحميل الإعدادات...
+        جاري تحميل الإعدادات من Supabase...
       </div>
     );
   }
@@ -452,14 +345,7 @@ export function SettingsManager() {
             التواصل والموقع والقنوات
           </h2>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-            مزامنة مباشرة مع جداول{" "}
-            <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">
-              site_settings
-            </code>{" "}
-            و{" "}
-            <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">
-              social_links
-            </code>
+            مزامنة مباشرة مع Supabase — جداول site_settings و social_links
           </p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
@@ -469,13 +355,6 @@ export function SettingsManager() {
           </span>
         </div>
       </header>
-
-      {usingLocal ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-          التخزين المحلي مفعّل مؤقتاً. اربط Supabase عبر `.env.local` ونفّذ
-          `supabase/schema.sql` للمزامنة السحابية.
-        </div>
-      ) : null}
 
       <form onSubmit={handleSaveContact} className="space-y-4">
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
@@ -488,8 +367,7 @@ export function SettingsManager() {
                 التواصل الرسمي
               </h3>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                البريد، واتساب، وتيليجرام — أعمدة{" "}
-                <span className="font-mono text-xs">email / whatsapp / telegram</span>
+                البريد، واتساب، وتيليجرام
               </p>
             </div>
           </div>
@@ -536,8 +414,7 @@ export function SettingsManager() {
                 الموقع الجغرافي / اللوكيشن
               </h3>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                أعمدة{" "}
-                <span className="font-mono text-xs">location / google_maps_url</span>
+                العنوان النصي ورابط خرائط جوجل
               </p>
             </div>
           </div>
@@ -596,9 +473,7 @@ export function SettingsManager() {
                 قنوات وسائل التواصل
               </h3>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                جدول{" "}
-                <span className="font-mono text-xs">social_links</span> —{" "}
-                platform_name / url / icon_name / is_active
+                إضافة / تعديل / حذف مع أيقونة وتفعيل لكل قناة
               </p>
             </div>
           </div>
@@ -696,7 +571,7 @@ export function SettingsManager() {
         <form onSubmit={handleSaveLink} className="space-y-4">
           <label className="block space-y-1.5">
             <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-              الأيقونة (icon_name)
+              الأيقونة
             </span>
             <select
               value={linkForm.icon_name}
@@ -722,7 +597,7 @@ export function SettingsManager() {
 
           <label className="block space-y-1.5">
             <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-              اسم المنصة (platform_name)
+              اسم المنصة
             </span>
             <input
               value={linkForm.platform_name}
@@ -740,7 +615,7 @@ export function SettingsManager() {
 
           <label className="block space-y-1.5">
             <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-              الرابط (url)
+              الرابط
             </span>
             <input
               value={linkForm.url}
@@ -760,7 +635,7 @@ export function SettingsManager() {
               ) : (
                 <EyeOff className="h-4 w-4 text-slate-400" />
               )}
-              مفعّل على الموقع العام (is_active)
+              مفعّل على الموقع العام
             </div>
             <Switch
               checked={linkForm.is_active}
@@ -807,7 +682,7 @@ export function SettingsManager() {
               حذف القناة
             </h3>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-              هل أنت متأكد من حذف هذه القناة من جدول social_links؟
+              هل أنت متأكد من حذف هذه القناة؟
             </p>
             <div className="mt-6 flex justify-end gap-2">
               <button

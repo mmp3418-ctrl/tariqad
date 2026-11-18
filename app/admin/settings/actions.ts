@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { hasSupabaseConfig, supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import type {
   ActionResult,
   SettingsBundle,
@@ -12,43 +12,26 @@ import type {
 
 const SETTINGS_ID = 1;
 
-function pickText(...values: unknown[]): string | null {
-  for (const value of values) {
-    if (typeof value !== "string") continue;
-    const trimmed = value.trim();
-    if (trimmed) return trimmed;
-  }
-  return null;
-}
-
-/** Prefer clean columns; fall back to legacy aliases during migration. */
 function normalizeSettings(row: Record<string, unknown>): SiteSettings {
   return {
     id: SETTINGS_ID,
-    email: pickText(row.email, row.contact_email),
-    location: pickText(row.location, row.location_text, row.address, row.address_text),
-    whatsapp: pickText(row.whatsapp, row.whatsapp_number),
-    telegram: pickText(row.telegram, row.telegram_link),
-    google_maps_url: pickText(row.google_maps_url, row.maps_url, row.location_url),
+    email: (row.email as string | null) ?? null,
+    location: (row.location as string | null) ?? null,
+    whatsapp: (row.whatsapp as string | null) ?? null,
+    telegram: (row.telegram as string | null) ?? null,
+    google_maps_url: (row.google_maps_url as string | null) ?? null,
     updated_at: String(row.updated_at ?? new Date().toISOString()),
   };
 }
 
 function normalizeSocialLink(row: Record<string, unknown>): SocialLink {
-  const icon = String(
-    row.icon_name ?? row.icon ?? "globe"
-  ) as SocialIconKey;
-  const platform = String(
-    row.platform_name ?? row.platform ?? row.label ?? ""
-  );
-  const active =
-    row.is_active !== false && row.is_visible !== false;
+  const icon = String(row.icon_name ?? "globe") as SocialIconKey;
   return {
     id: String(row.id),
-    platform_name: platform,
-    url: String(row.url ?? row.href ?? ""),
+    platform_name: String(row.platform_name ?? ""),
+    url: String(row.url ?? ""),
     icon_name: icon || "globe",
-    is_active: active,
+    is_active: row.is_active !== false,
     sort_order: Number(row.sort_order ?? 0),
     created_at: row.created_at ? String(row.created_at) : undefined,
     updated_at: row.updated_at ? String(row.updated_at) : undefined,
@@ -65,9 +48,7 @@ const EMPTY_SETTINGS_SEED = {
   updated_at: new Date().toISOString(),
 };
 
-async function ensureSettingsRow(): Promise<
-  ActionResult<SiteSettings>
-> {
+async function ensureSettingsRow(): Promise<ActionResult<SiteSettings>> {
   const { data, error } = await supabase
     .from("site_settings")
     .select("*")
@@ -130,10 +111,6 @@ export async function getSettingsBundle(): Promise<
   ActionResult<SettingsBundle>
 > {
   try {
-    if (!hasSupabaseConfig()) {
-      return { success: false, error: "NO_SUPABASE" };
-    }
-
     const [settingsResult, linksResult] = await Promise.all([
       ensureSettingsRow(),
       fetchSocialLinks(),
@@ -172,10 +149,6 @@ export async function saveSiteSettings(
   input: SaveSiteSettingsInput
 ): Promise<ActionResult<SiteSettings>> {
   try {
-    if (!hasSupabaseConfig()) {
-      return { success: false, error: "NO_SUPABASE" };
-    }
-
     const payload = {
       id: SETTINGS_ID,
       email: input.email.trim() || null,
@@ -224,10 +197,6 @@ export async function createSocialLink(
   input: SocialLinkInput
 ): Promise<ActionResult<SocialLink>> {
   try {
-    if (!hasSupabaseConfig()) {
-      return { success: false, error: "NO_SUPABASE" };
-    }
-
     const platform_name = input.platform_name.trim();
     const url = input.url.trim();
     if (!platform_name) {
@@ -282,10 +251,6 @@ export async function updateSocialLink(
   input: SocialLinkInput
 ): Promise<ActionResult<SocialLink>> {
   try {
-    if (!hasSupabaseConfig()) {
-      return { success: false, error: "NO_SUPABASE" };
-    }
-
     if (!id) {
       return { success: false, error: "معرّف القناة غير صالح" };
     }
@@ -341,10 +306,6 @@ export async function toggleSocialLinkActive(
   is_active: boolean
 ): Promise<ActionResult<SocialLink>> {
   try {
-    if (!hasSupabaseConfig()) {
-      return { success: false, error: "NO_SUPABASE" };
-    }
-
     if (!id) {
       return { success: false, error: "معرّف القناة غير صالح" };
     }
@@ -382,10 +343,6 @@ export async function deleteSocialLink(
   id: string
 ): Promise<ActionResult> {
   try {
-    if (!hasSupabaseConfig()) {
-      return { success: false, error: "NO_SUPABASE" };
-    }
-
     if (!id) {
       return { success: false, error: "معرّف القناة غير صالح" };
     }
