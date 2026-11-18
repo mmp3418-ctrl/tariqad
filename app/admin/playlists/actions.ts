@@ -15,6 +15,8 @@ function normalizePlaylist(row: Record<string, unknown>): VideoPlaylist {
     ? rawType
     : "كتاب حصة";
 
+  const cover = String(row.cover_image_url ?? "").trim();
+
   return {
     id: String(row.id),
     title: String(row.title ?? ""),
@@ -23,6 +25,7 @@ function normalizePlaylist(row: Record<string, unknown>): VideoPlaylist {
     ).trim(),
     unit_name: String(row.unit_name ?? ""),
     material_type,
+    cover_image_url: cover || null,
     stage_id: row.stage_id ? String(row.stage_id) : null,
     grade_id: row.grade_id ? String(row.grade_id) : null,
     is_active: row.is_active !== false,
@@ -64,23 +67,86 @@ export type PlaylistInput = {
   playlist_url: string;
   unit_name: string;
   material_type: MaterialType;
+  /** Optional cover — empty string clears */
+  cover_image_url?: string | null;
   stage_id: string;
   grade_id: string;
   is_active: boolean;
 };
 
-/** Insertion object uses exact DB column name `playlist_url`. */
+/** Insertion object uses exact DB column names including optional cover_image_url. */
 function buildPayload(input: PlaylistInput) {
   const playlist_url = input.playlist_url.trim();
+  const cover = String(input.cover_image_url ?? "").trim();
   return {
     title: input.title.trim(),
     playlist_url,
     unit_name: input.unit_name.trim(),
     material_type: input.material_type,
+    cover_image_url: cover || null,
     stage_id: input.stage_id || null,
     grade_id: input.grade_id || null,
     is_active: input.is_active !== false,
     updated_at: new Date().toISOString(),
+  };
+}
+
+async function persistPlaylist(
+  mode: "insert" | "update",
+  input: PlaylistInput,
+  id?: string
+): Promise<ActionResult<VideoPlaylist>> {
+  const base = buildPayload(input);
+
+  const run = async (body: Record<string, unknown>) => {
+    if (mode === "insert") {
+      const { count } = await supabase
+        .from("video_playlists")
+        .select("*", { count: "exact", head: true });
+      return supabase
+        .from("video_playlists")
+        .insert({ ...body, sort_order: count ?? 0 })
+        .select("*")
+        .single();
+    }
+    return supabase
+      .from("video_playlists")
+      .update(body)
+      .eq("id", id!)
+      .select("*")
+      .single();
+  };
+
+  let { data, error } = await run(base);
+
+  // Legacy tables without cover_image_url — retry without the column.
+  if (
+    error &&
+    /cover_image_url/i.test(error.message) &&
+    /(column|schema cache|does not exist)/i.test(error.message)
+  ) {
+    console.warn(
+      "[playlists] cover_image_url missing — retry without cover column"
+    );
+    const { cover_image_url: _omit, ...withoutCover } = base;
+    const retry = await run(withoutCover);
+    data = retry.data;
+    error = retry.error;
+  }
+
+  if (error) {
+    console.error(`[playlists] ${mode}:`, error.message, { error, id, base });
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin/playlists");
+  return {
+    success: true,
+    data: normalizePlaylist(data as Record<string, unknown>),
+    message:
+      mode === "insert"
+        ? "تمت إضافة قائمة التشغيل بنجاح"
+        : "تم تحديث قائمة التشغيل بنجاح",
   };
 }
 
@@ -107,40 +173,12 @@ export async function createPlaylist(
       return { success: false, error: "يجب اختيار المرحلة والصف" };
     }
 
-    const { count } = await supabase
-      .from("video_playlists")
-      .select("*", { count: "exact", head: true });
-
-    const payload = {
-      ...buildPayload(input),
-      sort_order: count ?? 0,
-    };
-
     console.info("[playlists] create payload:", {
-      keys: Object.keys(payload),
-      playlist_url: payload.playlist_url,
+      keys: Object.keys(buildPayload(input)),
+      hasCover: Boolean(String(input.cover_image_url ?? "").trim()),
     });
 
-    const { data, error } = await supabase
-      .from("video_playlists")
-      .insert(payload)
-      .select("*")
-      .single();
-
-    if (error) {
-      console.error("[playlists] createPlaylist:", error.message, {
-        error,
-        payload,
-      });
-      return { success: false, error: error.message };
-    }
-
-    revalidatePath("/admin/playlists");
-    return {
-      success: true,
-      data: normalizePlaylist(data as Record<string, unknown>),
-      message: "تمت إضافة قائمة التشغيل بنجاح",
-    };
+    return await persistPlaylist("insert", input);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[playlists] createPlaylist exception:", err);
@@ -173,29 +211,7 @@ export async function updatePlaylist(
       return { success: false, error: "يجب اختيار المرحلة والصف" };
     }
 
-    const payload = buildPayload(input);
-    const { data, error } = await supabase
-      .from("video_playlists")
-      .update(payload)
-      .eq("id", id)
-      .select("*")
-      .single();
-
-    if (error) {
-      console.error("[playlists] updatePlaylist:", error.message, {
-        error,
-        id,
-        payload,
-      });
-      return { success: false, error: error.message };
-    }
-
-    revalidatePath("/admin/playlists");
-    return {
-      success: true,
-      data: normalizePlaylist(data as Record<string, unknown>),
-      message: "تم تحديث قائمة التشغيل بنجاح",
-    };
+    return await persistPlaylist("update", input, id);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[playlists] updatePlaylist exception:", err);

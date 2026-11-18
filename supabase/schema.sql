@@ -443,3 +443,6 @@ alter table public.video_playlists add column if not exists playlist_url text;
 update public.video_playlists
 set playlist_url = coalesce(nullif(playlist_url, ''), nullif(youtube_url, ''))
 where playlist_url is null or playlist_url = '';
+
+-- Optional playlist cover image (public Storage URL or external URL)
+alter table public.video_playlists add column if not exists cover_image_url text;

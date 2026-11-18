@@ -11,10 +11,12 @@ import {
 import {
   CirclePlay,
   ExternalLink,
+  ImagePlus,
   Pencil,
   Plus,
   Save,
   Trash2,
+  X,
 } from "lucide-react";
 import { getAcademicTree } from "@/app/admin/academic/actions";
 import {
@@ -30,6 +32,7 @@ import {
   materialTypeLabel,
 } from "@/lib/academic";
 import { safeExternalHref } from "@/lib/social";
+import { uploadPlaylistCover } from "@/lib/storage";
 import type {
   AcademicGrade,
   AcademicStage,
@@ -48,6 +51,7 @@ const emptyForm = {
   playlist_url: "",
   unit_name: "",
   material_type: "كتاب حصة" as MaterialType,
+  cover_image_url: "",
   stage_id: "",
   grade_id: "",
   is_active: true,
@@ -66,6 +70,7 @@ export function PlaylistsManager() {
   const [editing, setEditing] = useState<VideoPlaylist | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
+  const [uploadingCover, setUploadingCover] = useState(false);
 
   const filteredGrades = useMemo(
     () =>
@@ -119,12 +124,37 @@ export function PlaylistsManager() {
       playlist_url: item.playlist_url,
       unit_name: item.unit_name,
       material_type: item.material_type,
+      cover_image_url: item.cover_image_url ?? "",
       stage_id: item.stage_id ?? "",
       grade_id: item.grade_id ?? "",
       is_active: item.is_active,
     });
     setFormError(null);
     setModalOpen(true);
+  }
+
+  async function handleCoverChange(file: File | null) {
+    if (!file) return;
+    setFormError(null);
+    setUploadingCover(true);
+    try {
+      const result = await uploadPlaylistCover(file);
+      if (result.success && result.data) {
+        setForm((f) => ({ ...f, cover_image_url: result.data!.publicUrl }));
+        success(result.message ?? "تم رفع الغلاف");
+      } else if (!result.success) {
+        setFormError(result.error);
+        error(result.error);
+      }
+    } catch (err) {
+      console.error("[playlists-manager] cover upload:", err);
+      const message =
+        err instanceof Error ? err.message : "فشل رفع صورة الغلاف";
+      setFormError(message);
+      error(message);
+    } finally {
+      setUploadingCover(false);
+    }
   }
 
   function handleSave(e: FormEvent) {
@@ -271,7 +301,20 @@ export function PlaylistsManager() {
                   key={item.id}
                   className="flex flex-col gap-3 rounded-xl border border-white/8 bg-white/[0.03] p-4 transition hover:border-teal-500/30 sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <div className="min-w-0">
+                  <div className="flex min-w-0 items-start gap-3">
+                    {item.cover_image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={item.cover_image_url}
+                        alt=""
+                        className="size-14 shrink-0 rounded-lg object-cover ring-1 ring-white/10"
+                      />
+                    ) : (
+                      <span className="inline-flex size-14 shrink-0 items-center justify-center rounded-lg bg-teal-500/10 text-teal-300 ring-1 ring-white/10">
+                        <CirclePlay className="h-6 w-6" />
+                      </span>
+                    )}
+                    <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="truncate font-semibold text-white">
                         {item.title}
@@ -295,6 +338,7 @@ export function PlaylistsManager() {
                         <span className="truncate">{item.playlist_url}</span>
                       </a>
                     ) : null}
+                    </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Switch
@@ -369,6 +413,58 @@ export function PlaylistsManager() {
               className={selectClass}
             />
           </label>
+
+          <div className="space-y-2 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+            <span className="text-sm font-medium">غلاف القائمة (اختياري)</span>
+            <p className="text-xs text-slate-500">
+              ارفع صورة غلاف أو الصق رابط صورة. إن تُرك فارغاً سيظهر غلاف افتراضي في الموقع.
+            </p>
+            {form.cover_image_url ? (
+              <div className="relative mt-2 overflow-hidden rounded-xl border border-white/10">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={form.cover_image_url}
+                  alt="غلاف القائمة"
+                  className="h-36 w-full object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setForm((f) => ({ ...f, cover_image_url: "" }))
+                  }
+                  className="absolute start-2 top-2 inline-flex h-8 items-center gap-1 rounded-lg bg-black/70 px-2 text-xs font-semibold text-white"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  إزالة
+                </button>
+              </div>
+            ) : null}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-dashed border-teal-500/40 bg-teal-500/5 px-3 text-sm font-semibold text-teal-300 transition hover:bg-teal-500/10">
+                <ImagePlus className="h-4 w-4" />
+                {uploadingCover ? "جاري الرفع..." : "رفع صورة"}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="sr-only"
+                  disabled={uploadingCover || pending}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    e.target.value = "";
+                    void handleCoverChange(file);
+                  }}
+                />
+              </label>
+              <input
+                value={form.cover_image_url}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, cover_image_url: e.target.value }))
+                }
+                placeholder="أو الصق رابط صورة (اختياري)"
+                className={selectClass}
+              />
+            </div>
+          </div>
 
           <label className="block space-y-1.5">
             <span className="text-sm font-medium">نوع المادة</span>

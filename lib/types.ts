@@ -132,6 +132,8 @@ export interface VideoPlaylist {
   playlist_url: string;
   unit_name: string;
   material_type: MaterialType;
+  /** Optional cover image (Storage / external URL) */
+  cover_image_url: string | null;
   stage_id: string | null;
   grade_id: string | null;
   is_active: boolean;

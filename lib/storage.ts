@@ -144,3 +144,111 @@ export async function uploadMaterialPdf(
     };
   }
 }
+
+/**
+ * Upload an optional playlist cover image to Supabase Storage.
+ * Reuses the same public buckets as materials (`pdfs` / `uploads` / `materials`).
+ */
+export async function uploadPlaylistCover(
+  file: File
+): Promise<ActionResult<{ path: string; publicUrl: string; bucket: string }>> {
+  try {
+    if (!file) {
+      return { success: false, error: "لم يتم اختيار صورة" };
+    }
+
+    const isImageMime = file.type.startsWith("image/");
+    const isImageName = /\.(jpe?g|png|webp|gif)$/i.test(file.name);
+    if (!isImageMime && !isImageName) {
+      return { success: false, error: "يجب رفع صورة (JPG / PNG / WebP)" };
+    }
+
+    if (file.size <= 0) {
+      return { success: false, error: "الملف فارغ — اختر صورة صالحة" };
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      return { success: false, error: "حجم الصورة كبير جداً (الحد 8MB)" };
+    }
+
+    const stamp = Date.now();
+    const safe = sanitizeFileName(file.name) || "cover.jpg";
+    const objectPath = `covers/${stamp}-${safe}`;
+    const contentType = file.type || "image/jpeg";
+
+    const candidates = Array.from(
+      new Set([MATERIALS_BUCKET, ...MATERIALS_BUCKET_FALLBACKS])
+    );
+
+    let lastError = "";
+    const missing: string[] = [];
+
+    for (const bucket of candidates) {
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(objectPath, file, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType,
+        });
+
+      if (!uploadError) {
+        return {
+          success: true,
+          data: {
+            path: objectPath,
+            publicUrl: publicUrlFor(bucket, objectPath),
+            bucket,
+          },
+          message: `تم رفع الغلاف بنجاح إلى «${bucket}»`,
+        };
+      }
+
+      const msg = uploadError.message || String(uploadError);
+      console.error("[storage] uploadPlaylistCover:", bucket, msg, uploadError);
+      lastError = msg;
+
+      if (isBucketMissingError(msg)) {
+        missing.push(bucket);
+        continue;
+      }
+
+      if (
+        msg.toLowerCase().includes("row-level security") ||
+        msg.toLowerCase().includes("unauthorized") ||
+        msg.toLowerCase().includes("permission") ||
+        msg.toLowerCase().includes("access denied")
+      ) {
+        return {
+          success: false,
+          error:
+            "لا توجد صلاحية لرفع الصور. أضف سياسة Upload للـ bucket في Supabase Storage.",
+        };
+      }
+
+      return { success: false, error: `فشل رفع الغلاف: ${msg}` };
+    }
+
+    if (missing.length) {
+      return {
+        success: false,
+        error: `لم يتم العثور على مجلد التخزين (${missing.join(
+          " / "
+        )}). أنشئ bucket باسم «pdfs» (عام/public) ثم أعد المحاولة.`,
+      };
+    }
+
+    return {
+      success: false,
+      error: lastError
+        ? `فشل رفع الغلاف: ${lastError}`
+        : "فشل رفع الغلاف لأسباب غير معروفة",
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[storage] uploadPlaylistCover exception:", err);
+    return {
+      success: false,
+      error: `حدث خطأ أثناء رفع الغلاف: ${message}`,
+    };
+  }
+}
