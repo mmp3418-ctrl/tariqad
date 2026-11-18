@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { isMaterialType } from "@/lib/academic";
 import { supabase } from "@/lib/supabase";
 import type {
   ActionResult,
@@ -9,17 +10,23 @@ import type {
 } from "@/lib/types";
 
 function normalizeMaterial(row: Record<string, unknown>): EducationalMaterial {
-  const type = String(row.material_type ?? "book") as MaterialType;
+  const rawType = String(row.material_type ?? "كتاب حصة");
+  const material_type: MaterialType = isMaterialType(rawType)
+    ? rawType
+    : "كتاب حصة";
+
+  const file_path = String(
+    row.file_path ?? row.pdf_url ?? ""
+  );
+
   return {
     id: String(row.id),
     title: String(row.title ?? ""),
-    material_type: (["book", "note", "worksheet"].includes(type)
-      ? type
-      : "book") as MaterialType,
-    pdf_url: String(row.pdf_url ?? ""),
+    unit_name: String(row.unit_name ?? ""),
+    material_type,
+    file_path,
     stage_id: row.stage_id ? String(row.stage_id) : null,
     grade_id: row.grade_id ? String(row.grade_id) : null,
-    unit_id: row.unit_id ? String(row.unit_id) : null,
     is_active: row.is_active !== false,
     sort_order: Number(row.sort_order ?? 0),
     created_at: row.created_at ? String(row.created_at) : undefined,
@@ -57,22 +64,22 @@ export async function getMaterials(): Promise<
 
 export type MaterialInput = {
   title: string;
+  unit_name: string;
   material_type: MaterialType;
-  pdf_url: string;
+  file_path: string;
   stage_id: string;
   grade_id: string;
-  unit_id: string;
   is_active: boolean;
 };
 
 function buildPayload(input: MaterialInput) {
   return {
     title: input.title.trim(),
+    unit_name: input.unit_name.trim(),
     material_type: input.material_type,
-    pdf_url: input.pdf_url.trim(),
+    file_path: input.file_path.trim(),
     stage_id: input.stage_id || null,
     grade_id: input.grade_id || null,
-    unit_id: input.unit_id || null,
     is_active: input.is_active !== false,
     updated_at: new Date().toISOString(),
   };
@@ -83,16 +90,19 @@ export async function createMaterial(
 ): Promise<ActionResult<EducationalMaterial>> {
   try {
     if (!input.title.trim()) {
-      return { success: false, error: "عنوان المادة مطلوب" };
+      return { success: false, error: "العنوان مطلوب" };
     }
-    if (!input.pdf_url.trim()) {
-      return { success: false, error: "رابط ملف PDF مطلوب" };
+    if (!input.unit_name.trim()) {
+      return { success: false, error: "اسم الوحدة مطلوب" };
     }
-    if (!input.stage_id || !input.grade_id || !input.unit_id) {
-      return {
-        success: false,
-        error: "يجب اختيار المرحلة والصف والوحدة",
-      };
+    if (!isMaterialType(input.material_type)) {
+      return { success: false, error: "نوع المادة غير صالح" };
+    }
+    if (!input.file_path.trim()) {
+      return { success: false, error: "يجب رفع ملف PDF أولاً" };
+    }
+    if (!input.stage_id || !input.grade_id) {
+      return { success: false, error: "يجب اختيار المرحلة والصف" };
     }
 
     const { count } = await supabase
@@ -122,7 +132,7 @@ export async function createMaterial(
     return {
       success: true,
       data: normalizeMaterial(data as Record<string, unknown>),
-      message: "تمت إضافة المادة التعليمية",
+      message: "تمت إضافة المادة التعليمية بنجاح",
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -138,16 +148,19 @@ export async function updateMaterial(
   try {
     if (!id) return { success: false, error: "معرّف المادة غير صالح" };
     if (!input.title.trim()) {
-      return { success: false, error: "عنوان المادة مطلوب" };
+      return { success: false, error: "العنوان مطلوب" };
     }
-    if (!input.pdf_url.trim()) {
-      return { success: false, error: "رابط ملف PDF مطلوب" };
+    if (!input.unit_name.trim()) {
+      return { success: false, error: "اسم الوحدة مطلوب" };
     }
-    if (!input.stage_id || !input.grade_id || !input.unit_id) {
-      return {
-        success: false,
-        error: "يجب اختيار المرحلة والصف والوحدة",
-      };
+    if (!isMaterialType(input.material_type)) {
+      return { success: false, error: "نوع المادة غير صالح" };
+    }
+    if (!input.file_path.trim()) {
+      return { success: false, error: "مسار الملف مطلوب" };
+    }
+    if (!input.stage_id || !input.grade_id) {
+      return { success: false, error: "يجب اختيار المرحلة والصف" };
     }
 
     const payload = buildPayload(input);
@@ -171,7 +184,7 @@ export async function updateMaterial(
     return {
       success: true,
       data: normalizeMaterial(data as Record<string, unknown>),
-      message: "تم تحديث المادة التعليمية",
+      message: "تم تحديث المادة التعليمية بنجاح",
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

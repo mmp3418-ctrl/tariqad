@@ -1,10 +1,26 @@
 import { isValidHttpUrl } from "@/lib/social";
+import type { MaterialType } from "@/lib/types";
 
-export const MATERIAL_TYPE_OPTIONS = [
-  { value: "book", label: "كتاب" },
-  { value: "note", label: "ملزمة / ملاحظات" },
-  { value: "worksheet", label: "ورقة عمل" },
-] as const;
+/** Public Supabase Storage bucket for uploaded educational PDFs. */
+export const MATERIALS_BUCKET = "materials";
+
+/** Exact Arabic badges used in admin + hub */
+export const MATERIAL_TYPE_OPTIONS: { value: MaterialType; label: string }[] = [
+  { value: "كتاب حصة", label: "كتاب حصة" },
+  { value: "كتاب واجب", label: "كتاب واجب" },
+  { value: "كراسة", label: "كراسة" },
+  { value: "قواعد", label: "قواعد" },
+  { value: "ورقة عمل", label: "ورقة عمل" },
+  { value: "مفردات", label: "مفردات" },
+];
+
+const MATERIAL_TYPE_SET = new Set<string>(
+  MATERIAL_TYPE_OPTIONS.map((o) => o.value)
+);
+
+export function isMaterialType(value: string): value is MaterialType {
+  return MATERIAL_TYPE_SET.has(value);
+}
 
 export function materialTypeLabel(type: string): string {
   return (

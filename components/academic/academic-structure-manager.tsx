@@ -4,7 +4,6 @@ import {
   FormEvent,
   useCallback,
   useEffect,
-  useMemo,
   useState,
   useTransition,
 } from "react";
@@ -19,28 +18,20 @@ import {
 import {
   createGrade,
   createStage,
-  createUnit,
   deleteGrade,
   deleteStage,
-  deleteUnit,
   getAcademicTree,
   toggleGradeActive,
   toggleStageActive,
-  toggleUnitActive,
   updateGrade,
   updateStage,
-  updateUnit,
 } from "@/app/admin/academic/actions";
-import type {
-  AcademicGrade,
-  AcademicStage,
-  AcademicUnit,
-} from "@/lib/types";
+import type { AcademicGrade, AcademicStage } from "@/lib/types";
 import { Modal } from "@/components/ui/modal";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
 
-type Tab = "stages" | "grades" | "units";
+type Tab = "stages" | "grades";
 
 export function AcademicStructureManager() {
   const { success, error } = useToast();
@@ -49,7 +40,6 @@ export function AcademicStructureManager() {
   const [tab, setTab] = useState<Tab>("stages");
   const [stages, setStages] = useState<AcademicStage[]>([]);
   const [grades, setGrades] = useState<AcademicGrade[]>([]);
-  const [units, setUnits] = useState<AcademicUnit[]>([]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -60,11 +50,8 @@ export function AcademicStructureManager() {
 
   const [editingStage, setEditingStage] = useState<AcademicStage | null>(null);
   const [editingGrade, setEditingGrade] = useState<AcademicGrade | null>(null);
-  const [editingUnit, setEditingUnit] = useState<AcademicUnit | null>(null);
-
   const [name, setName] = useState("");
   const [parentStageId, setParentStageId] = useState("");
-  const [parentGradeId, setParentGradeId] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -74,7 +61,6 @@ export function AcademicStructureManager() {
       if (result.success && result.data) {
         setStages(result.data.stages);
         setGrades(result.data.grades);
-        setUnits(result.data.units);
       } else if (!result.success) {
         error(result.error || "تعذر تحميل الهيكل الأكاديمي");
       }
@@ -90,22 +76,12 @@ export function AcademicStructureManager() {
     void load();
   }, [load]);
 
-  const gradesForParent = useMemo(
-    () =>
-      parentStageId
-        ? grades.filter((g) => g.stage_id === parentStageId)
-        : grades,
-    [grades, parentStageId]
-  );
-
   function openCreate(kind: Tab) {
     setFormError(null);
     setName("");
     setEditingStage(null);
     setEditingGrade(null);
-    setEditingUnit(null);
     setParentStageId(stages[0]?.id ?? "");
-    setParentGradeId("");
     setTab(kind);
     setModalOpen(true);
   }
@@ -113,7 +89,6 @@ export function AcademicStructureManager() {
   function openEditStage(item: AcademicStage) {
     setEditingStage(item);
     setEditingGrade(null);
-    setEditingUnit(null);
     setName(item.name);
     setFormError(null);
     setTab("stages");
@@ -123,24 +98,10 @@ export function AcademicStructureManager() {
   function openEditGrade(item: AcademicGrade) {
     setEditingGrade(item);
     setEditingStage(null);
-    setEditingUnit(null);
     setName(item.name);
     setParentStageId(item.stage_id);
     setFormError(null);
     setTab("grades");
-    setModalOpen(true);
-  }
-
-  function openEditUnit(item: AcademicUnit) {
-    setEditingUnit(item);
-    setEditingStage(null);
-    setEditingGrade(null);
-    setName(item.name);
-    const grade = grades.find((g) => g.id === item.grade_id);
-    setParentGradeId(item.grade_id);
-    setParentStageId(grade?.stage_id ?? "");
-    setFormError(null);
-    setTab("units");
     setModalOpen(true);
   }
 
@@ -175,43 +136,18 @@ export function AcademicStructureManager() {
           return;
         }
 
-        if (tab === "grades") {
-          if (!parentStageId) {
-            setFormError("اختر المرحلة");
-            return;
-          }
-          const result = editingGrade
-            ? await updateGrade(editingGrade.id, parentStageId, name)
-            : await createGrade(parentStageId, name);
-          if (result.success && result.data) {
-            setGrades((prev) =>
-              editingGrade
-                ? prev.map((g) =>
-                    g.id === editingGrade.id ? result.data! : g
-                  )
-                : [...prev, result.data!]
-            );
-            setModalOpen(false);
-            success(result.message ?? "تم الحفظ");
-          } else if (!result.success) {
-            setFormError(result.error);
-            error(result.error);
-          }
+        if (!parentStageId) {
+          setFormError("اختر المرحلة");
           return;
         }
-
-        if (!parentGradeId) {
-          setFormError("اختر الصف");
-          return;
-        }
-        const result = editingUnit
-          ? await updateUnit(editingUnit.id, parentGradeId, name)
-          : await createUnit(parentGradeId, name);
+        const result = editingGrade
+          ? await updateGrade(editingGrade.id, parentStageId, name)
+          : await createGrade(parentStageId, name);
         if (result.success && result.data) {
-          setUnits((prev) =>
-            editingUnit
-              ? prev.map((u) =>
-                  u.id === editingUnit.id ? result.data! : u
+          setGrades((prev) =>
+            editingGrade
+              ? prev.map((g) =>
+                  g.id === editingGrade.id ? result.data! : g
                 )
               : [...prev, result.data!]
           );
@@ -228,6 +164,56 @@ export function AcademicStructureManager() {
     });
   }
 
+  function instantToggleStage(id: string, is_active: boolean) {
+    const previous = stages;
+    setStages((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, is_active } : s))
+    );
+    startTransition(async () => {
+      try {
+        const result = await toggleStageActive(id, is_active);
+        if (result.success && result.data) {
+          setStages((prev) =>
+            prev.map((s) => (s.id === id ? result.data! : s))
+          );
+          success(result.message ?? "تم تحديث الحالة");
+        } else if (!result.success) {
+          setStages(previous);
+          error(result.error);
+        }
+      } catch (err) {
+        console.error("[academic-manager] toggleStage:", err);
+        setStages(previous);
+        error("تعذر تحديث حالة المرحلة");
+      }
+    });
+  }
+
+  function instantToggleGrade(id: string, is_active: boolean) {
+    const previous = grades;
+    setGrades((prev) =>
+      prev.map((g) => (g.id === id ? { ...g, is_active } : g))
+    );
+    startTransition(async () => {
+      try {
+        const result = await toggleGradeActive(id, is_active);
+        if (result.success && result.data) {
+          setGrades((prev) =>
+            prev.map((g) => (g.id === id ? result.data! : g))
+          );
+          success(result.message ?? "تم تحديث الحالة");
+        } else if (!result.success) {
+          setGrades(previous);
+          error(result.error);
+        }
+      } catch (err) {
+        console.error("[academic-manager] toggleGrade:", err);
+        setGrades(previous);
+        error("تعذر تحديث حالة الصف");
+      }
+    });
+  }
+
   function confirmDelete() {
     if (!deleteTarget) return;
     const { kind, id } = deleteTarget;
@@ -236,21 +222,14 @@ export function AcademicStructureManager() {
     startTransition(async () => {
       try {
         const result =
-          kind === "stages"
-            ? await deleteStage(id)
-            : kind === "grades"
-              ? await deleteGrade(id)
-              : await deleteUnit(id);
+          kind === "stages" ? await deleteStage(id) : await deleteGrade(id);
 
         if (result.success) {
           if (kind === "stages") {
             setStages((prev) => prev.filter((s) => s.id !== id));
             setGrades((prev) => prev.filter((g) => g.stage_id !== id));
-          } else if (kind === "grades") {
-            setGrades((prev) => prev.filter((g) => g.id !== id));
-            setUnits((prev) => prev.filter((u) => u.grade_id !== id));
           } else {
-            setUnits((prev) => prev.filter((u) => u.id !== id));
+            setGrades((prev) => prev.filter((g) => g.id !== id));
           }
           success(result.message ?? "تم الحذف");
         } else {
@@ -266,9 +245,6 @@ export function AcademicStructureManager() {
   function stageName(id: string) {
     return stages.find((s) => s.id === id)?.name ?? "—";
   }
-  function gradeName(id: string) {
-    return grades.find((g) => g.id === id)?.name ?? "—";
-  }
 
   if (loading) {
     return (
@@ -281,7 +257,6 @@ export function AcademicStructureManager() {
   const tabs: { id: Tab; label: string; count: number }[] = [
     { id: "stages", label: "المراحل", count: stages.length },
     { id: "grades", label: "الصفوف", count: grades.length },
-    { id: "units", label: "الوحدات", count: units.length },
   ];
 
   return (
@@ -293,10 +268,10 @@ export function AcademicStructureManager() {
             <span className="text-sm font-semibold">الهيكل الأكاديمي</span>
           </div>
           <h2 className="text-2xl font-extrabold tracking-tight text-white">
-            المراحل · الصفوف · الوحدات
+            المراحل والصفوف
           </h2>
           <p className="mt-1 text-sm text-slate-400">
-            بناء شجرة المنهج الدراسي لربط المواد وقوائم الفيديو
+            تفعيل/إيقاف فوري عبر المفتاح — يُحفظ مباشرة في Supabase
           </p>
         </div>
         <button
@@ -305,8 +280,7 @@ export function AcademicStructureManager() {
           className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-l from-teal-700 to-teal-600 px-4 text-sm font-semibold text-white shadow-lg shadow-teal-950/40 transition hover:from-teal-600 hover:to-teal-500"
         >
           <Plus className="h-4 w-4" />
-          إضافة{" "}
-          {tab === "stages" ? "مرحلة" : tab === "grades" ? "صف" : "وحدة"}
+          إضافة {tab === "stages" ? "مرحلة" : "صف"}
         </button>
       </header>
 
@@ -334,11 +308,7 @@ export function AcademicStructureManager() {
         <div className="mb-4 flex items-center gap-2 text-slate-300">
           <Layers className="h-4 w-4 text-teal-400" />
           <span className="text-sm font-medium">
-            {tab === "stages"
-              ? "المراحل الدراسية"
-              : tab === "grades"
-                ? "الصفوف المرتبطة بالمراحل"
-                : "الوحدات المرتبطة بالصفوف"}
+            {tab === "stages" ? "المراحل الدراسية" : "الصفوف المرتبطة بالمراحل"}
           </span>
         </div>
 
@@ -354,33 +324,7 @@ export function AcademicStructureManager() {
                   subtitle="مرحلة دراسية"
                   active={item.is_active}
                   pending={pending}
-                  onToggle={(v) =>
-                    startTransition(async () => {
-                      setStages((prev) =>
-                        prev.map((s) =>
-                          s.id === item.id ? { ...s, is_active: v } : s
-                        )
-                      );
-                      const result = await toggleStageActive(item.id, v);
-                      if (result.success && result.data) {
-                        setStages((prev) =>
-                          prev.map((s) =>
-                            s.id === item.id ? result.data! : s
-                          )
-                        );
-                        success(result.message ?? "تم");
-                      } else if (!result.success) {
-                        setStages((prev) =>
-                          prev.map((s) =>
-                            s.id === item.id
-                              ? { ...s, is_active: !v }
-                              : s
-                          )
-                        );
-                        error(result.error);
-                      }
-                    })
-                  }
+                  onToggle={(v) => instantToggleStage(item.id, v)}
                   onEdit={() => openEditStage(item)}
                   onDelete={() =>
                     setDeleteTarget({
@@ -404,87 +348,11 @@ export function AcademicStructureManager() {
                   subtitle={`المرحلة: ${stageName(item.stage_id)}`}
                   active={item.is_active}
                   pending={pending}
-                  onToggle={(v) =>
-                    startTransition(async () => {
-                      setGrades((prev) =>
-                        prev.map((g) =>
-                          g.id === item.id ? { ...g, is_active: v } : g
-                        )
-                      );
-                      const result = await toggleGradeActive(item.id, v);
-                      if (result.success && result.data) {
-                        setGrades((prev) =>
-                          prev.map((g) =>
-                            g.id === item.id ? result.data! : g
-                          )
-                        );
-                        success(result.message ?? "تم");
-                      } else if (!result.success) {
-                        setGrades((prev) =>
-                          prev.map((g) =>
-                            g.id === item.id
-                              ? { ...g, is_active: !v }
-                              : g
-                          )
-                        );
-                        error(result.error);
-                      }
-                    })
-                  }
+                  onToggle={(v) => instantToggleGrade(item.id, v)}
                   onEdit={() => openEditGrade(item)}
                   onDelete={() =>
                     setDeleteTarget({
                       kind: "grades",
-                      id: item.id,
-                      label: item.name,
-                    })
-                  }
-                />
-              ))
-            ))}
-
-          {tab === "units" &&
-            (units.length === 0 ? (
-              <EmptyState text="لا توجد وحدات بعد" />
-            ) : (
-              units.map((item) => (
-                <Row
-                  key={item.id}
-                  title={item.name}
-                  subtitle={`الصف: ${gradeName(item.grade_id)}`}
-                  active={item.is_active}
-                  pending={pending}
-                  onToggle={(v) =>
-                    startTransition(async () => {
-                      setUnits((prev) =>
-                        prev.map((u) =>
-                          u.id === item.id ? { ...u, is_active: v } : u
-                        )
-                      );
-                      const result = await toggleUnitActive(item.id, v);
-                      if (result.success && result.data) {
-                        setUnits((prev) =>
-                          prev.map((u) =>
-                            u.id === item.id ? result.data! : u
-                          )
-                        );
-                        success(result.message ?? "تم");
-                      } else if (!result.success) {
-                        setUnits((prev) =>
-                          prev.map((u) =>
-                            u.id === item.id
-                              ? { ...u, is_active: !v }
-                              : u
-                          )
-                        );
-                        error(result.error);
-                      }
-                    })
-                  }
-                  onEdit={() => openEditUnit(item)}
-                  onDelete={() =>
-                    setDeleteTarget({
-                      kind: "units",
                       id: item.id,
                       label: item.name,
                     })
@@ -499,13 +367,11 @@ export function AcademicStructureManager() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         title={
-          editingStage || editingGrade || editingUnit
+          editingStage || editingGrade
             ? "تعديل"
             : tab === "stages"
               ? "إضافة مرحلة"
-              : tab === "grades"
-                ? "إضافة صف"
-                : "إضافة وحدة"
+              : "إضافة صف"
         }
       >
         <form onSubmit={handleSave} className="space-y-4">
@@ -528,56 +394,13 @@ export function AcademicStructureManager() {
             </label>
           ) : null}
 
-          {tab === "units" ? (
-            <>
-              <label className="block space-y-1.5">
-                <span className="text-sm font-medium">المرحلة</span>
-                <select
-                  value={parentStageId}
-                  onChange={(e) => {
-                    setParentStageId(e.target.value);
-                    setParentGradeId("");
-                  }}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                >
-                  <option value="">اختر المرحلة</option>
-                  {stages.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block space-y-1.5">
-                <span className="text-sm font-medium">الصف</span>
-                <select
-                  value={parentGradeId}
-                  onChange={(e) => setParentGradeId(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                  required
-                >
-                  <option value="">اختر الصف</option>
-                  {gradesForParent.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </>
-          ) : null}
-
           <label className="block space-y-1.5">
             <span className="text-sm font-medium">الاسم</span>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={
-                tab === "stages"
-                  ? "مثال: المرحلة الثانوية"
-                  : tab === "grades"
-                    ? "مثال: الصف الأول"
-                    : "مثال: الوحدة الأولى"
+                tab === "stages" ? "مثال: المرحلة الثانوية" : "مثال: الصف الأول"
               }
               required
               className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
@@ -621,8 +444,7 @@ export function AcademicStructureManager() {
           <div className="relative z-10 w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl sm:p-8">
             <h3 className="text-lg font-bold text-white">تأكيد الحذف</h3>
             <p className="mt-2 text-sm text-slate-400">
-              هل أنت متأكد من حذف «{deleteTarget.label}»؟ الحذف قد يؤثر على
-              العناصر المرتبطة.
+              هل أنت متأكد من حذف «{deleteTarget.label}»؟
             </p>
             <div className="mt-6 flex justify-end gap-2">
               <button

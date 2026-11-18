@@ -67,7 +67,13 @@ export interface Book {
   updated_at?: string;
 }
 
-export type MaterialType = "book" | "note" | "worksheet";
+export type MaterialType =
+  | "كتاب حصة"
+  | "كتاب واجب"
+  | "كراسة"
+  | "قواعد"
+  | "ورقة عمل"
+  | "مفردات";
 
 export interface AcademicStage {
   id: string;
@@ -107,11 +113,11 @@ export interface AcademicTree {
 export interface EducationalMaterial {
   id: string;
   title: string;
+  unit_name: string;
   material_type: MaterialType;
-  pdf_url: string;
+  file_path: string;
   stage_id: string | null;
   grade_id: string | null;
-  unit_id: string | null;
   is_active: boolean;
   sort_order: number;
   created_at?: string;

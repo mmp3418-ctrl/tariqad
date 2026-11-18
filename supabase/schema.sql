@@ -296,7 +296,7 @@ create index if not exists academic_units_grade_idx on public.academic_units (gr
 create table if not exists public.educational_materials (
   id uuid primary key default gen_random_uuid(),
   title text not null,
-  material_type text not null check (material_type in ('book', 'note', 'worksheet')),
+  material_type text not null,
   pdf_url text not null,
   stage_id uuid references public.academic_stages(id) on delete set null,
   grade_id uuid references public.academic_grades(id) on delete set null,
@@ -357,3 +357,44 @@ create policy "Allow all video_playlists" on public.video_playlists for all usin
 
 create index if not exists video_playlists_sort_idx
   on public.video_playlists (sort_order asc, created_at desc);
+
+
+-- ---------------------------------------------------------------------------
+-- educational_materials: unit_name (manual) + file_path (Storage URL)
+-- ---------------------------------------------------------------------------
+alter table public.educational_materials add column if not exists unit_name text;
+alter table public.educational_materials add column if not exists file_path text;
+
+-- Drop legacy English type check if present (ignore errors in SQL editor if missing)
+alter table public.educational_materials drop constraint if exists educational_materials_material_type_check;
+
+-- Optional: keep pdf_url for older rows; prefer file_path going forward
+alter table public.educational_materials add column if not exists pdf_url text;
+
+-- ---------------------------------------------------------------------------
+-- Storage bucket: materials (public PDFs)
+-- ---------------------------------------------------------------------------
+insert into storage.buckets (id, name, public)
+values ('materials', 'materials', true)
+on conflict (id) do update set public = true;
+
+drop policy if exists "Public read materials" on storage.objects;
+create policy "Public read materials"
+  on storage.objects for select
+  using (bucket_id = 'materials');
+
+drop policy if exists "Public upload materials" on storage.objects;
+create policy "Public upload materials"
+  on storage.objects for insert
+  with check (bucket_id = 'materials');
+
+drop policy if exists "Public update materials" on storage.objects;
+create policy "Public update materials"
+  on storage.objects for update
+  using (bucket_id = 'materials')
+  with check (bucket_id = 'materials');
+
+drop policy if exists "Public delete materials" on storage.objects;
+create policy "Public delete materials"
+  on storage.objects for delete
+  using (bucket_id = 'materials');

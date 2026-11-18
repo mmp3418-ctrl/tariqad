@@ -4,6 +4,7 @@ import {
   FormEvent,
   useCallback,
   useEffect,
+  useMemo,
   useState,
   useTransition,
 } from "react";
@@ -14,6 +15,7 @@ import {
   Plus,
   Save,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { getAcademicTree } from "@/app/admin/academic/actions";
 import {
@@ -23,34 +25,29 @@ import {
   toggleMaterialActive,
   updateMaterial,
 } from "@/app/admin/materials/actions";
-import {
-  MATERIAL_TYPE_OPTIONS,
-  isValidPdfUrl,
-  materialTypeLabel,
-} from "@/lib/academic";
+import { MATERIAL_TYPE_OPTIONS, materialTypeLabel } from "@/lib/academic";
+import { uploadMaterialPdf } from "@/lib/storage";
 import { safeExternalHref } from "@/lib/social";
 import type {
   AcademicGrade,
   AcademicStage,
-  AcademicUnit,
   EducationalMaterial,
   MaterialType,
 } from "@/lib/types";
-import {
-  AcademicCascadeSelects,
-  resolveAcademicLabels,
-} from "@/components/academic/cascade-selects";
 import { Modal } from "@/components/ui/modal";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
 
+const selectClass =
+  "w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100";
+
 const emptyForm = {
   title: "",
-  material_type: "book" as MaterialType,
-  pdf_url: "",
+  unit_name: "",
+  material_type: "كتاب حصة" as MaterialType,
+  file_path: "",
   stage_id: "",
   grade_id: "",
-  unit_id: "",
   is_active: true,
 };
 
@@ -58,16 +55,25 @@ export function MaterialsManager() {
   const { success, error } = useToast();
   const [pending, startTransition] = useTransition();
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
   const [items, setItems] = useState<EducationalMaterial[]>([]);
   const [stages, setStages] = useState<AcademicStage[]>([]);
   const [grades, setGrades] = useState<AcademicGrade[]>([]);
-  const [units, setUnits] = useState<AcademicUnit[]>([]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editing, setEditing] = useState<EducationalMaterial | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [fileName, setFileName] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+
+  const filteredGrades = useMemo(
+    () =>
+      grades.filter(
+        (g) => g.stage_id === form.stage_id && g.is_active !== false
+      ),
+    [grades, form.stage_id]
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -79,7 +85,6 @@ export function MaterialsManager() {
       if (tree.success && tree.data) {
         setStages(tree.data.stages);
         setGrades(tree.data.grades);
-        setUnits(tree.data.units);
       } else if (!tree.success) {
         error(tree.error);
       }
@@ -103,6 +108,7 @@ export function MaterialsManager() {
   function openCreate() {
     setEditing(null);
     setForm(emptyForm);
+    setFileName(null);
     setFormError(null);
     setModalOpen(true);
   }
@@ -111,15 +117,38 @@ export function MaterialsManager() {
     setEditing(item);
     setForm({
       title: item.title,
+      unit_name: item.unit_name,
       material_type: item.material_type,
-      pdf_url: item.pdf_url,
+      file_path: item.file_path,
       stage_id: item.stage_id ?? "",
       grade_id: item.grade_id ?? "",
-      unit_id: item.unit_id ?? "",
       is_active: item.is_active,
     });
+    setFileName(item.file_path ? "ملف محفوظ" : null);
     setFormError(null);
     setModalOpen(true);
+  }
+
+  async function handleFileChange(file: File | null) {
+    if (!file) return;
+    setFormError(null);
+    setUploading(true);
+    try {
+      const result = await uploadMaterialPdf(file);
+      if (result.success && result.data) {
+        setForm((f) => ({ ...f, file_path: result.data!.publicUrl }));
+        setFileName(file.name);
+        success("تم رفع ملف PDF إلى التخزين");
+      } else if (!result.success) {
+        setFormError(result.error);
+        error(result.error);
+      }
+    } catch (err) {
+      console.error("[materials-manager] upload:", err);
+      error("فشل رفع الملف");
+    } finally {
+      setUploading(false);
+    }
   }
 
   function handleSave(e: FormEvent) {
@@ -130,12 +159,16 @@ export function MaterialsManager() {
       setFormError("العنوان مطلوب");
       return;
     }
-    if (!isValidPdfUrl(form.pdf_url)) {
-      setFormError("رابط PDF غير صالح — استخدم رابط https://");
+    if (!form.unit_name.trim()) {
+      setFormError("اسم الوحدة مطلوب");
       return;
     }
-    if (!form.stage_id || !form.grade_id || !form.unit_id) {
-      setFormError("اختر المرحلة والصف والوحدة");
+    if (!form.stage_id || !form.grade_id) {
+      setFormError("اختر المرحلة والصف");
+      return;
+    }
+    if (!form.file_path.trim()) {
+      setFormError("يجب رفع ملف PDF");
       return;
     }
 
@@ -164,10 +197,11 @@ export function MaterialsManager() {
   }
 
   function handleToggle(id: string, is_active: boolean) {
+    const previous = items;
+    setItems((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, is_active } : m))
+    );
     startTransition(async () => {
-      setItems((prev) =>
-        prev.map((m) => (m.id === id ? { ...m, is_active } : m))
-      );
       try {
         const result = await toggleMaterialActive(id, is_active);
         if (result.success && result.data) {
@@ -176,15 +210,12 @@ export function MaterialsManager() {
           );
           success(result.message ?? "تم");
         } else if (!result.success) {
-          setItems((prev) =>
-            prev.map((m) =>
-              m.id === id ? { ...m, is_active: !is_active } : m
-            )
-          );
+          setItems(previous);
           error(result.error);
         }
       } catch (err) {
         console.error("[materials-manager] toggle:", err);
+        setItems(previous);
         error("تعذر التحديث");
       }
     });
@@ -212,6 +243,13 @@ export function MaterialsManager() {
     });
   }
 
+  function stageName(id: string | null) {
+    return stages.find((s) => s.id === id)?.name ?? "—";
+  }
+  function gradeName(id: string | null) {
+    return grades.find((g) => g.id === id)?.name ?? "—";
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center text-slate-400">
@@ -229,10 +267,10 @@ export function MaterialsManager() {
             <span className="text-sm font-semibold">المحتوى التعليمي</span>
           </div>
           <h2 className="text-2xl font-extrabold text-white">
-            المواد التعليمية (PDF)
+            المواد التعليمية
           </h2>
           <p className="mt-1 text-sm text-slate-400">
-            كتب · ملازم · أوراق عمل مرتبطة بالمرحلة والصف والوحدة
+            رفع PDF مباشرة إلى التخزين مع ربط المرحلة والصف واسم الوحدة
           </p>
         </div>
         <button
@@ -253,15 +291,7 @@ export function MaterialsManager() {
             </div>
           ) : (
             items.map((item) => {
-              const labels = resolveAcademicLabels(
-                stages,
-                grades,
-                units,
-                item.stage_id,
-                item.grade_id,
-                item.unit_id
-              );
-              const href = safeExternalHref(item.pdf_url);
+              const href = safeExternalHref(item.file_path);
               return (
                 <article
                   key={item.id}
@@ -277,7 +307,8 @@ export function MaterialsManager() {
                       </span>
                     </div>
                     <p className="mt-1 truncate text-xs text-slate-500">
-                      {labels.stage} · {labels.grade} · {labels.unit}
+                      {stageName(item.stage_id)} · {gradeName(item.grade_id)} ·{" "}
+                      {item.unit_name || "—"}
                     </p>
                     {href ? (
                       <a
@@ -335,9 +366,69 @@ export function MaterialsManager() {
               onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
               required
               placeholder="عنوان المادة"
-              className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              className={selectClass}
             />
           </label>
+
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium">اسم الوحدة</span>
+            <input
+              value={form.unit_name}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, unit_name: e.target.value }))
+              }
+              required
+              placeholder="اكتب اسم الوحدة يدوياً"
+              className={selectClass}
+            />
+          </label>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block space-y-1.5">
+              <span className="text-sm font-medium">المرحلة</span>
+              <select
+                value={form.stage_id}
+                required
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    stage_id: e.target.value,
+                    grade_id: "",
+                  }))
+                }
+                className={selectClass}
+              >
+                <option value="">اختر المرحلة</option>
+                {stages
+                  .filter((s) => s.is_active)
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+
+            <label className="block space-y-1.5">
+              <span className="text-sm font-medium">الصف</span>
+              <select
+                value={form.grade_id}
+                required
+                disabled={!form.stage_id}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, grade_id: e.target.value }))
+                }
+                className={`${selectClass} disabled:opacity-40`}
+              >
+                <option value="">اختر الصف</option>
+                {filteredGrades.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
 
           <label className="block space-y-1.5">
             <span className="text-sm font-medium">نوع المادة</span>
@@ -349,7 +440,7 @@ export function MaterialsManager() {
                   material_type: e.target.value as MaterialType,
                 }))
               }
-              className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              className={selectClass}
             >
               {MATERIAL_TYPE_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -359,43 +450,41 @@ export function MaterialsManager() {
             </select>
           </label>
 
-          <label className="block space-y-1.5">
-            <span className="text-sm font-medium">رابط ملف PDF</span>
-            <input
-              value={form.pdf_url}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, pdf_url: e.target.value }))
-              }
-              required
-              placeholder="https://..."
-              className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-            />
-          </label>
-
-          <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-            <p className="mb-3 text-xs font-semibold text-slate-500">
-              الربط الأكاديمي
-            </p>
-            <AcademicCascadeSelects
-              stages={stages}
-              grades={grades}
-              units={units}
-              stageId={form.stage_id}
-              gradeId={form.grade_id}
-              unitId={form.unit_id}
-              onStageChange={(id) =>
-                setForm((f) => ({
-                  ...f,
-                  stage_id: id,
-                  grade_id: "",
-                  unit_id: "",
-                }))
-              }
-              onGradeChange={(id) =>
-                setForm((f) => ({ ...f, grade_id: id, unit_id: "" }))
-              }
-              onUnitChange={(id) => setForm((f) => ({ ...f, unit_id: id }))}
-            />
+          <div className="space-y-2">
+            <span className="text-sm font-medium">رفع ملف PDF</span>
+            <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-teal-500/40 bg-teal-500/5 px-4 py-6 text-center transition hover:border-teal-400 hover:bg-teal-500/10">
+              <Upload className="h-6 w-6 text-teal-400" />
+              <span className="text-sm font-medium text-slate-200">
+                {uploading
+                  ? "جاري الرفع إلى التخزين..."
+                  : "اضغط لاختيار ملف PDF"}
+              </span>
+              {fileName ? (
+                <span className="text-xs text-teal-300">{fileName}</span>
+              ) : null}
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden"
+                disabled={uploading || pending}
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  void handleFileChange(file);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            {form.file_path ? (
+              <a
+                href={form.file_path}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs font-medium text-teal-400 hover:underline"
+              >
+                <ExternalLink className="h-3 w-3" />
+                معاينة الملف المرفوع
+              </a>
+            ) : null}
           </div>
 
           <div className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-3 dark:border-slate-700">
@@ -422,7 +511,7 @@ export function MaterialsManager() {
             </button>
             <button
               type="submit"
-              disabled={pending}
+              disabled={pending || uploading}
               className="inline-flex h-10 items-center gap-2 rounded-xl bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-600 disabled:opacity-70"
             >
               <Save className="h-4 w-4" />
