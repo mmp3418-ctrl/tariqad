@@ -2,11 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { supabase } from "@/lib/supabase";
-import type {
-  ActionResult,
-  SiteTimetableStatus,
-  SiteToolSetting,
-} from "@/lib/types";
+import type { ActionResult, SiteToolSetting } from "@/lib/types";
 
 const GRADE_CALCULATOR_KEY = "grade_calculator";
 
@@ -19,22 +15,10 @@ function normalizeTool(row: Record<string, unknown>): SiteToolSetting {
   };
 }
 
-function normalizeTimetableStatus(
-  row: Record<string, unknown>
-): SiteTimetableStatus {
-  return {
-    id: 1,
-    is_active: row.is_active !== false,
-    updated_at: row.updated_at ? String(row.updated_at) : undefined,
-  };
-}
-
 function revalidateTools() {
   revalidatePath("/admin/teacher/tools");
   revalidatePath("/admin/teacher");
   revalidatePath("/admin/teacher-space");
-  revalidatePath("/teachers");
-  revalidatePath("/teachers/timetable");
 }
 
 export async function getToolSettings(): Promise<
@@ -115,74 +99,6 @@ export async function setToolActive(
           : is_active
             ? "تم تفعيل الأداة"
             : "تم إيقاف الأداة",
-    };
-  } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-    };
-  }
-}
-
-export async function getSiteTimetableStatus(): Promise<
-  ActionResult<SiteTimetableStatus>
-> {
-  try {
-    const { data, error } = await supabase
-      .from("site_timetable_status")
-      .select("*")
-      .eq("id", 1)
-      .maybeSingle();
-    if (error) return { success: false, error: error.message };
-    if (!data) {
-      const inserted = await supabase
-        .from("site_timetable_status")
-        .upsert({ id: 1, is_active: true, updated_at: new Date().toISOString() })
-        .select("*")
-        .single();
-      if (inserted.error) {
-        return { success: false, error: inserted.error.message };
-      }
-      return {
-        success: true,
-        data: normalizeTimetableStatus(
-          inserted.data as Record<string, unknown>
-        ),
-      };
-    }
-    return {
-      success: true,
-      data: normalizeTimetableStatus(data as Record<string, unknown>),
-    };
-  } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-    };
-  }
-}
-
-export async function setSiteTimetableActive(
-  is_active: boolean
-): Promise<ActionResult<SiteTimetableStatus>> {
-  try {
-    const { data, error } = await supabase
-      .from("site_timetable_status")
-      .upsert({
-        id: 1,
-        is_active,
-        updated_at: new Date().toISOString(),
-      })
-      .select("*")
-      .single();
-    if (error) return { success: false, error: error.message };
-    revalidateTools();
-    return {
-      success: true,
-      data: normalizeTimetableStatus(data as Record<string, unknown>),
-      message: is_active
-        ? "تم عرض جدول الحصص العام في المنصة"
-        : "تم إخفاء جدول الحصص العام عن المنصة",
     };
   } catch (err) {
     return {

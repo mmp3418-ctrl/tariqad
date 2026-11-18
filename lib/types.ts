@@ -142,26 +142,6 @@ export interface VideoPlaylist {
   updated_at?: string;
 }
 
-/** Interactive timetable cells: day name → period subjects */
-export type TimetableGridData = Record<string, string[]>;
-
-/** مساحة المعلم — جدول الحصص */
-export interface TeacherTimetable {
-  id: string;
-  title: string;
-  /** Public Storage PDF URL (generated or uploaded) */
-  file_url: string | null;
-  /** Editable weekly grid saved for re-edit / hub preview */
-  grid_data: TimetableGridData | null;
-  period_count: number;
-  stage_id: string | null;
-  grade_id: string | null;
-  is_active: boolean;
-  sort_order: number;
-  created_at?: string;
-  updated_at?: string;
-}
-
 /** مساحة المعلم — شروحات المعلمين */
 export interface TeacherTutorial {
   id: string;
@@ -220,12 +200,5 @@ export interface SiteToolSetting {
 export interface TeacherSpaceSettings {
   id: number;
   grade_calculator_active: boolean;
-  updated_at?: string;
-}
-
-/** Single-row global visibility for the public student timetable */
-export interface SiteTimetableStatus {
-  id: number;
-  is_active: boolean;
   updated_at?: string;
 }

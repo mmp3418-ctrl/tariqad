@@ -2,16 +2,12 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { Calculator, CalendarDays, Wrench } from "lucide-react";
+import { Calculator, Wrench } from "lucide-react";
 import {
   getToolSettings,
   setToolActive,
 } from "@/app/admin/teacher/tools/actions";
-import {
-  getSiteTimetableStatus,
-  setSiteTimetableActive,
-} from "@/app/admin/teacher/timetable-status/actions";
-import type { SiteTimetableStatus, SiteToolSetting } from "@/lib/types";
+import type { SiteToolSetting } from "@/lib/types";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
 
@@ -27,20 +23,13 @@ export function ToolsManager() {
   const [pending, startTransition] = useTransition();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<SiteToolSetting[]>([]);
-  const [timetableStatus, setTimetableStatus] =
-    useState<SiteTimetableStatus | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [tools, status] = await Promise.all([
-        getToolSettings(),
-        getSiteTimetableStatus(),
-      ]);
+      const tools = await getToolSettings();
       if (tools.success && tools.data) setItems(tools.data);
       else if (!tools.success) error(tools.error);
-      if (status.success && status.data) setTimetableStatus(status.data);
-      else if (!status.success) error(status.error);
     } catch (err) {
       console.error("[tools-manager] load:", err);
       error("تعذر تحميل إعدادات الأدوات");
@@ -74,8 +63,6 @@ export function ToolsManager() {
         },
       ];
 
-  const timetableActive = timetableStatus?.is_active !== false;
-
   return (
     <div className="space-y-6 text-slate-100" dir="rtl">
       <header>
@@ -90,54 +77,11 @@ export function ToolsManager() {
           أدوات مساحة المعلم
         </h2>
         <p className="mt-1 text-sm text-slate-400">
-          تحكم في ظهور جدول الحصص العام وآلة حساب الدرجات على المنصة
+          تحكم في ظهور آلة حساب الدرجات على المنصة
         </p>
       </header>
 
       <section className="space-y-3 rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900/90 to-slate-950/90 p-4 shadow-2xl sm:p-6">
-        <article className="flex flex-col gap-3 rounded-xl border border-white/8 bg-white/[0.03] p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <span className="inline-flex size-12 items-center justify-center rounded-xl bg-teal-500/10 text-teal-300">
-              <CalendarDays className="h-6 w-6" />
-            </span>
-            <div>
-              <p className="font-semibold">عرض جدول الحصص العام في المنصة</p>
-              <p className="mt-1 text-sm text-slate-400">
-                عند الإيقاف يُخفى قسم الجداول بالكامل من مساحة المعلم للزوار
-              </p>
-            </div>
-          </div>
-          <Switch
-            checked={timetableActive}
-            disabled={pending}
-            label={timetableActive ? "عرض" : "إخفاء"}
-            onChange={(value) => {
-              const previous = timetableStatus;
-              setTimetableStatus({
-                id: 1,
-                is_active: value,
-                updated_at: previous?.updated_at,
-              });
-              startTransition(async () => {
-                try {
-                  const result = await setSiteTimetableActive(value);
-                  if (result.success && result.data) {
-                    setTimetableStatus(result.data);
-                    success(result.message ?? "تم التحديث");
-                  } else if (!result.success) {
-                    setTimetableStatus(previous);
-                    error(result.error);
-                  }
-                } catch (err) {
-                  console.error("[tools-manager] timetable toggle:", err);
-                  setTimetableStatus(previous);
-                  error("تعذر تحديث حالة جدول الحصص");
-                }
-              });
-            }}
-          />
-        </article>
-
         {visible.map((item) => {
           const copy = TOOL_COPY[item.tool_key] ?? {
             title: item.tool_key,

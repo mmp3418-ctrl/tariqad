@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import {
   BookMarked,
   Calculator,
-  CalendarDays,
   CirclePlay,
   HelpCircle,
   School,
@@ -12,25 +11,18 @@ import {
 import { getAcademicTree } from "@/app/admin/academic/actions";
 import { QuestionsPanel } from "@/components/teacher-space/questions-panel";
 import { ReferencesPanel } from "@/components/teacher-space/references-panel";
-import { TimetablesPanel } from "@/components/teacher-space/timetables-panel";
 import { ToolsPanel } from "@/components/teacher-space/tools-panel";
 import { TutorialsPanel } from "@/components/teacher-space/tutorials-panel";
 import type { AcademicGrade, AcademicStage } from "@/lib/types";
 import { useToast } from "@/components/ui/toast";
 
-type TabId =
-  | "timetable"
-  | "tutorials"
-  | "references"
-  | "questions"
-  | "calculator";
+type TabId = "tutorials" | "references" | "questions" | "calculator";
 
 const TABS: {
   id: TabId;
   label: string;
   icon: typeof School;
 }[] = [
-  { id: "timetable", label: "جداول الحصص", icon: CalendarDays },
   { id: "tutorials", label: "الشروحات", icon: CirclePlay },
   { id: "references", label: "المراجع", icon: BookMarked },
   { id: "questions", label: "بنك الأسئلة", icon: HelpCircle },
@@ -38,7 +30,6 @@ const TABS: {
 ];
 
 const TAB_DESCRIPTIONS: Record<TabId, string> = {
-  timetable: "جداول حصص PDF حسب المرحلة والصف",
   tutorials: "شروحات فيديو يوتيوب مع غلاف اختياري",
   references: "مراجع وملفات PDF للمعلمين",
   questions: "بنك أسئلة اختيار من متعدد",
@@ -47,7 +38,7 @@ const TAB_DESCRIPTIONS: Record<TabId, string> = {
 
 export function TeacherSpaceManager() {
   const { error } = useToast();
-  const [tab, setTab] = useState<TabId>("timetable");
+  const [tab, setTab] = useState<TabId>("tutorials");
   const [stages, setStages] = useState<AcademicStage[]>([]);
   const [grades, setGrades] = useState<AcademicGrade[]>([]);
   const [treeLoading, setTreeLoading] = useState(true);
@@ -94,7 +85,7 @@ export function TeacherSpaceManager() {
         </div>
         <h2 className="text-2xl font-extrabold text-white">مساحة المعلم</h2>
         <p className="mt-1 text-sm text-slate-400">
-          الجداول، الشروحات، المراجع، بنك الأسئلة، وإعداد آلة الدرجات
+          الشروحات، المراجع، بنك الأسئلة، وإعداد آلة الدرجات
         </p>
       </header>
 
@@ -127,9 +118,6 @@ export function TeacherSpaceManager() {
 
       <p className="text-xs text-slate-500">{TAB_DESCRIPTIONS[tab]}</p>
 
-      {tab === "timetable" ? (
-        <TimetablesPanel stages={stages} grades={grades} />
-      ) : null}
       {tab === "tutorials" ? (
         <TutorialsPanel stages={stages} grades={grades} />
       ) : null}

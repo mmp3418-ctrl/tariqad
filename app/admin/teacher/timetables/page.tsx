@@ -1,2 +1,6 @@
-import { TimetablesManager } from "@/components/teacher/timetables-manager";
-export default function Page() { return <TimetablesManager />; }
+import { redirect } from "next/navigation";
+
+/** Timetable feature removed — keep route from breaking old bookmarks */
+export default function RemovedTimetablesPage() {
+  redirect("/admin/teacher");
+}

@@ -10,7 +10,7 @@ interface ModalProps {
   title: string;
   children: ReactNode;
   footer?: ReactNode;
-  /** Default xl; use 2xl/3xl for wide builders (e.g. timetable grid). */
+  /** Default xl; use 2xl/3xl for wide builders. */
   size?: "xl" | "2xl" | "3xl";
 }
 

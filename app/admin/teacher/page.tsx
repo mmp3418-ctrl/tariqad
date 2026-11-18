@@ -1,12 +1,11 @@
 import Link from "next/link";
-import { BookMarked, Calculator, CalendarDays, CirclePlay, HelpCircle, School } from "lucide-react";
+import { BookMarked, Calculator, CirclePlay, HelpCircle, School } from "lucide-react";
 
 const CARDS = [
-  { href: "/admin/teacher/timetables", title: "جدول الحصص", desc: "صانع تفاعلي + تصدير PDF وتفعيل على المنصة", icon: CalendarDays },
   { href: "/admin/teacher/tutorials", title: "شروحات المعلمين", desc: "فيديوهات يوتيوب مع غلاف اختياري", icon: CirclePlay },
   { href: "/admin/teacher/references", title: "مرجع المعلمين", desc: "ملفات PDF مرجعية للمعلمين", icon: BookMarked },
   { href: "/admin/teacher/questions", title: "بنك الأسئلة", desc: "أسئلة اختيار من متعدد مع الإجابة الصحيحة", icon: HelpCircle },
-  { href: "/admin/teacher/tools", title: "الأدوات", desc: "عرض/إخفاء جدول الحصص العام وآلة حساب الدرجات", icon: Calculator },
+  { href: "/admin/teacher/tools", title: "الأدوات", desc: "تفعيل آلة حساب الدرجات في مساحة المعلم", icon: Calculator },
 ] as const;
 
 export default function TeacherSpacePage() {
@@ -18,7 +17,7 @@ export default function TeacherSpacePage() {
           <span className="text-sm font-semibold">مساحة المعلم</span>
         </div>
         <h1 className="text-2xl font-extrabold text-white">إدارة مساحة المعلم</h1>
-        <p className="mt-2 text-sm text-slate-400">الجداول، الشروحات، المراجع، بنك الأسئلة، وأدوات المعلم من مكان واحد.</p>
+        <p className="mt-2 text-sm text-slate-400">الشروحات، المراجع، بنك الأسئلة، وأدوات المعلم من مكان واحد.</p>
       </header>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {CARDS.map((card) => {
