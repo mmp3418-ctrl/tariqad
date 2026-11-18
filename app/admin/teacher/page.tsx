@@ -6,7 +6,7 @@ const CARDS = [
   { href: "/admin/teacher/tutorials", title: "شروحات المعلمين", desc: "فيديوهات يوتيوب مع غلاف اختياري", icon: CirclePlay },
   { href: "/admin/teacher/references", title: "مرجع المعلمين", desc: "ملفات PDF مرجعية للمعلمين", icon: BookMarked },
   { href: "/admin/teacher/questions", title: "بنك الأسئلة", desc: "أسئلة اختيار من متعدد مع الإجابة الصحيحة", icon: HelpCircle },
-  { href: "/admin/teacher/tools", title: "الأدوات", desc: "تفعيل آلة حساب الدرجات في مساحة المعلم", icon: Calculator },
+  { href: "/admin/teacher/tools", title: "الأدوات", desc: "عرض/إخفاء جدول الحصص العام وآلة حساب الدرجات", icon: Calculator },
 ] as const;
 
 export default function TeacherSpacePage() {

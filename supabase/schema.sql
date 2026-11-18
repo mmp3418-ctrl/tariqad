@@ -758,3 +758,25 @@ end $$;
 insert into public.site_tool_settings (tool_key, is_active)
 values ('grade_calculator', true)
 on conflict (tool_key) do nothing;
+
+-- Global public timetable visibility (single-row)
+create table if not exists public.site_timetable_status (
+  id integer primary key default 1 check (id = 1),
+  is_active boolean not null default true,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.site_timetable_status add column if not exists is_active boolean not null default true;
+alter table public.site_timetable_status add column if not exists updated_at timestamptz not null default now();
+
+alter table public.site_timetable_status enable row level security;
+drop policy if exists "Allow all site_timetable_status" on public.site_timetable_status;
+create policy "Allow all site_timetable_status"
+  on public.site_timetable_status
+  for all
+  using (true)
+  with check (true);
+
+insert into public.site_timetable_status (id, is_active)
+values (1, true)
+on conflict (id) do nothing;
