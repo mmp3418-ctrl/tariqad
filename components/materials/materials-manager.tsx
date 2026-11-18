@@ -138,14 +138,20 @@ export function MaterialsManager() {
       if (result.success && result.data) {
         setForm((f) => ({ ...f, file_path: result.data!.publicUrl }));
         setFileName(file.name);
-        success("تم رفع ملف PDF إلى التخزين");
+        success(
+          result.message ??
+            `تم رفع ملف PDF إلى «${result.data.bucket}» بنجاح`
+        );
       } else if (!result.success) {
         setFormError(result.error);
         error(result.error);
       }
     } catch (err) {
       console.error("[materials-manager] upload:", err);
-      error("فشل رفع الملف");
+      const message =
+        err instanceof Error ? err.message : "فشل رفع الملف";
+      setFormError(message);
+      error(message);
     } finally {
       setUploading(false);
     }

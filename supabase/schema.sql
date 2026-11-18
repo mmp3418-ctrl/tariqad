@@ -372,32 +372,42 @@ alter table public.educational_materials drop constraint if exists educational_m
 alter table public.educational_materials add column if not exists pdf_url text;
 
 -- ---------------------------------------------------------------------------
--- Storage bucket: materials (public PDFs)
+-- Storage buckets: pdfs (preferred) + uploads (fallback)
 -- ---------------------------------------------------------------------------
 insert into storage.buckets (id, name, public)
-values ('materials', 'materials', true)
+values ('pdfs', 'pdfs', true)
 on conflict (id) do update set public = true;
 
-drop policy if exists "Public read materials" on storage.objects;
-create policy "Public read materials"
+insert into storage.buckets (id, name, public)
+values ('uploads', 'uploads', true)
+on conflict (id) do update set public = true;
+
+drop policy if exists "Public read pdfs" on storage.objects;
+create policy "Public read pdfs"
   on storage.objects for select
-  using (bucket_id = 'materials');
+  using (bucket_id in ('pdfs', 'uploads'));
 
-drop policy if exists "Public upload materials" on storage.objects;
-create policy "Public upload materials"
+drop policy if exists "Public upload pdfs" on storage.objects;
+create policy "Public upload pdfs"
   on storage.objects for insert
-  with check (bucket_id = 'materials');
+  with check (bucket_id in ('pdfs', 'uploads'));
 
-drop policy if exists "Public update materials" on storage.objects;
-create policy "Public update materials"
+drop policy if exists "Public update pdfs" on storage.objects;
+create policy "Public update pdfs"
   on storage.objects for update
-  using (bucket_id = 'materials')
-  with check (bucket_id = 'materials');
+  using (bucket_id in ('pdfs', 'uploads'))
+  with check (bucket_id in ('pdfs', 'uploads'));
 
-drop policy if exists "Public delete materials" on storage.objects;
-create policy "Public delete materials"
+drop policy if exists "Public delete pdfs" on storage.objects;
+create policy "Public delete pdfs"
   on storage.objects for delete
-  using (bucket_id = 'materials');
+  using (bucket_id in ('pdfs', 'uploads'));
+
+-- Legacy policies for older materials bucket (safe if unused)
+drop policy if exists "Public read materials" on storage.objects;
+drop policy if exists "Public upload materials" on storage.objects;
+drop policy if exists "Public update materials" on storage.objects;
+drop policy if exists "Public delete materials" on storage.objects;
 
 
 -- ---------------------------------------------------------------------------

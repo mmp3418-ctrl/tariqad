@@ -1,8 +1,11 @@
 import { isValidHttpUrl } from "@/lib/social";
 import type { MaterialType } from "@/lib/types";
 
-/** Public Supabase Storage bucket for uploaded educational PDFs. */
-export const MATERIALS_BUCKET = "materials";
+/** Preferred public Storage bucket for educational PDFs. */
+export const MATERIALS_BUCKET = "pdfs";
+
+/** Tried in order if the preferred bucket is missing. */
+export const MATERIALS_BUCKET_FALLBACKS = ["uploads", "materials"] as const;
 
 /** Exact Arabic badges used in admin + hub */
 export const MATERIAL_TYPE_OPTIONS: { value: MaterialType; label: string }[] = [
