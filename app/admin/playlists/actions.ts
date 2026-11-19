@@ -166,7 +166,7 @@ export async function createPlaylist(
     if (!input.playlist_url.trim()) {
       return {
         success: false,
-        error: "رابط قائمة التشغيل (playlist_url) مطلوب",
+        error: "رابط قائمة التشغيل مطلوب.",
       };
     }
     if (!input.unit_name.trim()) {
@@ -178,7 +178,7 @@ export async function createPlaylist(
     if (!toUuidOrNull(input.stage_id) || !toUuidOrNull(input.grade_id)) {
       return {
         success: false,
-        error: "يجب اختيار المرحلة والصف (معرّفات UUID صالحة)",
+        error: "يرجى اختيار المرحلة والصف قبل الحفظ.",
       };
     }
 
@@ -208,7 +208,7 @@ export async function updatePlaylist(
     if (!input.playlist_url.trim()) {
       return {
         success: false,
-        error: "رابط قائمة التشغيل (playlist_url) مطلوب",
+        error: "رابط قائمة التشغيل مطلوب.",
       };
     }
     if (!input.unit_name.trim()) {
@@ -220,7 +220,7 @@ export async function updatePlaylist(
     if (!toUuidOrNull(input.stage_id) || !toUuidOrNull(input.grade_id)) {
       return {
         success: false,
-        error: "يجب اختيار المرحلة والصف (معرّفات UUID صالحة)",
+        error: "يرجى اختيار المرحلة والصف قبل الحفظ.",
       };
     }
 

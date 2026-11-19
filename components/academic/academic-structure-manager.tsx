@@ -271,7 +271,7 @@ export function AcademicStructureManager() {
             المراحل والصفوف
           </h2>
           <p className="mt-1 text-sm text-slate-400">
-            تفعيل/إيقاف فوري عبر المفتاح — يُحفظ مباشرة في Supabase
+            تفعيل أو إيقاف العناصر فوراً عبر المفتاح — يُحفظ مباشرة
           </p>
         </div>
         <button

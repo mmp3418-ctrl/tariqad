@@ -158,7 +158,7 @@ export async function createTutorial(
     if (!stage_id || !grade_id) {
       return {
         success: false,
-        error: "اختر المرحلة والصف (معرّفات UUID صالحة)",
+        error: "يرجى اختيار المرحلة والصف قبل الحفظ.",
       };
     }
     const cover = String(input.cover_image_url ?? "").trim();
@@ -344,7 +344,7 @@ export async function createReference(
     if (!stage_id || !grade_id) {
       return {
         success: false,
-        error: "اختر المرحلة والصف (معرّفات UUID صالحة)",
+        error: "يرجى اختيار المرحلة والصف قبل الحفظ.",
       };
     }
     const description = String(input.description ?? "").trim();
@@ -587,7 +587,7 @@ export async function createQuestion(
     if (!toUuidOrNull(input.stage_id) || !toUuidOrNull(input.grade_id)) {
       return {
         success: false,
-        error: "اختر المرحلة والصف (معرّفات UUID صالحة)",
+        error: "يرجى اختيار المرحلة والصف قبل الحفظ.",
       };
     }
     const { data, error } = await writeQuestion("insert", input);

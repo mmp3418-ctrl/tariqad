@@ -96,7 +96,7 @@ async function persist(
   if (!stage_id || !grade_id) {
     return {
       success: false,
-      error: "يجب اختيار المرحلة والصف (معرّفات UUID صالحة)",
+      error: "يرجى اختيار المرحلة والصف قبل الحفظ.",
     };
   }
 

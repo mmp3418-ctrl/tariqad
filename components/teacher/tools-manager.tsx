@@ -41,7 +41,7 @@ export function ToolsManager() {
       else if (!status.success) error(status.error);
     } catch (err) {
       console.error("[tools-manager] load:", err);
-      error("تعذر تحميل إعدادات الأدوات");
+      error("تعذّر تحميل الإعدادات حالياً، يرجى المحاولة لاحقاً");
     } finally {
       setLoading(false);
     }
@@ -130,7 +130,7 @@ export function ToolsManager() {
                 } catch (err) {
                   console.error("[tools-manager] timetable toggle:", err);
                   setTimetableStatus(previous);
-                  error("تعذر تحديث حالة جدول الحصص");
+                  error("تعذّر تحديث إعداد الجدول، يرجى المحاولة لاحقاً");
                 }
               });
             }}

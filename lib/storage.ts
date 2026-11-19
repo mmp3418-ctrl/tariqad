@@ -32,7 +32,7 @@ function publicUrlFor(bucket: string, objectPath: string): string {
 }
 
 /**
- * Upload a PDF to Supabase Storage.
+ * Upload a PDF to storage.
  * Prefers `pdfs`, then falls back to `uploads` / legacy names if missing.
  */
 export async function uploadMaterialPdf(
@@ -87,7 +87,7 @@ export async function uploadMaterialPdf(
             publicUrl: publicUrlFor(bucket, objectPath),
             bucket,
           },
-          message: `تم رفع الملف بنجاح إلى «${bucket}»`,
+          message: "تم رفع الملف بنجاح",
         };
       }
 
@@ -100,7 +100,6 @@ export async function uploadMaterialPdf(
         continue;
       }
 
-      // Non-bucket errors (RLS, size, mime) — stop and surface clearly
       if (
         msg.toLowerCase().includes("row-level security") ||
         msg.toLowerCase().includes("unauthorized") ||
@@ -109,45 +108,39 @@ export async function uploadMaterialPdf(
       ) {
         return {
           success: false,
-          error:
-            "لا توجد صلاحية للرفع إلى التخزين. أضف سياسة Upload للـ bucket في Supabase Storage.",
+          error: "لا توجد صلاحية كافية لرفع الملف. يرجى التواصل مع مسؤول المنصة.",
         };
       }
 
       return {
         success: false,
-        error: `فشل رفع الملف: ${msg}`,
+        error: "تعذّر رفع الملف حالياً، يرجى المحاولة لاحقاً.",
       };
     }
 
-    if (missing.length) {
+    if (missing.length || lastError) {
       return {
         success: false,
-        error: `لم يتم العثور على مجلد التخزين (${missing.join(
-          " / "
-        )}). أنشئ bucket باسم «pdfs» (عام/public) من لوحة Supabase → Storage ثم أعد المحاولة.`,
+        error: "تعذّر رفع الملف حالياً، يرجى المحاولة لاحقاً.",
       };
     }
 
     return {
       success: false,
-      error: lastError
-        ? `فشل رفع الملف: ${lastError}`
-        : "فشل رفع الملف لأسباب غير معروفة",
+      error: "تعذّر رفع الملف حالياً، يرجى المحاولة لاحقاً.",
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
     console.error("[storage] uploadMaterialPdf exception:", err);
     return {
       success: false,
-      error: `حدث خطأ أثناء الرفع: ${message}`,
+      error: "تعذّر رفع الملف حالياً، يرجى المحاولة لاحقاً.",
     };
   }
 }
 
 /**
- * Upload an optional playlist cover image to Supabase Storage.
- * Reuses the same public buckets as materials (`pdfs` / `uploads` / `materials`).
+ * Upload an optional playlist cover image.
+ * Reuses the same public buckets as materials.
  */
 export async function uploadPlaylistCover(
   file: File
@@ -199,7 +192,7 @@ export async function uploadPlaylistCover(
             publicUrl: publicUrlFor(bucket, objectPath),
             bucket,
           },
-          message: `تم رفع الغلاف بنجاح إلى «${bucket}»`,
+          message: "تم رفع الغلاف بنجاح",
         };
       }
 
@@ -220,35 +213,32 @@ export async function uploadPlaylistCover(
       ) {
         return {
           success: false,
-          error:
-            "لا توجد صلاحية لرفع الصور. أضف سياسة Upload للـ bucket في Supabase Storage.",
+          error: "لا توجد صلاحية كافية لرفع الصورة. يرجى التواصل مع مسؤول المنصة.",
         };
       }
 
-      return { success: false, error: `فشل رفع الغلاف: ${msg}` };
-    }
-
-    if (missing.length) {
       return {
         success: false,
-        error: `لم يتم العثور على مجلد التخزين (${missing.join(
-          " / "
-        )}). أنشئ bucket باسم «pdfs» (عام/public) ثم أعد المحاولة.`,
+        error: "تعذّر رفع الغلاف حالياً، يرجى المحاولة لاحقاً.",
+      };
+    }
+
+    if (missing.length || lastError) {
+      return {
+        success: false,
+        error: "تعذّر رفع الغلاف حالياً، يرجى المحاولة لاحقاً.",
       };
     }
 
     return {
       success: false,
-      error: lastError
-        ? `فشل رفع الغلاف: ${lastError}`
-        : "فشل رفع الغلاف لأسباب غير معروفة",
+      error: "تعذّر رفع الغلاف حالياً، يرجى المحاولة لاحقاً.",
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
     console.error("[storage] uploadPlaylistCover exception:", err);
     return {
       success: false,
-      error: `حدث خطأ أثناء رفع الغلاف: ${message}`,
+      error: "تعذّر رفع الغلاف حالياً، يرجى المحاولة لاحقاً.",
     };
   }
 }

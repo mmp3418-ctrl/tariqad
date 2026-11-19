@@ -140,7 +140,7 @@ export function MaterialsManager() {
         setFileName(file.name);
         success(
           result.message ??
-            `تم رفع ملف PDF إلى «${result.data.bucket}» بنجاح`
+            "تم رفع ملف PDF بنجاح"
         );
       } else if (!result.success) {
         setFormError(result.error);

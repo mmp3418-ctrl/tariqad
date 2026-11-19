@@ -14,7 +14,12 @@ export const metadata: Metadata = {
     default: "منصة طارق | لوحة التحكم",
     template: "%s | منصة طارق",
   },
-  description: "Tariq Hub Admin Panel",
+  description: "لوحة تحكم منصة طارق",
+  icons: {
+    icon: [{ url: "/logo.png", type: "image/png" }],
+    apple: [{ url: "/logo.png" }],
+    shortcut: ["/logo.png"],
+  },
 };
 
 export default function RootLayout({

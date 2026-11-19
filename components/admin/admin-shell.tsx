@@ -16,6 +16,7 @@ import {
   School,
   X,
 } from "lucide-react";
+import { PlatformLogo } from "@/components/brand/platform-logo";
 import { clearSession, readSession } from "@/lib/auth";
 import { ToastProvider } from "@/components/ui/toast";
 
@@ -125,10 +126,13 @@ export function AdminShell({ children }: { children: ReactNode }) {
           }`}
         >
           <div className="flex items-center justify-between border-b border-white/10 px-5 py-5">
-            <div>
-              <p className="text-xs font-medium text-teal-200/70">لوحة التحكم</p>
-              <h1 className="text-xl font-extrabold tracking-tight">منصة طارق</h1>
-              <p className="mt-1 truncate text-xs text-teal-100/60">{username}</p>
+            <div className="flex min-w-0 items-center gap-3">
+              <PlatformLogo priority className="h-12 w-auto shrink-0 object-contain" />
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-teal-200/70">لوحة التحكم</p>
+                <h1 className="text-xl font-extrabold tracking-tight">منصة طارق</h1>
+                <p className="mt-1 truncate text-xs text-teal-100/60">{username}</p>
+              </div>
             </div>
             <button
               type="button"

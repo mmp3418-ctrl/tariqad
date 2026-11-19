@@ -44,15 +44,13 @@ function normalizeMaterial(row: Record<string, unknown>): EducationalMaterial {
 function mapDbError(message: string): string {
   const m = message.toLowerCase();
   if (
-    m.includes("file_url") &&
-    (m.includes("column") || m.includes("schema cache") || m.includes("null"))
+    m.includes("file_url") ||
+    m.includes("file_path") ||
+    m.includes("pdf_url")
   ) {
-    return "عمود file_url غير جاهز أو فارغ. تأكد من رفع الملف وأن العمود موجود في الجدول.";
+    return "تعذّر حفظ الملف. تأكد من رفع ملف PDF ثم أعد المحاولة.";
   }
-  if (m.includes("file_path") && m.includes("column")) {
-    return "الجدول يتوقع file_url وليس file_path — تم تصحيح الكود. أعد المحاولة.";
-  }
-  return message;
+  return arabicDbError(message);
 }
 
 export async function getMaterials(): Promise<
@@ -118,7 +116,7 @@ async function persistMaterial(
   if (!file_url) {
     return {
       success: false,
-      error: "رابط الملف (file_url) فارغ — ارفع ملف PDF أولاً",
+      error: "ارفع ملف PDF أولاً قبل الحفظ.",
     };
   }
 
@@ -209,12 +207,12 @@ export async function createMaterial(
       return { success: false, error: "نوع المادة غير صالح" };
     }
     if (!input.file_url?.trim()) {
-      return { success: false, error: "يجب رفع ملف PDF أولاً (file_url)" };
+      return { success: false, error: "يجب رفع ملف PDF أولاً." };
     }
     if (!toUuidOrNull(input.stage_id) || !toUuidOrNull(input.grade_id)) {
       return {
         success: false,
-        error: "يجب اختيار المرحلة والصف (معرّفات UUID صالحة)",
+        error: "يرجى اختيار المرحلة والصف قبل الحفظ.",
       };
     }
 
@@ -243,12 +241,12 @@ export async function updateMaterial(
       return { success: false, error: "نوع المادة غير صالح" };
     }
     if (!input.file_url?.trim()) {
-      return { success: false, error: "رابط الملف (file_url) مطلوب" };
+      return { success: false, error: "رابط الملف مطلوب. ارفع ملف PDF أولاً." };
     }
     if (!toUuidOrNull(input.stage_id) || !toUuidOrNull(input.grade_id)) {
       return {
         success: false,
-        error: "يجب اختيار المرحلة والصف (معرّفات UUID صالحة)",
+        error: "يرجى اختيار المرحلة والصف قبل الحفظ.",
       };
     }
 

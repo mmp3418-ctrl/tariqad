@@ -42,7 +42,7 @@ export function ToolsPanel() {
         }
       } catch (err) {
         console.error("[tools-panel] load:", err);
-        if (!cancelled) error("تعذر تحميل الإعدادات");
+        if (!cancelled) error("تعذّر تحميل الإعدادات حالياً، يرجى المحاولة لاحقاً");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -68,7 +68,7 @@ export function ToolsPanel() {
       } catch (err) {
         console.error("[tools-panel] timetable toggle:", err);
         setTimetableActive(previous);
-        error("تعذر تحديث حالة جدول الحصص");
+        error("تعذّر تحديث إعداد الجدول، يرجى المحاولة لاحقاً");
       }
     });
   }
@@ -89,7 +89,7 @@ export function ToolsPanel() {
       } catch (err) {
         console.error("[tools-panel] calculator toggle:", err);
         setCalculatorActive(previous);
-        error("تعذر تحديث آلة حساب الدرجات");
+        error("تعذّر تحديث آلة حساب الدرجات، يرجى المحاولة لاحقاً");
       }
     });
   }

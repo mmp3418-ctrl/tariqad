@@ -337,7 +337,7 @@ export async function setSiteTimetableActive(
     if (!ensured.success || !ensured.data) {
       return {
         success: false,
-        error: ensured.success === false ? ensured.error : "تعذر تهيئة حالة الجدول",
+        error: ensured.success === false ? ensured.error : "تعذّر تحديث إعداد الجدول حالياً.",
       };
     }
 

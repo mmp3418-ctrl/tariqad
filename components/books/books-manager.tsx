@@ -69,7 +69,7 @@ export function BooksManager() {
       }
     } catch (err) {
       console.error("[books-manager] load:", err);
-      error("تعذر تحميل الكتب من Supabase");
+      error("تعذّر تحميل البيانات حالياً، يرجى المحاولة لاحقاً");
     } finally {
       setLoading(false);
     }

@@ -1,3 +1,4 @@
+import { PlatformLogo } from "@/components/brand/platform-logo";
 import { LoginForm } from "@/components/login-form";
 
 export default function LoginPage() {
@@ -14,8 +15,8 @@ export default function LoginPage() {
 
       <section className="relative z-10 w-full max-w-md rounded-2xl border border-slate-200/50 bg-white/80 p-6 shadow-2xl backdrop-blur-xl dark:border-slate-800/50 dark:bg-slate-900/80 sm:p-8">
         <div className="text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-700 text-lg font-extrabold text-white shadow-lg shadow-teal-700/30">
-            ط
+          <div className="mx-auto flex justify-center">
+            <PlatformLogo priority className="h-14 w-auto object-contain" />
           </div>
           <p className="mt-4 text-sm font-semibold tracking-wide text-teal-700 dark:text-teal-300">
             Tariq Hub

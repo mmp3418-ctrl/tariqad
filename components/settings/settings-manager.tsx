@@ -136,11 +136,11 @@ export function SettingsManager() {
         setLinks(result.data.social_links);
         setContact(fromSettings(result.data.settings));
       } else if (!result.success) {
-        error(result.error || "تعذر تحميل الإعدادات من Supabase");
+        error(result.error || "تعذّر تحميل البيانات حالياً، يرجى المحاولة لاحقاً");
       }
     } catch (err) {
       console.error("[settings-manager] load:", err);
-      error("تعذر تحميل الإعدادات من Supabase");
+      error("تعذّر تحميل البيانات حالياً، يرجى المحاولة لاحقاً");
     } finally {
       setLoading(false);
     }
@@ -328,7 +328,7 @@ export function SettingsManager() {
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center text-slate-600 dark:text-slate-400">
-        جاري تحميل الإعدادات من Supabase...
+        جاري التحميل...
       </div>
     );
   }
@@ -345,7 +345,7 @@ export function SettingsManager() {
             التواصل والموقع والقنوات
           </h2>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-            مزامنة مباشرة مع Supabase — جداول site_settings و social_links
+            إدارة بيانات التواصل والقنوات الظاهرة على المنصة
           </p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">

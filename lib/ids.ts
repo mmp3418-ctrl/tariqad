@@ -20,13 +20,13 @@ export function toUuidOrNull(value: unknown): string | null {
 /** Require a valid UUID for `.eq('id', …)` on uuid primary keys. */
 export function requireUuid(
   value: unknown,
-  label = "المعرّف"
+  label = "العنصر"
 ): { ok: true; id: string } | { ok: false; error: string } {
   const id = toUuidOrNull(value);
   if (!id) {
     return {
       ok: false,
-      error: `${label} غير صالح — يجب أن يكون UUID صحيحاً`,
+      error: `${label} غير صالح. حدّث الصفحة وحاول مرة أخرى.`,
     };
   }
   return { ok: true, id };
@@ -39,12 +39,33 @@ export function isMissingColumnError(message: string, column: string): boolean {
   );
 }
 
+const FRIENDLY_GENERIC =
+  "تعذّر إتمام العملية حالياً، يرجى المحاولة لاحقاً.";
+
+/** Map raw DB/API errors to polished Arabic UX copy (never leak internals). */
 export function arabicDbError(message: string): string {
-  if (/invalid input syntax for type uuid/i.test(message)) {
-    return "قيمة معرّف غير صالحة (UUID). تأكد من اختيار مرحلة/صف صحيحين.";
+  const text = String(message ?? "").trim();
+  if (!text) return FRIENDLY_GENERIC;
+
+  if (/invalid input syntax for type uuid/i.test(text)) {
+    return "يرجى اختيار المرحلة والصف بشكل صحيح.";
   }
-  if (/duplicate key|unique constraint/i.test(message)) {
+  if (/duplicate key|unique constraint/i.test(text)) {
     return "هذا السجل موجود مسبقاً.";
   }
-  return message;
+  if (
+    /column|schema cache|does not exist|relation|permission|jwt|api|postgres|supabase|vercel|network|fetch failed|timeout/i.test(
+      text
+    )
+  ) {
+    return "تعذّر تحميل أو حفظ البيانات حالياً، يرجى المحاولة لاحقاً.";
+  }
+  // Snake_case / English internals → generic Arabic
+  if (/[a-z]+_[a-z]+/.test(text) || /[A-Za-z]{4,}/.test(text)) {
+    return FRIENDLY_GENERIC;
+  }
+  return text;
 }
+
+export const STAGE_GRADE_REQUIRED =
+  "يرجى اختيار المرحلة والصف قبل الحفظ.";
