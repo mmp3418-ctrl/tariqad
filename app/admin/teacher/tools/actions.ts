@@ -154,12 +154,31 @@ export async function setToolActive(
     if (error) return { success: false, error: arabicDbError(error.message) };
 
     if (key === GRADE_CALCULATOR_KEY) {
-      // teacher_space_settings.id is integer 1 (not uuid) — safe
-      await supabase.from("teacher_space_settings").upsert({
-        id: 1,
-        grade_calculator_active: is_active,
-        updated_at: nowIso(),
-      });
+      // Best-effort sync to legacy integer table — never fail the toggle on this
+      try {
+        let legacy = await supabase.from("teacher_space_settings").upsert({
+          id: 1,
+          grade_calculator_active: is_active,
+          updated_at: nowIso(),
+        });
+        if (
+          legacy.error &&
+          isMissingColumnError(legacy.error.message, "updated_at")
+        ) {
+          legacy = await supabase.from("teacher_space_settings").upsert({
+            id: 1,
+            grade_calculator_active: is_active,
+          });
+        }
+        if (legacy.error) {
+          console.warn(
+            "[tools] legacy teacher_space_settings sync:",
+            legacy.error.message
+          );
+        }
+      } catch (syncErr) {
+        console.warn("[tools] legacy teacher_space_settings sync exception:", syncErr);
+      }
     }
 
     revalidateTools();
