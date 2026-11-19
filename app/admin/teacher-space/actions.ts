@@ -2,6 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { isValidYoutubeUrl } from "@/lib/academic";
+import {
+  arabicDbError,
+  isMissingColumnError,
+  requireUuid,
+  toUuidOrNull,
+} from "@/lib/ids";
 import { supabase } from "@/lib/supabase";
 import type {
   ActionResult,
@@ -147,25 +153,51 @@ export async function createTutorial(
     if (!isValidYoutubeUrl(input.youtube_url)) {
       return { success: false, error: "رابط يوتيوب غير صالح" };
     }
-    if (!input.stage_id || !input.grade_id) {
-      return { success: false, error: "اختر المرحلة والصف" };
+    const stage_id = toUuidOrNull(input.stage_id);
+    const grade_id = toUuidOrNull(input.grade_id);
+    if (!stage_id || !grade_id) {
+      return {
+        success: false,
+        error: "اختر المرحلة والصف (معرّفات UUID صالحة)",
+      };
     }
     const cover = String(input.cover_image_url ?? "").trim();
-    const { data, error } = await supabase
+    let result = await supabase
       .from("teacher_tutorials")
       .insert({
         title: input.title.trim(),
         youtube_url: input.youtube_url.trim(),
         cover_image_url: cover || null,
-        stage_id: input.stage_id,
-        grade_id: input.grade_id,
+        stage_id,
+        grade_id,
         is_active: input.is_active !== false,
         sort_order: await nextSort("teacher_tutorials"),
         updated_at: new Date().toISOString(),
       })
       .select("*")
       .single();
-    if (error) return { success: false, error: error.message };
+    if (
+      result.error &&
+      isMissingColumnError(result.error.message, "updated_at")
+    ) {
+      result = await supabase
+        .from("teacher_tutorials")
+        .insert({
+          title: input.title.trim(),
+          youtube_url: input.youtube_url.trim(),
+          cover_image_url: cover || null,
+          stage_id,
+          grade_id,
+          is_active: input.is_active !== false,
+          sort_order: await nextSort("teacher_tutorials"),
+        })
+        .select("*")
+        .single();
+    }
+    if (result.error) {
+      return { success: false, error: arabicDbError(result.error.message) };
+    }
+    const data = result.data;
     revalidatePath(REVALIDATE);
     return {
       success: true,
@@ -182,13 +214,14 @@ export async function updateTutorial(
   input: TutorialInput
 ): Promise<ActionResult<TeacherTutorial>> {
   try {
-    if (!id) return { success: false, error: "معرّف غير صالح" };
+    const idCheck = requireUuid(id);
+    if (!idCheck.ok) return { success: false, error: idCheck.error };
     if (!input.title.trim()) return { success: false, error: "العنوان مطلوب" };
     if (!input.youtube_url.trim()) return { success: false, error: "رابط يوتيوب مطلوب" };
     if (!isValidYoutubeUrl(input.youtube_url)) {
       return { success: false, error: "رابط يوتيوب غير صالح" };
     }
-    if (!input.stage_id || !input.grade_id) {
+    if (!toUuidOrNull(input.stage_id) || !toUuidOrNull(input.grade_id)) {
       return { success: false, error: "اختر المرحلة والصف" };
     }
     const cover = String(input.cover_image_url ?? "").trim();
@@ -198,15 +231,15 @@ export async function updateTutorial(
         title: input.title.trim(),
         youtube_url: input.youtube_url.trim(),
         cover_image_url: cover || null,
-        stage_id: input.stage_id,
-        grade_id: input.grade_id,
+        stage_id: toUuidOrNull(input.stage_id),
+        grade_id: toUuidOrNull(input.grade_id),
         is_active: input.is_active !== false,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", id)
+      .eq("id", idCheck.id)
       .select("*")
       .single();
-    if (error) return { success: false, error: error.message };
+    if (error) return { success: false, error: arabicDbError(error.message) };
     revalidatePath(REVALIDATE);
     return {
       success: true,
@@ -223,17 +256,32 @@ export async function toggleTutorialActive(
   is_active: boolean
 ): Promise<ActionResult<TeacherTutorial>> {
   try {
-    const { data, error } = await supabase
+    const idCheck = requireUuid(id);
+    if (!idCheck.ok) return { success: false, error: idCheck.error };
+    let result = await supabase
       .from("teacher_tutorials")
       .update({ is_active, updated_at: new Date().toISOString() })
-      .eq("id", id)
+      .eq("id", idCheck.id)
       .select("*")
       .single();
-    if (error) return { success: false, error: error.message };
+    if (
+      result.error &&
+      isMissingColumnError(result.error.message, "updated_at")
+    ) {
+      result = await supabase
+        .from("teacher_tutorials")
+        .update({ is_active })
+        .eq("id", idCheck.id)
+        .select("*")
+        .single();
+    }
+    if (result.error) {
+      return { success: false, error: arabicDbError(result.error.message) };
+    }
     revalidatePath(REVALIDATE);
     return {
       success: true,
-      data: normalizeTutorial(data as Record<string, unknown>),
+      data: normalizeTutorial(result.data as Record<string, unknown>),
       message: is_active ? "تم التفعيل" : "تم الإيقاف",
     };
   } catch (err) {
@@ -243,8 +291,13 @@ export async function toggleTutorialActive(
 
 export async function deleteTutorial(id: string): Promise<ActionResult> {
   try {
-    const { error } = await supabase.from("teacher_tutorials").delete().eq("id", id);
-    if (error) return { success: false, error: error.message };
+    const idCheck = requireUuid(id);
+    if (!idCheck.ok) return { success: false, error: idCheck.error };
+    const { error } = await supabase
+      .from("teacher_tutorials")
+      .delete()
+      .eq("id", idCheck.id);
+    if (error) return { success: false, error: arabicDbError(error.message) };
     revalidatePath(REVALIDATE);
     return { success: true, message: "تم الحذف" };
   } catch (err) {
@@ -286,25 +339,51 @@ export async function createReference(
   try {
     if (!input.title.trim()) return { success: false, error: "العنوان مطلوب" };
     if (!input.file_url.trim()) return { success: false, error: "يجب رفع ملف PDF" };
-    if (!input.stage_id || !input.grade_id) {
-      return { success: false, error: "اختر المرحلة والصف" };
+    const stage_id = toUuidOrNull(input.stage_id);
+    const grade_id = toUuidOrNull(input.grade_id);
+    if (!stage_id || !grade_id) {
+      return {
+        success: false,
+        error: "اختر المرحلة والصف (معرّفات UUID صالحة)",
+      };
     }
     const description = String(input.description ?? "").trim();
-    const { data, error } = await supabase
+    let result = await supabase
       .from("teacher_references")
       .insert({
         title: input.title.trim(),
         description: description || null,
         file_url: input.file_url.trim(),
-        stage_id: input.stage_id,
-        grade_id: input.grade_id,
+        stage_id,
+        grade_id,
         is_active: input.is_active !== false,
         sort_order: await nextSort("teacher_references"),
         updated_at: new Date().toISOString(),
       })
       .select("*")
       .single();
-    if (error) return { success: false, error: error.message };
+    if (
+      result.error &&
+      isMissingColumnError(result.error.message, "updated_at")
+    ) {
+      result = await supabase
+        .from("teacher_references")
+        .insert({
+          title: input.title.trim(),
+          description: description || null,
+          file_url: input.file_url.trim(),
+          stage_id,
+          grade_id,
+          is_active: input.is_active !== false,
+          sort_order: await nextSort("teacher_references"),
+        })
+        .select("*")
+        .single();
+    }
+    if (result.error) {
+      return { success: false, error: arabicDbError(result.error.message) };
+    }
+    const data = result.data;
     revalidatePath(REVALIDATE);
     return {
       success: true,
@@ -321,10 +400,11 @@ export async function updateReference(
   input: ReferenceInput
 ): Promise<ActionResult<TeacherReference>> {
   try {
-    if (!id) return { success: false, error: "معرّف غير صالح" };
+    const idCheck = requireUuid(id);
+    if (!idCheck.ok) return { success: false, error: idCheck.error };
     if (!input.title.trim()) return { success: false, error: "العنوان مطلوب" };
     if (!input.file_url.trim()) return { success: false, error: "يجب رفع ملف PDF" };
-    if (!input.stage_id || !input.grade_id) {
+    if (!toUuidOrNull(input.stage_id) || !toUuidOrNull(input.grade_id)) {
       return { success: false, error: "اختر المرحلة والصف" };
     }
     const description = String(input.description ?? "").trim();
@@ -334,15 +414,15 @@ export async function updateReference(
         title: input.title.trim(),
         description: description || null,
         file_url: input.file_url.trim(),
-        stage_id: input.stage_id,
-        grade_id: input.grade_id,
+        stage_id: toUuidOrNull(input.stage_id),
+        grade_id: toUuidOrNull(input.grade_id),
         is_active: input.is_active !== false,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", id)
+      .eq("id", idCheck.id)
       .select("*")
       .single();
-    if (error) return { success: false, error: error.message };
+    if (error) return { success: false, error: arabicDbError(error.message) };
     revalidatePath(REVALIDATE);
     return {
       success: true,
@@ -359,17 +439,32 @@ export async function toggleReferenceActive(
   is_active: boolean
 ): Promise<ActionResult<TeacherReference>> {
   try {
-    const { data, error } = await supabase
+    const idCheck = requireUuid(id);
+    if (!idCheck.ok) return { success: false, error: idCheck.error };
+    let result = await supabase
       .from("teacher_references")
       .update({ is_active, updated_at: new Date().toISOString() })
-      .eq("id", id)
+      .eq("id", idCheck.id)
       .select("*")
       .single();
-    if (error) return { success: false, error: error.message };
+    if (
+      result.error &&
+      isMissingColumnError(result.error.message, "updated_at")
+    ) {
+      result = await supabase
+        .from("teacher_references")
+        .update({ is_active })
+        .eq("id", idCheck.id)
+        .select("*")
+        .single();
+    }
+    if (result.error) {
+      return { success: false, error: arabicDbError(result.error.message) };
+    }
     revalidatePath(REVALIDATE);
     return {
       success: true,
-      data: normalizeReference(data as Record<string, unknown>),
+      data: normalizeReference(result.data as Record<string, unknown>),
       message: is_active ? "تم التفعيل" : "تم الإيقاف",
     };
   } catch (err) {
@@ -379,8 +474,13 @@ export async function toggleReferenceActive(
 
 export async function deleteReference(id: string): Promise<ActionResult> {
   try {
-    const { error } = await supabase.from("teacher_references").delete().eq("id", id);
-    if (error) return { success: false, error: error.message };
+    const idCheck = requireUuid(id);
+    if (!idCheck.ok) return { success: false, error: idCheck.error };
+    const { error } = await supabase
+      .from("teacher_references")
+      .delete()
+      .eq("id", idCheck.id);
+    if (error) return { success: false, error: arabicDbError(error.message) };
     revalidatePath(REVALIDATE);
     return { success: true, message: "تم الحذف" };
   } catch (err) {
@@ -434,8 +534,8 @@ function questionColumns(input: QuestionInput) {
     option_c: padded[2],
     option_d: padded[3],
     correct_answer: LETTERS[Math.min(correct_index, 3)],
-    stage_id: input.stage_id,
-    grade_id: input.grade_id,
+    stage_id: toUuidOrNull(input.stage_id),
+    grade_id: toUuidOrNull(input.grade_id),
     is_active: input.is_active !== false,
     updated_at: new Date().toISOString(),
   };
@@ -484,11 +584,14 @@ export async function createQuestion(
     if (filled.length < 2) {
       return { success: false, error: "الخيارات أ وب مطلوبان على الأقل" };
     }
-    if (!input.stage_id || !input.grade_id) {
-      return { success: false, error: "اختر المرحلة والصف" };
+    if (!toUuidOrNull(input.stage_id) || !toUuidOrNull(input.grade_id)) {
+      return {
+        success: false,
+        error: "اختر المرحلة والصف (معرّفات UUID صالحة)",
+      };
     }
     const { data, error } = await writeQuestion("insert", input);
-    if (error) return { success: false, error: error.message };
+    if (error) return { success: false, error: arabicDbError(error.message) };
     revalidatePath(REVALIDATE);
     return {
       success: true,
@@ -505,13 +608,14 @@ export async function updateQuestion(
   input: QuestionInput
 ): Promise<ActionResult<QuestionBankItem>> {
   try {
-    if (!id) return { success: false, error: "معرّف غير صالح" };
+    const idCheck = requireUuid(id);
+    if (!idCheck.ok) return { success: false, error: idCheck.error };
     if (!input.question_text.trim()) return { success: false, error: "نص السؤال مطلوب" };
-    if (!input.stage_id || !input.grade_id) {
+    if (!toUuidOrNull(input.stage_id) || !toUuidOrNull(input.grade_id)) {
       return { success: false, error: "اختر المرحلة والصف" };
     }
-    const { data, error } = await writeQuestion("update", input, id);
-    if (error) return { success: false, error: error.message };
+    const { data, error } = await writeQuestion("update", input, idCheck.id);
+    if (error) return { success: false, error: arabicDbError(error.message) };
     revalidatePath(REVALIDATE);
     return {
       success: true,
@@ -528,17 +632,32 @@ export async function toggleQuestionActive(
   is_active: boolean
 ): Promise<ActionResult<QuestionBankItem>> {
   try {
-    const { data, error } = await supabase
+    const idCheck = requireUuid(id);
+    if (!idCheck.ok) return { success: false, error: idCheck.error };
+    let result = await supabase
       .from("question_bank")
       .update({ is_active, updated_at: new Date().toISOString() })
-      .eq("id", id)
+      .eq("id", idCheck.id)
       .select("*")
       .single();
-    if (error) return { success: false, error: error.message };
+    if (
+      result.error &&
+      isMissingColumnError(result.error.message, "updated_at")
+    ) {
+      result = await supabase
+        .from("question_bank")
+        .update({ is_active })
+        .eq("id", idCheck.id)
+        .select("*")
+        .single();
+    }
+    if (result.error) {
+      return { success: false, error: arabicDbError(result.error.message) };
+    }
     revalidatePath(REVALIDATE);
     return {
       success: true,
-      data: normalizeQuestion(data as Record<string, unknown>),
+      data: normalizeQuestion(result.data as Record<string, unknown>),
       message: is_active ? "تم التفعيل" : "تم الإيقاف",
     };
   } catch (err) {
@@ -548,8 +667,13 @@ export async function toggleQuestionActive(
 
 export async function deleteQuestion(id: string): Promise<ActionResult> {
   try {
-    const { error } = await supabase.from("question_bank").delete().eq("id", id);
-    if (error) return { success: false, error: error.message };
+    const idCheck = requireUuid(id);
+    if (!idCheck.ok) return { success: false, error: idCheck.error };
+    const { error } = await supabase
+      .from("question_bank")
+      .delete()
+      .eq("id", idCheck.id);
+    if (error) return { success: false, error: arabicDbError(error.message) };
     revalidatePath(REVALIDATE);
     return { success: true, message: "تم الحذف" };
   } catch (err) {
@@ -605,7 +729,8 @@ export async function setGradeCalculatorActive(
   active: boolean
 ): Promise<ActionResult<TeacherSpaceSettings>> {
   try {
-    const { data, error } = await supabase
+    // teacher_space_settings.id is integer 1 (not uuid) — safe
+    let legacy = await supabase
       .from("teacher_space_settings")
       .upsert({
         id: 1,
@@ -614,22 +739,57 @@ export async function setGradeCalculatorActive(
       })
       .select("*")
       .single();
-    if (error) return { success: false, error: error.message };
-    await supabase.from("site_tool_settings").upsert(
+
+    if (
+      legacy.error &&
+      isMissingColumnError(legacy.error.message, "updated_at")
+    ) {
+      legacy = await supabase
+        .from("teacher_space_settings")
+        .upsert({ id: 1, grade_calculator_active: active })
+        .select("*")
+        .single();
+    }
+
+    if (legacy.error) {
+      return { success: false, error: arabicDbError(legacy.error.message) };
+    }
+
+    let tool = await supabase.from("site_tool_settings").upsert(
       {
         tool_key: "grade_calculator",
+        tool_name: "آلة حساب الدرجات",
         is_active: active,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "tool_key" }
     );
+
+    if (tool.error && isMissingColumnError(tool.error.message, "tool_name")) {
+      tool = await supabase.from("site_tool_settings").upsert(
+        {
+          tool_key: "grade_calculator",
+          is_active: active,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "tool_key" }
+      );
+    }
+
+    if (tool.error && isMissingColumnError(tool.error.message, "updated_at")) {
+      tool = await supabase.from("site_tool_settings").upsert(
+        { tool_key: "grade_calculator", is_active: active },
+        { onConflict: "tool_key" }
+      );
+    }
+
     revalidatePath(REVALIDATE);
     return {
       success: true,
       data: {
         id: 1,
         grade_calculator_active: asBool(
-          (data as Record<string, unknown>).grade_calculator_active
+          (legacy.data as Record<string, unknown>).grade_calculator_active
         ),
       },
       message: active ? "تم تفعيل آلة حساب الدرجات" : "تم إيقاف آلة حساب الدرجات",

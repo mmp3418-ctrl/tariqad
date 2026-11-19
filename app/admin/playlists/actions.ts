@@ -2,6 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { isMaterialType } from "@/lib/academic";
+import {
+  arabicDbError,
+  isMissingColumnError,
+  requireUuid,
+  toUuidOrNull,
+} from "@/lib/ids";
 import { supabase } from "@/lib/supabase";
 import type {
   ActionResult,
@@ -84,8 +90,8 @@ function buildPayload(input: PlaylistInput) {
     unit_name: input.unit_name.trim(),
     material_type: input.material_type,
     cover_image_url: cover || null,
-    stage_id: input.stage_id || null,
-    grade_id: input.grade_id || null,
+    stage_id: toUuidOrNull(input.stage_id),
+    grade_id: toUuidOrNull(input.grade_id),
     is_active: input.is_active !== false,
     updated_at: new Date().toISOString(),
   };
@@ -169,8 +175,11 @@ export async function createPlaylist(
     if (!isMaterialType(input.material_type)) {
       return { success: false, error: "نوع المادة غير صالح" };
     }
-    if (!input.stage_id || !input.grade_id) {
-      return { success: false, error: "يجب اختيار المرحلة والصف" };
+    if (!toUuidOrNull(input.stage_id) || !toUuidOrNull(input.grade_id)) {
+      return {
+        success: false,
+        error: "يجب اختيار المرحلة والصف (معرّفات UUID صالحة)",
+      };
     }
 
     console.info("[playlists] create payload:", {
@@ -191,7 +200,8 @@ export async function updatePlaylist(
   input: PlaylistInput
 ): Promise<ActionResult<VideoPlaylist>> {
   try {
-    if (!id) return { success: false, error: "معرّف القائمة غير صالح" };
+    const checked = requireUuid(id, "معرّف القائمة");
+    if (!checked.ok) return { success: false, error: checked.error };
     if (!input.title.trim()) {
       return { success: false, error: "عنوان القائمة مطلوب" };
     }
@@ -207,11 +217,14 @@ export async function updatePlaylist(
     if (!isMaterialType(input.material_type)) {
       return { success: false, error: "نوع المادة غير صالح" };
     }
-    if (!input.stage_id || !input.grade_id) {
-      return { success: false, error: "يجب اختيار المرحلة والصف" };
+    if (!toUuidOrNull(input.stage_id) || !toUuidOrNull(input.grade_id)) {
+      return {
+        success: false,
+        error: "يجب اختيار المرحلة والصف (معرّفات UUID صالحة)",
+      };
     }
 
-    return await persistPlaylist("update", input, id);
+    return await persistPlaylist("update", input, checked.id);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[playlists] updatePlaylist exception:", err);
@@ -224,21 +237,36 @@ export async function togglePlaylistActive(
   is_active: boolean
 ): Promise<ActionResult<VideoPlaylist>> {
   try {
-    if (!id) return { success: false, error: "معرّف القائمة غير صالح" };
-    const { data, error } = await supabase
+    const checked = requireUuid(id, "معرّف القائمة");
+    if (!checked.ok) return { success: false, error: checked.error };
+
+    let result = await supabase
       .from("video_playlists")
       .update({ is_active, updated_at: new Date().toISOString() })
-      .eq("id", id)
+      .eq("id", checked.id)
       .select("*")
       .single();
-    if (error) {
-      console.error("[playlists] togglePlaylistActive:", error.message, error);
-      return { success: false, error: error.message };
+
+    if (
+      result.error &&
+      isMissingColumnError(result.error.message, "updated_at")
+    ) {
+      result = await supabase
+        .from("video_playlists")
+        .update({ is_active })
+        .eq("id", checked.id)
+        .select("*")
+        .single();
+    }
+
+    if (result.error) {
+      console.error("[playlists] togglePlaylistActive:", result.error.message);
+      return { success: false, error: arabicDbError(result.error.message) };
     }
     revalidatePath("/admin/playlists");
     return {
       success: true,
-      data: normalizePlaylist(data as Record<string, unknown>),
+      data: normalizePlaylist(result.data as Record<string, unknown>),
       message: is_active ? "تم تفعيل القائمة" : "تم إيقاف القائمة",
     };
   } catch (err) {
@@ -250,14 +278,18 @@ export async function togglePlaylistActive(
 
 export async function deletePlaylist(id: string): Promise<ActionResult> {
   try {
-    if (!id) return { success: false, error: "معرّف القائمة غير صالح" };
+    const checked = requireUuid(id, "معرّف القائمة");
+    if (!checked.ok) return { success: false, error: checked.error };
     const { error } = await supabase
       .from("video_playlists")
       .delete()
-      .eq("id", id);
+      .eq("id", checked.id);
     if (error) {
-      console.error("[playlists] deletePlaylist:", error.message, { error, id });
-      return { success: false, error: error.message };
+      console.error("[playlists] deletePlaylist:", error.message, {
+        error,
+        id: checked.id,
+      });
+      return { success: false, error: arabicDbError(error.message) };
     }
     revalidatePath("/admin/playlists");
     return { success: true, message: "تم حذف القائمة" };

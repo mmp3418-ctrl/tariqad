@@ -2,6 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { isMaterialType } from "@/lib/academic";
+import {
+  arabicDbError,
+  isMissingColumnError,
+  requireUuid,
+  toUuidOrNull,
+} from "@/lib/ids";
 import { supabase } from "@/lib/supabase";
 import type {
   ActionResult,
@@ -96,8 +102,8 @@ function buildPayload(input: MaterialInput) {
     unit_name: input.unit_name.trim(),
     material_type: input.material_type,
     file_url,
-    stage_id: input.stage_id || null,
-    grade_id: input.grade_id || null,
+    stage_id: toUuidOrNull(input.stage_id),
+    grade_id: toUuidOrNull(input.grade_id),
     is_active: input.is_active !== false,
     updated_at: new Date().toISOString(),
   };
@@ -205,8 +211,11 @@ export async function createMaterial(
     if (!input.file_url?.trim()) {
       return { success: false, error: "يجب رفع ملف PDF أولاً (file_url)" };
     }
-    if (!input.stage_id || !input.grade_id) {
-      return { success: false, error: "يجب اختيار المرحلة والصف" };
+    if (!toUuidOrNull(input.stage_id) || !toUuidOrNull(input.grade_id)) {
+      return {
+        success: false,
+        error: "يجب اختيار المرحلة والصف (معرّفات UUID صالحة)",
+      };
     }
 
     return await persistMaterial("insert", input);
@@ -222,7 +231,8 @@ export async function updateMaterial(
   input: MaterialInput
 ): Promise<ActionResult<EducationalMaterial>> {
   try {
-    if (!id) return { success: false, error: "معرّف المادة غير صالح" };
+    const checked = requireUuid(id, "معرّف المادة");
+    if (!checked.ok) return { success: false, error: checked.error };
     if (!input.title.trim()) {
       return { success: false, error: "العنوان مطلوب" };
     }
@@ -235,11 +245,14 @@ export async function updateMaterial(
     if (!input.file_url?.trim()) {
       return { success: false, error: "رابط الملف (file_url) مطلوب" };
     }
-    if (!input.stage_id || !input.grade_id) {
-      return { success: false, error: "يجب اختيار المرحلة والصف" };
+    if (!toUuidOrNull(input.stage_id) || !toUuidOrNull(input.grade_id)) {
+      return {
+        success: false,
+        error: "يجب اختيار المرحلة والصف (معرّفات UUID صالحة)",
+      };
     }
 
-    return await persistMaterial("update", input, id);
+    return await persistMaterial("update", input, checked.id);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[materials] updateMaterial exception:", err);
@@ -252,21 +265,39 @@ export async function toggleMaterialActive(
   is_active: boolean
 ): Promise<ActionResult<EducationalMaterial>> {
   try {
-    if (!id) return { success: false, error: "معرّف المادة غير صالح" };
-    const { data, error } = await supabase
+    const checked = requireUuid(id, "معرّف المادة");
+    if (!checked.ok) return { success: false, error: checked.error };
+
+    let result = await supabase
       .from("educational_materials")
       .update({ is_active, updated_at: new Date().toISOString() })
-      .eq("id", id)
+      .eq("id", checked.id)
       .select("*")
       .single();
-    if (error) {
-      console.error("[materials] toggleMaterialActive:", error.message, error);
-      return { success: false, error: mapDbError(error.message) };
+
+    if (
+      result.error &&
+      isMissingColumnError(result.error.message, "updated_at")
+    ) {
+      result = await supabase
+        .from("educational_materials")
+        .update({ is_active })
+        .eq("id", checked.id)
+        .select("*")
+        .single();
+    }
+
+    if (result.error) {
+      console.error("[materials] toggleMaterialActive:", result.error.message);
+      return {
+        success: false,
+        error: arabicDbError(mapDbError(result.error.message)),
+      };
     }
     revalidatePath("/admin/materials");
     return {
       success: true,
-      data: normalizeMaterial(data as Record<string, unknown>),
+      data: normalizeMaterial(result.data as Record<string, unknown>),
       message: is_active ? "تم تفعيل المادة" : "تم إيقاف المادة",
     };
   } catch (err) {
@@ -278,14 +309,15 @@ export async function toggleMaterialActive(
 
 export async function deleteMaterial(id: string): Promise<ActionResult> {
   try {
-    if (!id) return { success: false, error: "معرّف المادة غير صالح" };
+    const checked = requireUuid(id, "معرّف المادة");
+    if (!checked.ok) return { success: false, error: checked.error };
     const { error } = await supabase
       .from("educational_materials")
       .delete()
-      .eq("id", id);
+      .eq("id", checked.id);
     if (error) {
-      console.error("[materials] deleteMaterial:", error.message, { error, id });
-      return { success: false, error: mapDbError(error.message) };
+      console.error("[materials] deleteMaterial:", error.message, { error, id: checked.id });
+      return { success: false, error: arabicDbError(mapDbError(error.message)) };
     }
     revalidatePath("/admin/materials");
     return { success: true, message: "تم حذف المادة" };

@@ -719,16 +719,22 @@ create index if not exists question_bank_stage_grade_idx
 create table if not exists public.site_tool_settings (
   id uuid primary key default gen_random_uuid(),
   tool_key text not null unique,
+  tool_name text,
   is_active boolean not null default true,
   updated_at timestamptz not null default now()
 );
 
 alter table public.site_tool_settings add column if not exists tool_key text;
+alter table public.site_tool_settings add column if not exists tool_name text;
 alter table public.site_tool_settings add column if not exists is_active boolean not null default true;
 alter table public.site_tool_settings add column if not exists updated_at timestamptz not null default now();
 
 create unique index if not exists site_tool_settings_tool_key_key
   on public.site_tool_settings (tool_key);
+
+update public.site_tool_settings
+set tool_name = coalesce(nullif(tool_name, ''), tool_key)
+where tool_name is null or tool_name = '';
 
 alter table public.site_tool_settings enable row level security;
 drop policy if exists "Allow all site_tool_settings" on public.site_tool_settings;
@@ -759,15 +765,25 @@ insert into public.site_tool_settings (tool_key, is_active)
 values ('grade_calculator', true)
 on conflict (tool_key) do nothing;
 
--- Global public timetable visibility (single-row)
+-- Global public timetable visibility (single-row via status_key — never use uuid "1")
 create table if not exists public.site_timetable_status (
-  id integer primary key default 1 check (id = 1),
+  id uuid primary key default gen_random_uuid(),
+  status_key text not null unique default 'default',
   is_active boolean not null default true,
   updated_at timestamptz not null default now()
 );
 
+alter table public.site_timetable_status add column if not exists status_key text;
 alter table public.site_timetable_status add column if not exists is_active boolean not null default true;
 alter table public.site_timetable_status add column if not exists updated_at timestamptz not null default now();
+
+-- Backfill status_key on legacy integer-id or uuid-id rows
+update public.site_timetable_status
+set status_key = 'default'
+where status_key is null or status_key = '';
+
+create unique index if not exists site_timetable_status_key_uidx
+  on public.site_timetable_status (status_key);
 
 alter table public.site_timetable_status enable row level security;
 drop policy if exists "Allow all site_timetable_status" on public.site_timetable_status;
@@ -777,6 +793,6 @@ create policy "Allow all site_timetable_status"
   using (true)
   with check (true);
 
-insert into public.site_timetable_status (id, is_active)
-values (1, true)
-on conflict (id) do nothing;
+insert into public.site_timetable_status (status_key, is_active)
+values ('default', true)
+on conflict (status_key) do nothing;

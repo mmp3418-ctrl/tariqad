@@ -192,6 +192,7 @@ export interface QuestionBankItem {
 export interface SiteToolSetting {
   id: string;
   tool_key: string;
+  tool_name?: string | null;
   is_active: boolean;
   updated_at?: string;
 }
@@ -205,7 +206,9 @@ export interface TeacherSpaceSettings {
 
 /** Single-row global visibility for the public universal timetable */
 export interface SiteTimetableStatus {
-  id: number;
+  /** Real DB primary key (uuid or legacy int) as string — never hardcode "1" for uuid cols */
+  id: string;
+  status_key: string;
   is_active: boolean;
   updated_at?: string;
 }

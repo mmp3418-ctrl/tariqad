@@ -112,7 +112,8 @@ export function ToolsManager() {
             onChange={(value) => {
               const previous = timetableStatus;
               setTimetableStatus({
-                id: 1,
+                id: previous?.id ?? "",
+                status_key: previous?.status_key ?? "default",
                 is_active: value,
                 updated_at: previous?.updated_at,
               });
