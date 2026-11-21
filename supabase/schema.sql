@@ -796,3 +796,57 @@ create policy "Allow all site_timetable_status"
 insert into public.site_timetable_status (status_key, is_active)
 values ('default', true)
 on conflict (status_key) do nothing;
+
+-- ---------------------------------------------------------------------------
+-- site_branding: single-row platform logo (public URL)
+-- ---------------------------------------------------------------------------
+create table if not exists public.site_branding (
+  id integer primary key default 1 check (id = 1),
+  logo_url text,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.site_branding add column if not exists logo_url text;
+alter table public.site_branding add column if not exists updated_at timestamptz not null default now();
+
+alter table public.site_branding enable row level security;
+drop policy if exists "Allow all site_branding" on public.site_branding;
+create policy "Allow all site_branding"
+  on public.site_branding
+  for all
+  using (true)
+  with check (true);
+
+insert into public.site_branding (id, logo_url)
+values (1, null)
+on conflict (id) do nothing;
+
+-- Branding / site-assets public storage
+insert into storage.buckets (id, name, public)
+values ('branding', 'branding', true)
+on conflict (id) do update set public = true;
+
+insert into storage.buckets (id, name, public)
+values ('site-assets', 'site-assets', true)
+on conflict (id) do update set public = true;
+
+drop policy if exists "Public read branding" on storage.objects;
+create policy "Public read branding"
+  on storage.objects for select
+  using (bucket_id in ('branding', 'site-assets', 'pdfs', 'uploads'));
+
+drop policy if exists "Public upload branding" on storage.objects;
+create policy "Public upload branding"
+  on storage.objects for insert
+  with check (bucket_id in ('branding', 'site-assets', 'pdfs', 'uploads'));
+
+drop policy if exists "Public update branding" on storage.objects;
+create policy "Public update branding"
+  on storage.objects for update
+  using (bucket_id in ('branding', 'site-assets', 'pdfs', 'uploads'))
+  with check (bucket_id in ('branding', 'site-assets', 'pdfs', 'uploads'));
+
+drop policy if exists "Public delete branding" on storage.objects;
+create policy "Public delete branding"
+  on storage.objects for delete
+  using (bucket_id in ('branding', 'site-assets', 'pdfs', 'uploads'));

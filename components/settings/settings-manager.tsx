@@ -44,10 +44,12 @@ import {
   validateSocialUrl,
 } from "@/lib/social";
 import type {
+  SiteBranding,
   SiteSettings,
   SocialIconKey,
   SocialLink,
 } from "@/lib/types";
+import { LogoBrandingCard } from "@/components/settings/logo-branding-card";
 import { Modal } from "@/components/ui/modal";
 import { Switch } from "@/components/ui/switch";
 import { SocialIcon } from "@/components/ui/social-icon";
@@ -102,6 +104,10 @@ export function SettingsManager() {
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<SiteSettings>(emptySettings());
   const [links, setLinks] = useState<SocialLink[]>([]);
+  const [branding, setBranding] = useState<SiteBranding>({
+    id: 1,
+    logo_url: null,
+  });
   const [contact, setContact] = useState<ContactForm>(emptyContact());
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -134,6 +140,7 @@ export function SettingsManager() {
       if (result.success && result.data) {
         setSettings(result.data.settings);
         setLinks(result.data.social_links);
+        setBranding(result.data.branding ?? { id: 1, logo_url: null });
         setContact(fromSettings(result.data.settings));
       } else if (!result.success) {
         error(result.error || "تعذّر تحميل البيانات حالياً، يرجى المحاولة لاحقاً");
@@ -342,10 +349,10 @@ export function SettingsManager() {
             <span className="text-sm font-semibold">إعدادات الموقع</span>
           </div>
           <h2 className="text-2xl font-extrabold text-slate-900 dark:text-slate-100">
-            التواصل والموقع والقنوات
+            الشعار والتواصل والقنوات
           </h2>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-            إدارة بيانات التواصل والقنوات الظاهرة على المنصة
+            إدارة شعار المنصة وبيانات التواصل والقنوات الظاهرة للزوّار
           </p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
@@ -355,6 +362,12 @@ export function SettingsManager() {
           </span>
         </div>
       </header>
+
+      <LogoBrandingCard
+        key={branding.logo_url ?? "default-logo"}
+        initial={branding}
+        onChange={setBranding}
+      />
 
       <form onSubmit={handleSaveContact} className="space-y-4">
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">

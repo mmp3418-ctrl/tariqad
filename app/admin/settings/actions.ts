@@ -1,16 +1,20 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { arabicDbError } from "@/lib/ids";
 import { supabase } from "@/lib/supabase";
 import type {
   ActionResult,
   SettingsBundle,
+  SiteBranding,
   SiteSettings,
   SocialIconKey,
   SocialLink,
 } from "@/lib/types";
 
 const SETTINGS_ID = 1;
+const BRANDING_ID = 1;
+export const DEFAULT_LOGO_PATH = "/logo.png";
 
 function normalizeSettings(row: Record<string, unknown>): SiteSettings {
   return {
@@ -88,6 +92,55 @@ async function ensureSettingsRow(): Promise<ActionResult<SiteSettings>> {
   };
 }
 
+function normalizeBranding(row: Record<string, unknown>): SiteBranding {
+  const raw = String(row.logo_url ?? "").trim();
+  return {
+    id: BRANDING_ID,
+    logo_url: raw || null,
+    updated_at: row.updated_at ? String(row.updated_at) : undefined,
+  };
+}
+
+async function ensureBrandingRow(): Promise<ActionResult<SiteBranding>> {
+  const { data, error } = await supabase
+    .from("site_branding")
+    .select("*")
+    .eq("id", BRANDING_ID)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[settings] ensureBrandingRow select:", error.message);
+    return { success: false, error: arabicDbError(error.message) };
+  }
+
+  if (data) {
+    return {
+      success: true,
+      data: normalizeBranding(data as Record<string, unknown>),
+    };
+  }
+
+  const inserted = await supabase
+    .from("site_branding")
+    .upsert({
+      id: BRANDING_ID,
+      logo_url: null,
+      updated_at: new Date().toISOString(),
+    })
+    .select("*")
+    .single();
+
+  if (inserted.error) {
+    console.error("[settings] ensureBrandingRow upsert:", inserted.error.message);
+    return { success: false, error: arabicDbError(inserted.error.message) };
+  }
+
+  return {
+    success: true,
+    data: normalizeBranding(inserted.data as Record<string, unknown>),
+  };
+}
+
 async function fetchSocialLinks(): Promise<ActionResult<SocialLink[]>> {
   const { data, error } = await supabase
     .from("social_links")
@@ -106,14 +159,15 @@ async function fetchSocialLinks(): Promise<ActionResult<SocialLink[]>> {
   return { success: true, data: links };
 }
 
-/** Load site_settings + social_links together for the admin UI. */
+/** Load site_settings + social_links + branding together for the admin UI. */
 export async function getSettingsBundle(): Promise<
   ActionResult<SettingsBundle>
 > {
   try {
-    const [settingsResult, linksResult] = await Promise.all([
+    const [settingsResult, linksResult, brandingResult] = await Promise.all([
       ensureSettingsRow(),
       fetchSocialLinks(),
+      ensureBrandingRow(),
     ]);
 
     if (!settingsResult.success) {
@@ -128,13 +182,66 @@ export async function getSettingsBundle(): Promise<
       data: {
         settings: settingsResult.data!,
         social_links: linksResult.data ?? [],
+        branding: brandingResult.success
+          ? brandingResult.data!
+          : { id: BRANDING_ID, logo_url: null },
       },
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[settings] getSettingsBundle exception:", err);
-    return { success: false, error: message };
+    return { success: false, error: arabicDbError(message) };
   }
+}
+
+export async function getSiteBranding(): Promise<ActionResult<SiteBranding>> {
+  try {
+    return await ensureBrandingRow();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { success: false, error: arabicDbError(message) };
+  }
+}
+
+export async function setSiteLogoUrl(
+  logoUrl: string | null
+): Promise<ActionResult<SiteBranding>> {
+  try {
+    const trimmed = String(logoUrl ?? "").trim();
+    const payload = {
+      id: BRANDING_ID,
+      logo_url: trimmed || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
+      .from("site_branding")
+      .upsert(payload)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("[settings] setSiteLogoUrl:", error.message);
+      return { success: false, error: arabicDbError(error.message) };
+    }
+
+    revalidatePath("/admin/settings");
+    revalidatePath("/admin");
+    return {
+      success: true,
+      data: normalizeBranding(data as Record<string, unknown>),
+      message: trimmed
+        ? "تم تحديث شعار المنصة"
+        : "تم استعادة الشعار الافتراضي",
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { success: false, error: arabicDbError(message) };
+  }
+}
+
+export async function resetSiteLogo(): Promise<ActionResult<SiteBranding>> {
+  return setSiteLogoUrl(null);
 }
 
 export type SaveSiteSettingsInput = {

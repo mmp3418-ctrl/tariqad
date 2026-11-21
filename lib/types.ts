@@ -38,9 +38,18 @@ export interface SiteSettings {
   updated_at: string;
 }
 
+/** Single-row public.site_branding (platform logo) */
+export interface SiteBranding {
+  id: number;
+  /** Public image URL; null → use default /logo.png */
+  logo_url: string | null;
+  updated_at?: string;
+}
+
 export interface SettingsBundle {
   settings: SiteSettings;
   social_links: SocialLink[];
+  branding: SiteBranding;
 }
 
 /** Single-row public.home_content */
