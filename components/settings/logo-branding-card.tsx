@@ -2,11 +2,8 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { ImagePlus, RotateCcw, Sparkles } from "lucide-react";
-import {
-  DEFAULT_LOGO_PATH,
-  resetSiteLogo,
-  setSiteLogoUrl,
-} from "@/app/admin/settings/actions";
+import { resetSiteLogo, setSiteLogoUrl } from "@/app/admin/settings/actions";
+import { DEFAULT_LOGO_PATH } from "@/lib/branding";
 import { uploadBrandLogo } from "@/lib/storage";
 import type { SiteBranding } from "@/lib/types";
 import { useToast } from "@/components/ui/toast";

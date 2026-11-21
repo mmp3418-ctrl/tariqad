@@ -14,7 +14,6 @@ import type {
 
 const SETTINGS_ID = 1;
 const BRANDING_ID = 1;
-export const DEFAULT_LOGO_PATH = "/logo.png";
 
 function normalizeSettings(row: Record<string, unknown>): SiteSettings {
   return {
