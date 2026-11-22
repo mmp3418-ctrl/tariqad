@@ -40,7 +40,8 @@ export interface SiteSettings {
 
 /** Single-row public.site_branding (platform logo) */
 export interface SiteBranding {
-  id: number;
+  /** Integer `1` or UUID depending on live schema */
+  id: number | string;
   /** Public image URL; null → use default /logo.png */
   logo_url: string | null;
   updated_at?: string;

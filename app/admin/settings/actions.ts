@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { arabicDbError } from "@/lib/ids";
+import { sanitizeLogoUrl } from "@/lib/branding";
+import { settingsUiError } from "@/lib/ids";
 import { supabase } from "@/lib/supabase";
 import type {
   ActionResult,
@@ -15,9 +16,24 @@ import type {
 const SETTINGS_ID = 1;
 const BRANDING_ID = 1;
 
+const EMPTY_SETTINGS: SiteSettings = {
+  id: SETTINGS_ID,
+  email: null,
+  location: null,
+  whatsapp: null,
+  telegram: null,
+  google_maps_url: null,
+  updated_at: new Date().toISOString(),
+};
+
 function normalizeSettings(row: Record<string, unknown>): SiteSettings {
+  const rawId = row.id;
+  const id =
+    typeof rawId === "number" || typeof rawId === "string"
+      ? (rawId as number)
+      : SETTINGS_ID;
   return {
-    id: SETTINGS_ID,
+    id: typeof id === "number" ? id : SETTINGS_ID,
     email: (row.email as string | null) ?? null,
     location: (row.location as string | null) ?? null,
     whatsapp: (row.whatsapp as string | null) ?? null,
@@ -41,103 +57,165 @@ function normalizeSocialLink(row: Record<string, unknown>): SocialLink {
   };
 }
 
-const EMPTY_SETTINGS_SEED = {
-  id: SETTINGS_ID,
-  email: null,
-  location: null,
-  whatsapp: null,
-  telegram: null,
-  google_maps_url: null,
-  updated_at: new Date().toISOString(),
-};
-
+/**
+ * Load/create the single settings row.
+ * Never uses blind `.eq('id', 1)` when the live PK may be UUID.
+ */
 async function ensureSettingsRow(): Promise<ActionResult<SiteSettings>> {
-  const { data, error } = await supabase
-    .from("site_settings")
-    .select("*")
-    .eq("id", SETTINGS_ID)
-    .maybeSingle();
+  try {
+    const any = await supabase
+      .from("site_settings")
+      .select("*")
+      .limit(1)
+      .maybeSingle();
 
-  if (error) {
-    console.error("[settings] ensureSettingsRow select:", error.message, error);
-    return { success: false, error: error.message };
-  }
+    if (!any.error && any.data) {
+      return {
+        success: true,
+        data: normalizeSettings(any.data as Record<string, unknown>),
+      };
+    }
 
-  if (data) {
-    return {
-      success: true,
-      data: normalizeSettings(data as Record<string, unknown>),
-    };
-  }
+    if (any.error) {
+      console.warn("[settings] ensureSettingsRow select:", any.error.message);
+    }
 
-  const inserted = await supabase
-    .from("site_settings")
-    .upsert(EMPTY_SETTINGS_SEED)
-    .select("*")
-    .single();
+    const withIntId = await supabase
+      .from("site_settings")
+      .upsert({
+        id: SETTINGS_ID,
+        email: null,
+        location: null,
+        whatsapp: null,
+        telegram: null,
+        google_maps_url: null,
+        updated_at: new Date().toISOString(),
+      })
+      .select("*")
+      .maybeSingle();
 
-  if (inserted.error) {
-    console.error(
-      "[settings] ensureSettingsRow upsert:",
-      inserted.error.message,
-      inserted.error
+    if (!withIntId.error && withIntId.data) {
+      return {
+        success: true,
+        data: normalizeSettings(withIntId.data as Record<string, unknown>),
+      };
+    }
+
+    const legacy = await supabase
+      .from("site_settings")
+      .insert({
+        email: null,
+        location: null,
+        whatsapp: null,
+        telegram: null,
+        google_maps_url: null,
+        updated_at: new Date().toISOString(),
+      })
+      .select("*")
+      .maybeSingle();
+
+    if (!legacy.error && legacy.data) {
+      return {
+        success: true,
+        data: normalizeSettings(legacy.data as Record<string, unknown>),
+      };
+    }
+
+    console.warn(
+      "[settings] ensureSettingsRow soft-fail:",
+      withIntId.error?.message,
+      legacy.error?.message,
     );
-    return { success: false, error: inserted.error.message };
+    // Soft-fail so branding/settings UI can still render without stage/grade toasts.
+    return { success: true, data: EMPTY_SETTINGS };
+  } catch (err) {
+    console.warn("[settings] ensureSettingsRow exception:", err);
+    return { success: true, data: EMPTY_SETTINGS };
   }
-
-  return {
-    success: true,
-    data: normalizeSettings(inserted.data as Record<string, unknown>),
-  };
 }
 
 function normalizeBranding(row: Record<string, unknown>): SiteBranding {
-  const raw = String(row.logo_url ?? "").trim();
+  const rawId = row.id;
   return {
-    id: BRANDING_ID,
-    logo_url: raw || null,
+    id:
+      typeof rawId === "number" || typeof rawId === "string"
+        ? rawId
+        : BRANDING_ID,
+    logo_url: sanitizeLogoUrl(row.logo_url),
     updated_at: row.updated_at ? String(row.updated_at) : undefined,
   };
 }
 
+const EMPTY_BRANDING: SiteBranding = { id: BRANDING_ID, logo_url: null };
+
+/**
+ * Load/create the single branding row.
+ * Soft-fails to empty branding — never surfaces stage/grade or UUID jargon.
+ * Avoids blind `.eq('id', 1)` when the live PK type is unknown.
+ */
 async function ensureBrandingRow(): Promise<ActionResult<SiteBranding>> {
-  const { data, error } = await supabase
-    .from("site_branding")
-    .select("*")
-    .eq("id", BRANDING_ID)
-    .maybeSingle();
+  try {
+    const any = await supabase
+      .from("site_branding")
+      .select("*")
+      .limit(1)
+      .maybeSingle();
 
-  if (error) {
-    console.error("[settings] ensureBrandingRow select:", error.message);
-    return { success: false, error: arabicDbError(error.message) };
+    if (!any.error && any.data) {
+      return {
+        success: true,
+        data: normalizeBranding(any.data as Record<string, unknown>),
+      };
+    }
+
+    if (any.error) {
+      console.warn("[settings] ensureBrandingRow select:", any.error.message);
+    }
+
+    // Prefer insert without fixed id (works for uuid defaults); then integer id=1.
+    const legacy = await supabase
+      .from("site_branding")
+      .insert({
+        logo_url: null,
+        updated_at: new Date().toISOString(),
+      })
+      .select("*")
+      .maybeSingle();
+
+    if (!legacy.error && legacy.data) {
+      return {
+        success: true,
+        data: normalizeBranding(legacy.data as Record<string, unknown>),
+      };
+    }
+
+    const withIntId = await supabase
+      .from("site_branding")
+      .upsert({
+        id: BRANDING_ID,
+        logo_url: null,
+        updated_at: new Date().toISOString(),
+      })
+      .select("*")
+      .maybeSingle();
+
+    if (!withIntId.error && withIntId.data) {
+      return {
+        success: true,
+        data: normalizeBranding(withIntId.data as Record<string, unknown>),
+      };
+    }
+
+    console.warn(
+      "[settings] ensureBrandingRow soft-fail:",
+      legacy.error?.message,
+      withIntId.error?.message,
+    );
+    return { success: true, data: EMPTY_BRANDING };
+  } catch (err) {
+    console.warn("[settings] ensureBrandingRow exception:", err);
+    return { success: true, data: EMPTY_BRANDING };
   }
-
-  if (data) {
-    return {
-      success: true,
-      data: normalizeBranding(data as Record<string, unknown>),
-    };
-  }
-
-  const inserted = await supabase
-    .from("site_branding")
-    .upsert({
-      id: BRANDING_ID,
-      logo_url: null,
-      updated_at: new Date().toISOString(),
-    })
-    .select("*")
-    .single();
-
-  if (inserted.error) {
-    console.error("[settings] ensureBrandingRow upsert:", inserted.error.message);
-    return { success: false, error: arabicDbError(inserted.error.message) };
-  }
-
-  return {
-    success: true,
-    data: normalizeBranding(inserted.data as Record<string, unknown>),
-  };
 }
 
 async function fetchSocialLinks(): Promise<ActionResult<SocialLink[]>> {
@@ -149,7 +227,8 @@ async function fetchSocialLinks(): Promise<ActionResult<SocialLink[]>> {
 
   if (error) {
     console.error("[settings] fetchSocialLinks:", error.message, error);
-    return { success: false, error: error.message };
+    // Soft-fail: empty channels rather than stage/grade / UUID toast on mount.
+    return { success: true, data: [] };
   }
 
   const links = (data ?? []).map((row) =>
@@ -169,27 +248,29 @@ export async function getSettingsBundle(): Promise<
       ensureBrandingRow(),
     ]);
 
-    if (!settingsResult.success) {
-      return { success: false, error: settingsResult.error };
-    }
-    if (!linksResult.success) {
-      return { success: false, error: linksResult.error };
-    }
-
+    // Always succeed for settings/branding — never toast stage/grade on mount.
     return {
       success: true,
       data: {
-        settings: settingsResult.data!,
-        social_links: linksResult.data ?? [],
+        settings: settingsResult.success
+          ? (settingsResult.data ?? EMPTY_SETTINGS)
+          : EMPTY_SETTINGS,
+        social_links: linksResult.success ? (linksResult.data ?? []) : [],
         branding: brandingResult.success
-          ? brandingResult.data!
-          : { id: BRANDING_ID, logo_url: null },
+          ? (brandingResult.data ?? EMPTY_BRANDING)
+          : EMPTY_BRANDING,
       },
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
     console.error("[settings] getSettingsBundle exception:", err);
-    return { success: false, error: arabicDbError(message) };
+    return {
+      success: true,
+      data: {
+        settings: EMPTY_SETTINGS,
+        social_links: [],
+        branding: EMPTY_BRANDING,
+      },
+    };
   }
 }
 
@@ -197,8 +278,8 @@ export async function getSiteBranding(): Promise<ActionResult<SiteBranding>> {
   try {
     return await ensureBrandingRow();
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { success: false, error: arabicDbError(message) };
+    console.warn("[settings] getSiteBranding exception:", err);
+    return { success: true, data: EMPTY_BRANDING };
   }
 }
 
@@ -206,36 +287,79 @@ export async function setSiteLogoUrl(
   logoUrl: string | null
 ): Promise<ActionResult<SiteBranding>> {
   try {
-    const trimmed = String(logoUrl ?? "").trim();
-    const payload = {
-      id: BRANDING_ID,
-      logo_url: trimmed || null,
-      updated_at: new Date().toISOString(),
-    };
+    const trimmed = sanitizeLogoUrl(logoUrl);
+    const updated_at = new Date().toISOString();
 
-    const { data, error } = await supabase
+    // Update existing row first (works for integer or uuid PK) — never force id=1.
+    const existing = await supabase
       .from("site_branding")
-      .upsert(payload)
-      .select("*")
-      .single();
+      .select("id")
+      .limit(1)
+      .maybeSingle();
 
-    if (error) {
-      console.error("[settings] setSiteLogoUrl:", error.message);
-      return { success: false, error: arabicDbError(error.message) };
+    let data: Record<string, unknown> | null = null;
+    let errorMessage = "";
+
+    if (!existing.error && existing.data?.id != null) {
+      const updated = await supabase
+        .from("site_branding")
+        .update({ logo_url: trimmed, updated_at })
+        .eq("id", existing.data.id)
+        .select("*")
+        .maybeSingle();
+      if (updated.error) {
+        errorMessage = updated.error.message;
+      } else {
+        data = (updated.data as Record<string, unknown> | null) ?? null;
+      }
+    } else {
+      const inserted = await supabase
+        .from("site_branding")
+        .insert({ logo_url: trimmed, updated_at })
+        .select("*")
+        .maybeSingle();
+      if (inserted.error) {
+        const withIntId = await supabase
+          .from("site_branding")
+          .upsert({ id: BRANDING_ID, logo_url: trimmed, updated_at })
+          .select("*")
+          .maybeSingle();
+        if (withIntId.error) {
+          errorMessage = withIntId.error.message || inserted.error.message;
+        } else {
+          data = (withIntId.data as Record<string, unknown> | null) ?? null;
+        }
+      } else {
+        data = (inserted.data as Record<string, unknown> | null) ?? null;
+      }
+    }
+
+    if (!data) {
+      console.error("[settings] setSiteLogoUrl:", errorMessage);
+      return {
+        success: false,
+        error: settingsUiError(
+          errorMessage,
+          "تعذّر حفظ الشعار حالياً، يرجى المحاولة لاحقاً.",
+        ),
+      };
     }
 
     revalidatePath("/admin/settings");
     revalidatePath("/admin");
     return {
       success: true,
-      data: normalizeBranding(data as Record<string, unknown>),
+      data: normalizeBranding(data),
       message: trimmed
         ? "تم تحديث شعار المنصة"
         : "تم استعادة الشعار الافتراضي",
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { success: false, error: arabicDbError(message) };
+    console.error("[settings] setSiteLogoUrl exception:", err);
+    return {
+      success: false,
+      error: "تعذّر حفظ الشعار حالياً، يرجى المحاولة لاحقاً.",
+    };
   }
 }
 
@@ -255,8 +379,7 @@ export async function saveSiteSettings(
   input: SaveSiteSettingsInput
 ): Promise<ActionResult<SiteSettings>> {
   try {
-    const payload = {
-      id: SETTINGS_ID,
+    const fields = {
       email: input.email.trim() || null,
       location: input.location.trim() || null,
       whatsapp: input.whatsapp.trim() || null,
@@ -265,30 +388,70 @@ export async function saveSiteSettings(
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase
+    const existing = await supabase
       .from("site_settings")
-      .upsert(payload)
-      .select("*")
-      .single();
+      .select("id")
+      .limit(1)
+      .maybeSingle();
 
-    if (error) {
-      console.error("[settings] saveSiteSettings:", error.message, {
-        error,
-        payload,
-      });
-      return { success: false, error: error.message };
+    let data: Record<string, unknown> | null = null;
+    let errorMessage = "";
+
+    if (!existing.error && existing.data?.id != null) {
+      const updated = await supabase
+        .from("site_settings")
+        .update(fields)
+        .eq("id", existing.data.id)
+        .select("*")
+        .maybeSingle();
+      if (updated.error) {
+        errorMessage = updated.error.message;
+      } else {
+        data = (updated.data as Record<string, unknown> | null) ?? null;
+      }
+    } else {
+      const inserted = await supabase
+        .from("site_settings")
+        .insert(fields)
+        .select("*")
+        .maybeSingle();
+      if (inserted.error) {
+        const withIntId = await supabase
+          .from("site_settings")
+          .upsert({ id: SETTINGS_ID, ...fields })
+          .select("*")
+          .maybeSingle();
+        if (withIntId.error) {
+          errorMessage = withIntId.error.message || inserted.error.message;
+        } else {
+          data = (withIntId.data as Record<string, unknown> | null) ?? null;
+        }
+      } else {
+        data = (inserted.data as Record<string, unknown> | null) ?? null;
+      }
+    }
+
+    if (!data) {
+      console.error("[settings] saveSiteSettings:", errorMessage);
+      return {
+        success: false,
+        error: settingsUiError(
+          errorMessage,
+          "تعذّر حفظ الإعدادات حالياً، يرجى المحاولة لاحقاً.",
+        ),
+      };
     }
 
     revalidatePath("/admin/settings");
     return {
       success: true,
-      data: normalizeSettings(data as Record<string, unknown>),
+      data: normalizeSettings(data),
       message: "تم حفظ إعدادات التواصل والموقع بنجاح",
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[settings] saveSiteSettings exception:", err);
-    return { success: false, error: message };
+    return { success: false, error: settingsUiError(message) };
   }
 }
 
@@ -336,7 +499,7 @@ export async function createSocialLink(
         error,
         payload,
       });
-      return { success: false, error: error.message };
+      return { success: false, error: settingsUiError(error.message) };
     }
 
     revalidatePath("/admin/settings");
@@ -348,7 +511,7 @@ export async function createSocialLink(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[settings] createSocialLink exception:", err);
-    return { success: false, error: message };
+    return { success: false, error: settingsUiError(message) };
   }
 }
 
@@ -391,7 +554,7 @@ export async function updateSocialLink(
         id,
         payload,
       });
-      return { success: false, error: error.message };
+      return { success: false, error: settingsUiError(error.message) };
     }
 
     revalidatePath("/admin/settings");
@@ -403,7 +566,7 @@ export async function updateSocialLink(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[settings] updateSocialLink exception:", err);
-    return { success: false, error: message };
+    return { success: false, error: settingsUiError(message) };
   }
 }
 
@@ -429,7 +592,7 @@ export async function toggleSocialLinkActive(
         id,
         is_active,
       });
-      return { success: false, error: error.message };
+      return { success: false, error: settingsUiError(error.message) };
     }
 
     revalidatePath("/admin/settings");
@@ -441,7 +604,7 @@ export async function toggleSocialLinkActive(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[settings] toggleSocialLinkActive exception:", err);
-    return { success: false, error: message };
+    return { success: false, error: settingsUiError(message) };
   }
 }
 
@@ -463,7 +626,7 @@ export async function deleteSocialLink(
         error,
         id,
       });
-      return { success: false, error: error.message };
+      return { success: false, error: settingsUiError(error.message) };
     }
 
     revalidatePath("/admin/settings");
@@ -471,6 +634,6 @@ export async function deleteSocialLink(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[settings] deleteSocialLink exception:", err);
-    return { success: false, error: message };
+    return { success: false, error: settingsUiError(message) };
   }
 }

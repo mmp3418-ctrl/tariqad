@@ -54,6 +54,7 @@ import { Modal } from "@/components/ui/modal";
 import { Switch } from "@/components/ui/switch";
 import { SocialIcon } from "@/components/ui/social-icon";
 import { useToast } from "@/components/ui/toast";
+import { settingsUiError } from "@/lib/ids";
 
 const emptyLinkForm = {
   platform_name: "",
@@ -142,16 +143,15 @@ export function SettingsManager() {
         setLinks(result.data.social_links);
         setBranding(result.data.branding ?? { id: 1, logo_url: null });
         setContact(fromSettings(result.data.settings));
-      } else if (!result.success) {
-        error(result.error || "تعذّر تحميل البيانات حالياً، يرجى المحاولة لاحقاً");
       }
+      // getSettingsBundle soft-succeeds — no error toast on mount/fetch.
     } catch (err) {
       console.error("[settings-manager] load:", err);
-      error("تعذّر تحميل البيانات حالياً، يرجى المحاولة لاحقاً");
+      // Still no stage/grade toast on settings mount.
     } finally {
       setLoading(false);
     }
-  }, [error]);
+  }, []);
 
   useEffect(() => {
     void load();
@@ -191,7 +191,7 @@ export function SettingsManager() {
           setContact(fromSettings(result.data));
           success(result.message ?? "تم الحفظ بنجاح");
         } else if (!result.success) {
-          error(result.error);
+          error(settingsUiError(result.error, "حدث خطأ أثناء الحفظ"));
         }
       } catch (err) {
         console.error("[settings-manager] saveSiteSettings:", err);
@@ -264,8 +264,9 @@ export function SettingsManager() {
           setModalOpen(false);
           success(result.message ?? "تم الحفظ");
         } else if (!result.success) {
-          setLinkError(result.error);
-          error(result.error);
+          const msg = settingsUiError(result.error, "حدث خطأ أثناء حفظ القناة");
+          setLinkError(msg);
+          error(msg);
         }
       } catch (err) {
         console.error("[settings-manager] saveSocialLink:", err);
@@ -293,7 +294,7 @@ export function SettingsManager() {
               l.id === id ? { ...l, is_active: !is_active } : l
             )
           );
-          error(result.error);
+          error(settingsUiError(result.error, "تعذر تحديث حالة القناة"));
         }
       } catch (err) {
         console.error("[settings-manager] toggleSocialLinkActive:", err);
@@ -322,7 +323,7 @@ export function SettingsManager() {
           success(result.message ?? "تم الحذف");
         } else {
           setLinks(previous);
-          error(result.error);
+          error(settingsUiError(result.error, "تعذر حذف القناة"));
         }
       } catch (err) {
         console.error("[settings-manager] deleteSocialLink:", err);

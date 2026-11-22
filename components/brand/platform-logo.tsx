@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getSiteBranding } from "@/app/admin/settings/actions";
-
-const DEFAULT_LOGO = "/logo.png";
+import { DEFAULT_LOGO_PATH, sanitizeLogoUrl } from "@/lib/branding";
 
 type PlatformLogoProps = {
   className?: string;
@@ -17,12 +16,13 @@ export function PlatformLogo({
   priority = false,
   src,
 }: PlatformLogoProps) {
-  const [logoUrl, setLogoUrl] = useState(src?.trim() || DEFAULT_LOGO);
+  const initial = sanitizeLogoUrl(src) || DEFAULT_LOGO_PATH;
+  const [logoUrl, setLogoUrl] = useState(initial);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     if (src != null) {
-      setLogoUrl(src.trim() || DEFAULT_LOGO);
+      setLogoUrl(sanitizeLogoUrl(src) || DEFAULT_LOGO_PATH);
       setFailed(false);
       return;
     }
@@ -32,11 +32,13 @@ export function PlatformLogo({
       try {
         const result = await getSiteBranding();
         if (cancelled) return;
-        const url = result.success ? result.data?.logo_url?.trim() : "";
-        setLogoUrl(url || DEFAULT_LOGO);
+        const url = result.success
+          ? sanitizeLogoUrl(result.data?.logo_url)
+          : null;
+        setLogoUrl(url || DEFAULT_LOGO_PATH);
         setFailed(false);
       } catch {
-        if (!cancelled) setLogoUrl(DEFAULT_LOGO);
+        if (!cancelled) setLogoUrl(DEFAULT_LOGO_PATH);
       }
     })();
 
@@ -65,8 +67,8 @@ export function PlatformLogo({
       height={160}
       className={className}
       onError={() => {
-        if (logoUrl !== DEFAULT_LOGO) {
-          setLogoUrl(DEFAULT_LOGO);
+        if (logoUrl !== DEFAULT_LOGO_PATH) {
+          setLogoUrl(DEFAULT_LOGO_PATH);
           return;
         }
         setFailed(true);

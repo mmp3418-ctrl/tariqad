@@ -42,13 +42,30 @@ export function isMissingColumnError(message: string, column: string): boolean {
 const FRIENDLY_GENERIC =
   "تعذّر إتمام العملية حالياً، يرجى المحاولة لاحقاً.";
 
-/** Map raw DB/API errors to polished Arabic UX copy (never leak internals). */
+export const STAGE_GRADE_REQUIRED =
+  "يرجى اختيار المرحلة والصف قبل الحفظ.";
+
+/**
+ * Map raw DB/API errors to polished Arabic UX copy (never leak internals).
+ * Never maps generic UUID/DB errors to stage/grade copy — that message is
+ * reserved for explicit stage/grade validation (`STAGE_GRADE_REQUIRED`).
+ */
 export function arabicDbError(message: string): string {
   const text = String(message ?? "").trim();
   if (!text) return FRIENDLY_GENERIC;
 
+  // Stale / mis-mapped copy from older clients — never show on branding/settings.
+  // Explicit form validation uses STAGE_GRADE_REQUIRED ("قبل الحفظ") directly
+  // and must not go through this mapper.
+  if (
+    text.includes("اختيار المرحلة والصف بشكل صحيح") ||
+    (text.includes("المرحلة والصف") && !text.includes("قبل الحفظ"))
+  ) {
+    return FRIENDLY_GENERIC;
+  }
+
   if (/invalid input syntax for type uuid/i.test(text)) {
-    return "يرجى اختيار المرحلة والصف بشكل صحيح.";
+    return FRIENDLY_GENERIC;
   }
   if (/duplicate key|unique constraint/i.test(text)) {
     return "هذا السجل موجود مسبقاً.";
@@ -67,5 +84,12 @@ export function arabicDbError(message: string): string {
   return text;
 }
 
-export const STAGE_GRADE_REQUIRED =
-  "يرجى اختيار المرحلة والصف قبل الحفظ.";
+/** Settings/branding UI: never surface stage/grade validation copy. */
+export function settingsUiError(
+  message: unknown,
+  fallback = FRIENDLY_GENERIC,
+): string {
+  const text = String(message ?? "").trim();
+  if (!text || /المرحلة والصف/.test(text)) return fallback;
+  return arabicDbError(text);
+}

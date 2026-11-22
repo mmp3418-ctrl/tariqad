@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { ImagePlus, RotateCcw, Sparkles } from "lucide-react";
 import { resetSiteLogo, setSiteLogoUrl } from "@/app/admin/settings/actions";
-import { DEFAULT_LOGO_PATH } from "@/lib/branding";
+import { DEFAULT_LOGO_PATH, sanitizeLogoUrl } from "@/lib/branding";
+import { settingsUiError } from "@/lib/ids";
 import { uploadBrandLogo } from "@/lib/storage";
 import type { SiteBranding } from "@/lib/types";
 import { useToast } from "@/components/ui/toast";
@@ -27,8 +28,9 @@ export function LogoBrandingCard({
     setPreviewFailed(false);
   }, [initial]);
 
-  const displayUrl = branding.logo_url?.trim() || DEFAULT_LOGO_PATH;
-  const isCustom = Boolean(branding.logo_url?.trim());
+  const customUrl = sanitizeLogoUrl(branding.logo_url);
+  const displayUrl = customUrl || DEFAULT_LOGO_PATH;
+  const isCustom = Boolean(customUrl);
   const busy = uploading || pending;
 
   function apply(next: SiteBranding) {
@@ -43,7 +45,11 @@ export function LogoBrandingCard({
     try {
       const uploaded = await uploadBrandLogo(file);
       if (!uploaded.success || !uploaded.data) {
-        error(uploaded.success === false ? uploaded.error : "تعذّر رفع الشعار");
+        error(
+          uploaded.success === false
+            ? uploaded.error
+            : "تعذّر رفع الشعار حالياً، يرجى المحاولة لاحقاً",
+        );
         return;
       }
 
@@ -52,7 +58,12 @@ export function LogoBrandingCard({
         apply(saved.data);
         success(saved.message ?? "تم تحديث الشعار");
       } else if (!saved.success) {
-        error(saved.error);
+        error(
+          settingsUiError(
+            saved.error,
+            "تعذّر حفظ الشعار حالياً، يرجى المحاولة لاحقاً",
+          ),
+        );
       }
     } catch (err) {
       console.error("[logo-branding] upload:", err);
@@ -71,7 +82,12 @@ export function LogoBrandingCard({
           apply(result.data);
           success(result.message ?? "تم استعادة الشعار الافتراضي");
         } else if (!result.success) {
-          error(result.error);
+          error(
+            settingsUiError(
+              result.error,
+              "تعذّر استعادة الشعار حالياً، يرجى المحاولة لاحقاً",
+            ),
+          );
         }
       } catch (err) {
         console.error("[logo-branding] reset:", err);
