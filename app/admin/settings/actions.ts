@@ -1,20 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { sanitizeLogoUrl } from "@/lib/branding";
 import { settingsUiError } from "@/lib/ids";
 import { supabase } from "@/lib/supabase";
 import type {
   ActionResult,
   SettingsBundle,
-  SiteBranding,
   SiteSettings,
   SocialIconKey,
   SocialLink,
 } from "@/lib/types";
 
 const SETTINGS_ID = 1;
-const BRANDING_ID = 1;
 
 const EMPTY_SETTINGS: SiteSettings = {
   id: SETTINGS_ID,
@@ -126,7 +123,6 @@ async function ensureSettingsRow(): Promise<ActionResult<SiteSettings>> {
       withIntId.error?.message,
       legacy.error?.message,
     );
-    // Soft-fail so branding/settings UI can still render without stage/grade toasts.
     return { success: true, data: EMPTY_SETTINGS };
   } catch (err) {
     console.warn("[settings] ensureSettingsRow exception:", err);
@@ -134,121 +130,39 @@ async function ensureSettingsRow(): Promise<ActionResult<SiteSettings>> {
   }
 }
 
-function normalizeBranding(row: Record<string, unknown>): SiteBranding {
-  const rawId = row.id;
-  return {
-    id:
-      typeof rawId === "number" || typeof rawId === "string"
-        ? rawId
-        : BRANDING_ID,
-    logo_url: sanitizeLogoUrl(row.logo_url),
-    updated_at: row.updated_at ? String(row.updated_at) : undefined,
-  };
-}
-
-const EMPTY_BRANDING: SiteBranding = { id: BRANDING_ID, logo_url: null };
-
-/**
- * Load/create the single branding row.
- * Soft-fails to empty branding — never surfaces stage/grade or UUID jargon.
- * Avoids blind `.eq('id', 1)` when the live PK type is unknown.
- */
-async function ensureBrandingRow(): Promise<ActionResult<SiteBranding>> {
-  try {
-    const any = await supabase
-      .from("site_branding")
-      .select("*")
-      .limit(1)
-      .maybeSingle();
-
-    if (!any.error && any.data) {
-      return {
-        success: true,
-        data: normalizeBranding(any.data as Record<string, unknown>),
-      };
-    }
-
-    if (any.error) {
-      console.warn("[settings] ensureBrandingRow select:", any.error.message);
-    }
-
-    // Prefer insert without fixed id (works for uuid defaults); then integer id=1.
-    const legacy = await supabase
-      .from("site_branding")
-      .insert({
-        logo_url: null,
-        updated_at: new Date().toISOString(),
-      })
-      .select("*")
-      .maybeSingle();
-
-    if (!legacy.error && legacy.data) {
-      return {
-        success: true,
-        data: normalizeBranding(legacy.data as Record<string, unknown>),
-      };
-    }
-
-    const withIntId = await supabase
-      .from("site_branding")
-      .upsert({
-        id: BRANDING_ID,
-        logo_url: null,
-        updated_at: new Date().toISOString(),
-      })
-      .select("*")
-      .maybeSingle();
-
-    if (!withIntId.error && withIntId.data) {
-      return {
-        success: true,
-        data: normalizeBranding(withIntId.data as Record<string, unknown>),
-      };
-    }
-
-    console.warn(
-      "[settings] ensureBrandingRow soft-fail:",
-      legacy.error?.message,
-      withIntId.error?.message,
-    );
-    return { success: true, data: EMPTY_BRANDING };
-  } catch (err) {
-    console.warn("[settings] ensureBrandingRow exception:", err);
-    return { success: true, data: EMPTY_BRANDING };
-  }
-}
-
 async function fetchSocialLinks(): Promise<ActionResult<SocialLink[]>> {
-  const { data, error } = await supabase
-    .from("social_links")
-    .select("*")
-    .order("sort_order", { ascending: true })
-    .order("created_at", { ascending: true });
+  try {
+    const { data, error } = await supabase
+      .from("social_links")
+      .select("*")
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true });
 
-  if (error) {
-    console.error("[settings] fetchSocialLinks:", error.message, error);
-    // Soft-fail: empty channels rather than stage/grade / UUID toast on mount.
+    if (error) {
+      console.error("[settings] fetchSocialLinks:", error.message, error);
+      return { success: true, data: [] };
+    }
+
+    const links = (data ?? []).map((row) =>
+      normalizeSocialLink(row as Record<string, unknown>),
+    );
+    return { success: true, data: links };
+  } catch (err) {
+    console.warn("[settings] fetchSocialLinks exception:", err);
     return { success: true, data: [] };
   }
-
-  const links = (data ?? []).map((row) =>
-    normalizeSocialLink(row as Record<string, unknown>)
-  );
-  return { success: true, data: links };
 }
 
-/** Load site_settings + social_links + branding together for the admin UI. */
+/** Load site_settings + social_links for the admin settings UI. */
 export async function getSettingsBundle(): Promise<
   ActionResult<SettingsBundle>
 > {
   try {
-    const [settingsResult, linksResult, brandingResult] = await Promise.all([
+    const [settingsResult, linksResult] = await Promise.all([
       ensureSettingsRow(),
       fetchSocialLinks(),
-      ensureBrandingRow(),
     ]);
 
-    // Always succeed for settings/branding — never toast stage/grade on mount.
     return {
       success: true,
       data: {
@@ -256,9 +170,6 @@ export async function getSettingsBundle(): Promise<
           ? (settingsResult.data ?? EMPTY_SETTINGS)
           : EMPTY_SETTINGS,
         social_links: linksResult.success ? (linksResult.data ?? []) : [],
-        branding: brandingResult.success
-          ? (brandingResult.data ?? EMPTY_BRANDING)
-          : EMPTY_BRANDING,
       },
     };
   } catch (err) {
@@ -268,103 +179,9 @@ export async function getSettingsBundle(): Promise<
       data: {
         settings: EMPTY_SETTINGS,
         social_links: [],
-        branding: EMPTY_BRANDING,
       },
     };
   }
-}
-
-export async function getSiteBranding(): Promise<ActionResult<SiteBranding>> {
-  try {
-    return await ensureBrandingRow();
-  } catch (err) {
-    console.warn("[settings] getSiteBranding exception:", err);
-    return { success: true, data: EMPTY_BRANDING };
-  }
-}
-
-export async function setSiteLogoUrl(
-  logoUrl: string | null
-): Promise<ActionResult<SiteBranding>> {
-  try {
-    const trimmed = sanitizeLogoUrl(logoUrl);
-    const updated_at = new Date().toISOString();
-
-    // Update existing row first (works for integer or uuid PK) — never force id=1.
-    const existing = await supabase
-      .from("site_branding")
-      .select("id")
-      .limit(1)
-      .maybeSingle();
-
-    let data: Record<string, unknown> | null = null;
-    let errorMessage = "";
-
-    if (!existing.error && existing.data?.id != null) {
-      const updated = await supabase
-        .from("site_branding")
-        .update({ logo_url: trimmed, updated_at })
-        .eq("id", existing.data.id)
-        .select("*")
-        .maybeSingle();
-      if (updated.error) {
-        errorMessage = updated.error.message;
-      } else {
-        data = (updated.data as Record<string, unknown> | null) ?? null;
-      }
-    } else {
-      const inserted = await supabase
-        .from("site_branding")
-        .insert({ logo_url: trimmed, updated_at })
-        .select("*")
-        .maybeSingle();
-      if (inserted.error) {
-        const withIntId = await supabase
-          .from("site_branding")
-          .upsert({ id: BRANDING_ID, logo_url: trimmed, updated_at })
-          .select("*")
-          .maybeSingle();
-        if (withIntId.error) {
-          errorMessage = withIntId.error.message || inserted.error.message;
-        } else {
-          data = (withIntId.data as Record<string, unknown> | null) ?? null;
-        }
-      } else {
-        data = (inserted.data as Record<string, unknown> | null) ?? null;
-      }
-    }
-
-    if (!data) {
-      console.error("[settings] setSiteLogoUrl:", errorMessage);
-      return {
-        success: false,
-        error: settingsUiError(
-          errorMessage,
-          "تعذّر حفظ الشعار حالياً، يرجى المحاولة لاحقاً.",
-        ),
-      };
-    }
-
-    revalidatePath("/admin/settings");
-    revalidatePath("/admin");
-    return {
-      success: true,
-      data: normalizeBranding(data),
-      message: trimmed
-        ? "تم تحديث شعار المنصة"
-        : "تم استعادة الشعار الافتراضي",
-    };
-  } catch (err) {
-    console.error("[settings] setSiteLogoUrl exception:", err);
-    return {
-      success: false,
-      error: "تعذّر حفظ الشعار حالياً، يرجى المحاولة لاحقاً.",
-    };
-  }
-}
-
-export async function resetSiteLogo(): Promise<ActionResult<SiteBranding>> {
-  return setSiteLogoUrl(null);
 }
 
 export type SaveSiteSettingsInput = {
@@ -376,7 +193,7 @@ export type SaveSiteSettingsInput = {
 };
 
 export async function saveSiteSettings(
-  input: SaveSiteSettingsInput
+  input: SaveSiteSettingsInput,
 ): Promise<ActionResult<SiteSettings>> {
   try {
     const fields = {
@@ -463,7 +280,7 @@ export type SocialLinkInput = {
 };
 
 export async function createSocialLink(
-  input: SocialLinkInput
+  input: SocialLinkInput,
 ): Promise<ActionResult<SocialLink>> {
   try {
     const platform_name = input.platform_name.trim();
@@ -517,7 +334,7 @@ export async function createSocialLink(
 
 export async function updateSocialLink(
   id: string,
-  input: SocialLinkInput
+  input: SocialLinkInput,
 ): Promise<ActionResult<SocialLink>> {
   try {
     if (!id) {
@@ -572,7 +389,7 @@ export async function updateSocialLink(
 
 export async function toggleSocialLinkActive(
   id: string,
-  is_active: boolean
+  is_active: boolean,
 ): Promise<ActionResult<SocialLink>> {
   try {
     if (!id) {
@@ -608,9 +425,7 @@ export async function toggleSocialLinkActive(
   }
 }
 
-export async function deleteSocialLink(
-  id: string
-): Promise<ActionResult> {
+export async function deleteSocialLink(id: string): Promise<ActionResult> {
   try {
     if (!id) {
       return { success: false, error: "معرّف القناة غير صالح" };

@@ -44,15 +44,16 @@ import {
   validateSocialUrl,
 } from "@/lib/social";
 import type {
-  SiteBranding,
   SiteSettings,
   SocialIconKey,
   SocialLink,
 } from "@/lib/types";
-import { LogoBrandingCard } from "@/components/settings/logo-branding-card";
 import { Modal } from "@/components/ui/modal";
 import { Switch } from "@/components/ui/switch";
 import { SocialIcon } from "@/components/ui/social-icon";
+import { EmptyListState } from "@/components/ui/empty-list-state";
+import { ListSkeleton } from "@/components/ui/list-skeleton";
+import { SearchField } from "@/components/ui/search-field";
 import { useToast } from "@/components/ui/toast";
 import { settingsUiError } from "@/lib/ids";
 
@@ -105,10 +106,6 @@ export function SettingsManager() {
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<SiteSettings>(emptySettings());
   const [links, setLinks] = useState<SocialLink[]>([]);
-  const [branding, setBranding] = useState<SiteBranding>({
-    id: 1,
-    logo_url: null,
-  });
   const [contact, setContact] = useState<ContactForm>(emptyContact());
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -117,11 +114,20 @@ export function SettingsManager() {
   const [editing, setEditing] = useState<SocialLink | null>(null);
   const [linkForm, setLinkForm] = useState(emptyLinkForm);
   const [linkError, setLinkError] = useState<string | null>(null);
+  const [channelSearch, setChannelSearch] = useState("");
 
   const activeCount = useMemo(
     () => links.filter((l) => l.is_active).length,
     [links]
   );
+
+  const filteredLinks = useMemo(() => {
+    const q = channelSearch.trim().toLowerCase();
+    if (!q) return links;
+    return links.filter((l) =>
+      l.platform_name.toLowerCase().includes(q)
+    );
+  }, [links, channelSearch]);
 
   const emailPreview = contact.email.trim()
     ? toMailtoLink(contact.email)
@@ -141,10 +147,8 @@ export function SettingsManager() {
       if (result.success && result.data) {
         setSettings(result.data.settings);
         setLinks(result.data.social_links);
-        setBranding(result.data.branding ?? { id: 1, logo_url: null });
         setContact(fromSettings(result.data.settings));
       }
-      // getSettingsBundle soft-succeeds — no error toast on mount/fetch.
     } catch (err) {
       console.error("[settings-manager] load:", err);
       // Still no stage/grade toast on settings mount.
@@ -335,8 +339,17 @@ export function SettingsManager() {
 
   if (loading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center text-slate-600 dark:text-slate-400">
-        جاري التحميل...
+      <div className="space-y-6" dir="rtl">
+        <header className="flex flex-col gap-3">
+          <div className="mb-1 flex items-center gap-2 text-teal-700 dark:text-teal-300">
+            <Settings2 className="h-5 w-5" />
+            <span className="text-sm font-semibold">إعدادات الموقع</span>
+          </div>
+          <h2 className="text-2xl font-extrabold text-slate-900 dark:text-slate-100">
+            بيانات التواصل والقنوات
+          </h2>
+        </header>
+        <ListSkeleton rows={3} className="border-slate-200 dark:border-white/10" />
       </div>
     );
   }
@@ -350,10 +363,10 @@ export function SettingsManager() {
             <span className="text-sm font-semibold">إعدادات الموقع</span>
           </div>
           <h2 className="text-2xl font-extrabold text-slate-900 dark:text-slate-100">
-            الشعار والتواصل والقنوات
+            بيانات التواصل والقنوات
           </h2>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-            إدارة شعار المنصة وبيانات التواصل والقنوات الظاهرة للزوّار
+            إدارة بيانات التواصل والقنوات الظاهرة للزوّار
           </p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
@@ -363,12 +376,6 @@ export function SettingsManager() {
           </span>
         </div>
       </header>
-
-      <LogoBrandingCard
-        key={branding.logo_url ?? "default-logo"}
-        initial={branding}
-        onChange={setBranding}
-      />
 
       <form onSubmit={handleSaveContact} className="space-y-4">
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
@@ -501,13 +508,32 @@ export function SettingsManager() {
           </button>
         </div>
 
+        {links.length > 0 ? (
+          <div className="mt-5 max-w-md">
+            <SearchField
+              value={channelSearch}
+              onChange={setChannelSearch}
+              placeholder="بحث باسم المنصة..."
+              className="[&_input]:border-slate-300 [&_input]:bg-white [&_input]:text-slate-900 dark:[&_input]:border-slate-700 dark:[&_input]:bg-slate-800 dark:[&_input]:text-slate-100"
+            />
+          </div>
+        ) : null}
+
         <div className="mt-5 space-y-3">
           {links.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-400">
-              لا توجد قنوات بعد — أضف أول منصة اجتماعية من هنا
-            </div>
+            <EmptyListState
+              message="لا توجد قنوات بعد"
+              hint="اضغط «إضافة قناة» لإظهار أول رابط تواصل للزوّار"
+              className="border-slate-300 dark:border-white/15"
+            />
+          ) : filteredLinks.length === 0 ? (
+            <EmptyListState
+              message="لا توجد نتائج مطابقة"
+              hint="جرّب اسم منصة آخر أو امسح حقل البحث"
+              className="border-slate-300 dark:border-white/15"
+            />
           ) : (
-            links.map((link) => {
+            filteredLinks.map((link) => {
               const href = safeExternalHref(link.url);
               return (
                 <article
@@ -696,7 +722,7 @@ export function SettingsManager() {
               حذف القناة
             </h3>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-              هل أنت متأكد من حذف هذه القناة؟
+              ستختفي القناة من صفحة التواصل ولن يتمكن الزوّار من الوصول إليها.
             </p>
             <div className="mt-6 flex justify-end gap-2">
               <button

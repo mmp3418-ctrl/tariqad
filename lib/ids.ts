@@ -54,7 +54,7 @@ export function arabicDbError(message: string): string {
   const text = String(message ?? "").trim();
   if (!text) return FRIENDLY_GENERIC;
 
-  // Stale / mis-mapped copy from older clients — never show on branding/settings.
+  // Stale / mis-mapped copy from older clients — never show outside form submit.
   // Explicit form validation uses STAGE_GRADE_REQUIRED ("قبل الحفظ") directly
   // and must not go through this mapper.
   if (
@@ -84,7 +84,7 @@ export function arabicDbError(message: string): string {
   return text;
 }
 
-/** Settings/branding UI: never surface stage/grade validation copy. */
+/** Settings UI: never surface stage/grade validation copy. */
 export function settingsUiError(
   message: unknown,
   fallback = FRIENDLY_GENERIC,

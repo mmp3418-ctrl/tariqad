@@ -1,51 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getSiteBranding } from "@/app/admin/settings/actions";
-import { DEFAULT_LOGO_PATH, sanitizeLogoUrl } from "@/lib/branding";
+import { useState } from "react";
+
+const DEFAULT_LOGO = "/logo.png";
 
 type PlatformLogoProps = {
   className?: string;
   priority?: boolean;
-  /** Optional override (e.g. live preview) */
+  /** Optional override; empty/null falls back to `/logo.png` */
   src?: string | null;
 };
 
+/**
+ * Static platform mark. Always uses `/logo.png` unless an explicit `src` is passed.
+ * Logo upload / site_branding management has been removed from admin.
+ */
 export function PlatformLogo({
   className = "h-10 w-auto object-contain",
   priority = false,
   src,
 }: PlatformLogoProps) {
-  const initial = sanitizeLogoUrl(src) || DEFAULT_LOGO_PATH;
-  const [logoUrl, setLogoUrl] = useState(initial);
+  const preferred = String(src ?? "").trim() || DEFAULT_LOGO;
+  const [logoUrl, setLogoUrl] = useState(preferred);
   const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    if (src != null) {
-      setLogoUrl(sanitizeLogoUrl(src) || DEFAULT_LOGO_PATH);
-      setFailed(false);
-      return;
-    }
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const result = await getSiteBranding();
-        if (cancelled) return;
-        const url = result.success
-          ? sanitizeLogoUrl(result.data?.logo_url)
-          : null;
-        setLogoUrl(url || DEFAULT_LOGO_PATH);
-        setFailed(false);
-      } catch {
-        if (!cancelled) setLogoUrl(DEFAULT_LOGO_PATH);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [src]);
 
   if (failed) {
     return (
@@ -59,16 +36,17 @@ export function PlatformLogo({
   }
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- public/custom brand asset with fallback
+    // eslint-disable-next-line @next/next/no-img-element -- static public brand asset
     <img
-      src={logoUrl}
+      key={preferred}
+      src={logoUrl === preferred ? preferred : logoUrl}
       alt="شعار منصة طارق"
       width={160}
       height={160}
       className={className}
       onError={() => {
-        if (logoUrl !== DEFAULT_LOGO_PATH) {
-          setLogoUrl(DEFAULT_LOGO_PATH);
+        if (logoUrl !== DEFAULT_LOGO) {
+          setLogoUrl(DEFAULT_LOGO);
           return;
         }
         setFailed(true);

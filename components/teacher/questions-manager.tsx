@@ -1,12 +1,16 @@
 "use client";
-import { FormEvent, useCallback, useEffect, useState, useTransition } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { HelpCircle, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { getAcademicTree } from "@/app/admin/academic/actions";
 import { createQuestion, deleteQuestion, getQuestions, toggleQuestionActive, updateQuestion } from "@/app/admin/teacher/questions/actions";
+import { listLoadError } from "@/lib/list-load-error";
 import type { AcademicGrade, AcademicStage, QuestionBankItem } from "@/lib/types";
 import { StageGradeFields } from "@/components/teacher-space/stage-grade-fields";
+import { EmptyListState } from "@/components/ui/empty-list-state";
+import { ListSkeleton } from "@/components/ui/list-skeleton";
 import { Modal } from "@/components/ui/modal";
+import { SearchField } from "@/components/ui/search-field";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
 const field = "w-full rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2.5 text-sm text-slate-100 outline-none focus:border-teal-600";
@@ -19,17 +23,35 @@ export function QuestionsManager() {
   const [items, setItems] = useState<QuestionBankItem[]>([]);
   const [stages, setStages] = useState<AcademicStage[]>([]);
   const [grades, setGrades] = useState<AcademicGrade[]>([]);
+  const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editing, setEditing] = useState<QuestionBankItem | null>(null);
   const [form, setForm] = useState(empty);
   const [formError, setFormError] = useState<string | null>(null);
+  const filteredItems = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((item) => item.question_text.toLowerCase().includes(q));
+  }, [items, search]);
   const load = useCallback(async () => {
     setLoading(true);
-    const [tree, list] = await Promise.all([getAcademicTree(), getQuestions()]);
-    if (tree.success && tree.data) { setStages(tree.data.stages); setGrades(tree.data.grades); } else if (!tree.success) error(tree.error);
-    if (list.success && list.data) setItems(list.data); else if (!list.success) error(list.error);
-    setLoading(false);
+    try {
+      const [tree, list] = await Promise.all([getAcademicTree(), getQuestions()]);
+      if (tree.success && tree.data) {
+        setStages(tree.data.stages);
+        setGrades(tree.data.grades);
+      } else if (!tree.success) {
+        console.error("[questions-manager] academic tree:", tree.error);
+      }
+      if (list.success && list.data) setItems(list.data);
+      else if (!list.success) error(listLoadError(list.error));
+    } catch (err) {
+      console.error("[questions-manager] load:", err);
+      error("تعذّر تحميل الأسئلة، يرجى المحاولة لاحقاً");
+    } finally {
+      setLoading(false);
+    }
   }, [error]);
   useEffect(() => { void load(); }, [load]);
   function save(e: FormEvent) {
@@ -45,15 +67,30 @@ export function QuestionsManager() {
       else if (!result.success) { setFormError(result.error); error(result.error); }
     });
   }
-  if (loading) return <div className="flex min-h-[40vh] items-center justify-center text-slate-400">جاري تحميل بنك الأسئلة...</div>;
+  const listHeader = (
+    <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div><Link href="/admin/teacher" className="mb-1 flex items-center gap-2 text-sm font-semibold text-teal-300/90"><HelpCircle className="h-5 w-5" />مساحة المعلم</Link><h2 className="text-2xl font-extrabold text-white">بنك الأسئلة</h2><p className="mt-1 text-sm text-slate-400">أسئلة اختيار من متعدد مع الإجابة الصحيحة</p></div>
+      <button type="button" onClick={() => { setEditing(null); setForm({ ...empty, options: ["", "", "", ""] }); setFormError(null); setOpen(true); }} className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-l from-teal-700 to-teal-600 px-4 text-sm font-semibold text-white"><Plus className="h-4 w-4" />إضافة سؤال</button>
+    </header>
+  );
+  if (loading) {
+    return (
+      <div className="space-y-6 text-slate-100" dir="rtl">
+        {listHeader}
+        <ListSkeleton rows={4} />
+      </div>
+    );
+  }
   return (
     <div className="space-y-6 text-slate-100" dir="rtl">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div><Link href="/admin/teacher" className="mb-1 flex items-center gap-2 text-sm font-semibold text-teal-300/90"><HelpCircle className="h-5 w-5" />مساحة المعلم</Link><h2 className="text-2xl font-extrabold text-white">بنك الأسئلة</h2><p className="mt-1 text-sm text-slate-400">أسئلة اختيار من متعدد مع الإجابة الصحيحة</p></div>
-        <button type="button" onClick={() => { setEditing(null); setForm({ ...empty, options: ["", "", "", ""] }); setFormError(null); setOpen(true); }} className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-l from-teal-700 to-teal-600 px-4 text-sm font-semibold text-white"><Plus className="h-4 w-4" />إضافة سؤال</button>
-      </header>
+      {listHeader}
+      <SearchField value={search} onChange={setSearch} placeholder="بحث بنص السؤال..." className="max-w-md" />
       <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900/90 to-slate-950/90 p-4 shadow-2xl sm:p-6">
-        {items.length === 0 ? <div className="rounded-xl border border-dashed border-white/15 px-4 py-10 text-center text-sm text-slate-500">لا توجد أسئلة بعد</div> : items.map((item) => (
+        {items.length === 0 ? (
+          <EmptyListState message="لا توجد أسئلة بعد" hint="اضغط «إضافة سؤال» في الأعلى لبدء بنك الأسئلة" />
+        ) : filteredItems.length === 0 ? (
+          <EmptyListState message="لا توجد نتائج مطابقة" hint="جرّب كلمة بحث أخرى أو امسح حقل البحث" />
+        ) : filteredItems.map((item) => (
           <article key={item.id} className="mb-2 flex flex-col gap-3 rounded-xl border border-white/8 bg-white/[0.03] p-4 sm:flex-row sm:items-center sm:justify-between">
             <div><p className="font-semibold">{item.question_text}</p><p className="mt-1 text-xs text-slate-500">{stages.find((s) => s.id === item.stage_id)?.name ?? "—"} · {grades.find((g) => g.id === item.grade_id)?.name ?? "—"} · الإجابة: {item.options[item.correct_index] ?? "—"}</p></div>
             <div className="flex items-center gap-2">
@@ -72,10 +109,10 @@ export function QuestionsManager() {
           <StageGradeFields stages={stages} grades={grades} stageId={form.stage_id} gradeId={form.grade_id} onStageChange={(id) => setForm((f) => ({ ...f, stage_id: id, grade_id: "" }))} onGradeChange={(id) => setForm((f) => ({ ...f, grade_id: id }))} />
           <div className="flex items-center justify-between rounded-xl border border-slate-700 px-3 py-3"><span className="text-sm">مفعّل على الموقع</span><Switch checked={form.is_active} onChange={(v) => setForm((f) => ({ ...f, is_active: v }))} /></div>
           {formError ? <p className="text-sm text-rose-300">{formError}</p> : null}
-          <div className="flex justify-end gap-2"><button type="button" onClick={() => setOpen(false)} className="h-10 px-4 text-sm">إلغاء</button><button className="inline-flex h-10 items-center gap-2 rounded-xl bg-teal-700 px-4 text-sm font-semibold text-white"><Save className="h-4 w-4" />حفظ</button></div>
+          <div className="flex justify-end gap-2"><button type="button" onClick={() => setOpen(false)} className="h-10 px-4 text-sm">إلغاء</button><button type="submit" disabled={pending} className="inline-flex h-10 items-center gap-2 rounded-xl bg-teal-700 px-4 text-sm font-semibold text-white disabled:opacity-60"><Save className="h-4 w-4" />حفظ</button></div>
         </form>
       </Modal>
-      {deleteId ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"><div className="w-full max-w-md rounded-2xl bg-slate-900 p-6"><h3 className="font-bold">حذف السؤال</h3><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setDeleteId(null)} className="h-10 px-4">إلغاء</button><button type="button" onClick={() => { const id = deleteId; const prev = items; setDeleteId(null); setItems((rows) => rows.filter((row) => row.id !== id)); startTransition(async () => { const result = await deleteQuestion(id); if (result.success) success(result.message ?? "تم الحذف"); else { setItems(prev); error(result.error); } }); }} className="h-10 rounded-xl bg-rose-600 px-4 text-white">تأكيد الحذف</button></div></div></div> : null}
+      {deleteId ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"><div className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-900 p-6"><h3 className="font-bold text-white">حذف السؤال</h3><p className="mt-2 text-sm text-slate-400">سيُزال السؤال من بنك الأسئلة ولن يظهر في الاختبارات.</p><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setDeleteId(null)} className="h-10 px-4 text-slate-300">إلغاء</button><button type="button" disabled={pending} onClick={() => { const id = deleteId; const prev = items; setDeleteId(null); setItems((rows) => rows.filter((row) => row.id !== id)); startTransition(async () => { const result = await deleteQuestion(id); if (result.success) success(result.message ?? "تم الحذف"); else { setItems(prev); error(result.error); } }); }} className="h-10 rounded-xl bg-rose-600 px-4 text-white disabled:opacity-60">تأكيد الحذف</button></div></div></div> : null}
     </div>
   );
 }

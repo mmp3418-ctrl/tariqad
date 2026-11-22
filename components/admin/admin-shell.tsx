@@ -50,7 +50,7 @@ const NAV = [
   },
   {
     href: "/admin/settings",
-    label: "إعدادات الموقع",
+    label: "التواصل والقنوات",
     icon: Settings,
     exact: false,
   },
@@ -111,17 +111,21 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <Menu className="h-5 w-5 text-slate-100" />
         </button>
 
-        {open ? (
-          <button
-            type="button"
-            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
-            aria-label="إغلاق"
-            onClick={() => setOpen(false)}
-          />
-        ) : null}
+        <button
+          type="button"
+          className={`fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ease-in-out lg:hidden ${
+            open
+              ? "pointer-events-auto opacity-100"
+              : "pointer-events-none opacity-0"
+          }`}
+          aria-label="إغلاق"
+          aria-hidden={!open}
+          tabIndex={open ? 0 : -1}
+          onClick={() => setOpen(false)}
+        />
 
         <aside
-          className={`fixed inset-y-0 start-0 z-50 flex w-[min(18rem,88vw)] flex-col border-e border-white/5 bg-gradient-to-b from-[#0c2f2c] via-[#0a2422] to-[#071816] text-white shadow-2xl transition-transform duration-300 lg:static lg:w-72 lg:translate-x-0 ${
+          className={`fixed inset-y-0 start-0 z-50 flex w-[min(18rem,88vw)] flex-col border-e border-white/5 bg-gradient-to-b from-[#0c2f2c] via-[#0a2422] to-[#071816] text-white shadow-2xl transition-transform duration-300 ease-in-out will-change-transform lg:static lg:w-72 lg:translate-x-0 ${
             open ? "translate-x-0" : "translate-x-full lg:translate-x-0"
           }`}
         >
@@ -159,14 +163,20 @@ export function AdminShell({ children }: { children: ReactNode }) {
                   prefetch
                   scroll
                   onClick={() => setOpen(false)}
-                  className={`flex items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-medium transition ${
+                  className={`relative flex items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-medium transition-colors duration-200 ${
                     active
                       ? "bg-white text-teal-950 shadow-md shadow-black/20"
                       : "text-teal-50/85 hover:bg-white/10"
                   }`}
                 >
-                  <Icon className="h-5 w-5 shrink-0" />
-                  {item.label}
+                  {active ? (
+                    <span
+                      className="absolute inset-y-2 end-0 w-1 rounded-full bg-teal-600"
+                      aria-hidden
+                    />
+                  ) : null}
+                  <Icon className="h-5 w-5 shrink-0" aria-hidden />
+                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
                 </Link>
               );
             })}
