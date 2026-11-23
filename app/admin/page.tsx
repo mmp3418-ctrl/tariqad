@@ -1,6 +1,5 @@
 import Link from "next/link";
 import {
-  BookOpen,
   CirclePlay,
   FileText,
   GraduationCap,
@@ -21,12 +20,6 @@ const CARDS = [
     title: "محتوى الصفحة الرئيسية",
     desc: "العنوان، النص الفرعي، زر CTA، ونبذة عن المنصة",
     icon: Home,
-  },
-  {
-    href: "/admin/books",
-    title: "إدارة الكتب",
-    desc: "كتالوج الكتب مع الغلاف والتحميل والسعر",
-    icon: BookOpen,
   },
   {
     href: "/admin/academic",

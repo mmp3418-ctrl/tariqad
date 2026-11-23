@@ -34,6 +34,7 @@ function normalizePlaylist(row: Record<string, unknown>): VideoPlaylist {
     cover_image_url: cover || null,
     stage_id: row.stage_id ? String(row.stage_id) : null,
     grade_id: row.grade_id ? String(row.grade_id) : null,
+    subject_id: row.subject_id ? String(row.subject_id) : null,
     is_active: row.is_active !== false,
     sort_order: Number(row.sort_order ?? 0),
     created_at: row.created_at ? String(row.created_at) : undefined,
@@ -77,6 +78,7 @@ export type PlaylistInput = {
   cover_image_url?: string | null;
   stage_id: string;
   grade_id: string;
+  subject_id: string;
   is_active: boolean;
 };
 
@@ -92,6 +94,7 @@ function buildPayload(input: PlaylistInput) {
     cover_image_url: cover || null,
     stage_id: toUuidOrNull(input.stage_id),
     grade_id: toUuidOrNull(input.grade_id),
+    subject_id: toUuidOrNull(input.subject_id),
     is_active: input.is_active !== false,
     updated_at: new Date().toISOString(),
   };
@@ -124,6 +127,17 @@ async function persistPlaylist(
   };
 
   let { data, error } = await run(base);
+
+  if (
+    error &&
+    /subject_id/i.test(error.message) &&
+    isMissingColumnError(error.message, "subject_id")
+  ) {
+    const { subject_id: _omit, ...withoutSubject } = base;
+    const retry = await run(withoutSubject);
+    data = retry.data;
+    error = retry.error;
+  }
 
   // Legacy tables without cover_image_url — retry without the column.
   if (
@@ -181,6 +195,12 @@ export async function createPlaylist(
         error: "يرجى اختيار المرحلة والصف قبل الحفظ.",
       };
     }
+    if (!toUuidOrNull(input.subject_id)) {
+      return {
+        success: false,
+        error: "يرجى اختيار المادة الدراسية قبل الحفظ.",
+      };
+    }
 
     console.info("[playlists] create payload:", {
       keys: Object.keys(buildPayload(input)),
@@ -221,6 +241,12 @@ export async function updatePlaylist(
       return {
         success: false,
         error: "يرجى اختيار المرحلة والصف قبل الحفظ.",
+      };
+    }
+    if (!toUuidOrNull(input.subject_id)) {
+      return {
+        success: false,
+        error: "يرجى اختيار المادة الدراسية قبل الحفظ.",
       };
     }
 

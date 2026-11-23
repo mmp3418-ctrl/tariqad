@@ -53,16 +53,18 @@ export interface HomeContent {
   updated_at: string;
 }
 
-/** Row from public.books */
-export interface Book {
+/**
+ * Row from public.subjects — course subject per stage/grade.
+ * DB columns: stage / grade are UUIDs referencing academic_stages / academic_grades.
+ */
+export interface Subject {
   id: string;
-  title: string;
-  description: string | null;
-  cover_image_url: string | null;
-  download_link: string | null;
-  price: string | null;
-  is_visible: boolean;
-  sort_order: number;
+  name_ar: string;
+  name_en: string | null;
+  /** academic_stages.id */
+  stage: string;
+  /** academic_grades.id */
+  grade: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -119,6 +121,8 @@ export interface EducationalMaterial {
   file_url: string;
   stage_id: string | null;
   grade_id: string | null;
+  /** public.subjects.id */
+  subject_id: string | null;
   is_active: boolean;
   sort_order: number;
   created_at?: string;
@@ -136,6 +140,8 @@ export interface VideoPlaylist {
   cover_image_url: string | null;
   stage_id: string | null;
   grade_id: string | null;
+  /** public.subjects.id */
+  subject_id: string | null;
   is_active: boolean;
   sort_order: number;
   created_at?: string;

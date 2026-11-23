@@ -25,6 +25,7 @@ import {
   toggleMaterialActive,
   updateMaterial,
 } from "@/app/admin/materials/actions";
+import { getSubjects } from "@/app/admin/subjects/actions";
 import { MATERIAL_TYPE_OPTIONS, materialTypeLabel } from "@/lib/academic";
 import { uploadMaterialPdf } from "@/lib/storage";
 import { safeExternalHref } from "@/lib/social";
@@ -33,7 +34,9 @@ import type {
   AcademicStage,
   EducationalMaterial,
   MaterialType,
+  Subject,
 } from "@/lib/types";
+import { SubjectsPanel } from "@/components/materials/subjects-panel";
 import { Modal } from "@/components/ui/modal";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
@@ -48,6 +51,7 @@ const emptyForm = {
   file_url: "",
   stage_id: "",
   grade_id: "",
+  subject_id: "",
   is_active: true,
 };
 
@@ -59,6 +63,8 @@ export function MaterialsManager() {
   const [items, setItems] = useState<EducationalMaterial[]>([]);
   const [stages, setStages] = useState<AcademicStage[]>([]);
   const [grades, setGrades] = useState<AcademicGrade[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [filterSubjectId, setFilterSubjectId] = useState("");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -75,12 +81,28 @@ export function MaterialsManager() {
     [grades, form.stage_id]
   );
 
+  const formSubjects = useMemo(
+    () =>
+      subjects.filter(
+        (s) =>
+          s.stage === form.stage_id &&
+          s.grade === form.grade_id,
+      ),
+    [subjects, form.stage_id, form.grade_id],
+  );
+
+  const visibleItems = useMemo(() => {
+    if (!filterSubjectId) return items;
+    return items.filter((i) => i.subject_id === filterSubjectId);
+  }, [items, filterSubjectId]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [tree, mats] = await Promise.all([
+      const [tree, mats, subs] = await Promise.all([
         getAcademicTree(),
         getMaterials(),
+        getSubjects(),
       ]);
       if (tree.success && tree.data) {
         setStages(tree.data.stages);
@@ -92,6 +114,9 @@ export function MaterialsManager() {
         setItems(mats.data);
       } else if (!mats.success) {
         error(mats.error);
+      }
+      if (subs.success && subs.data) {
+        setSubjects(subs.data);
       }
     } catch (err) {
       console.error("[materials-manager] load:", err);
@@ -122,6 +147,7 @@ export function MaterialsManager() {
       file_url: item.file_url,
       stage_id: item.stage_id ?? "",
       grade_id: item.grade_id ?? "",
+      subject_id: item.subject_id ?? "",
       is_active: item.is_active,
     });
     setFileName(item.file_url ? "ملف محفوظ" : null);
@@ -171,6 +197,10 @@ export function MaterialsManager() {
     }
     if (!form.stage_id || !form.grade_id) {
       setFormError("اختر المرحلة والصف");
+      return;
+    }
+    if (!form.subject_id) {
+      setFormError("اختر المادة الدراسية");
       return;
     }
     if (!form.file_url.trim()) {
@@ -255,6 +285,9 @@ export function MaterialsManager() {
   function gradeName(id: string | null) {
     return grades.find((g) => g.id === id)?.name ?? "—";
   }
+  function subjectName(id: string | null) {
+    return subjects.find((s) => s.id === id)?.name_ar ?? null;
+  }
 
   if (loading) {
     return (
@@ -276,7 +309,7 @@ export function MaterialsManager() {
             المواد التعليمية
           </h2>
           <p className="mt-1 text-sm text-slate-400">
-            رفع PDF مباشرة إلى التخزين مع ربط المرحلة والصف واسم الوحدة
+            رفع PDF مع ربط المرحلة والصف والمادة الدراسية
           </p>
         </div>
         <button
@@ -289,15 +322,38 @@ export function MaterialsManager() {
         </button>
       </header>
 
+      <SubjectsPanel onSubjectsChange={setSubjects} />
+
       <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900/90 to-slate-950/90 p-4 shadow-2xl shadow-black/40 sm:p-6">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-base font-bold text-white">ملفات PDF</h3>
+          <label className="block w-full max-w-xs space-y-1">
+            <span className="text-xs text-slate-400">تصفية حسب المادة</span>
+            <select
+              value={filterSubjectId}
+              onChange={(e) => setFilterSubjectId(e.target.value)}
+              className={selectClass}
+            >
+              <option value="">كل المواد الدراسية</option>
+              {subjects.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name_ar}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <div className="space-y-2">
-          {items.length === 0 ? (
+          {visibleItems.length === 0 ? (
             <div className="rounded-xl border border-dashed border-white/15 px-4 py-10 text-center text-sm text-slate-500">
-              لا توجد مواد بعد — أضف أول ملف PDF
+              {items.length === 0
+                ? "لا توجد مواد بعد — أضف أول ملف PDF"
+                : "لا توجد نتائج لهذه المادة الدراسية"}
             </div>
           ) : (
-            items.map((item) => {
+            visibleItems.map((item) => {
               const href = safeExternalHref(item.file_url);
+              const subjectLabel = subjectName(item.subject_id);
               return (
                 <article
                   key={item.id}
@@ -311,6 +367,11 @@ export function MaterialsManager() {
                       <span className="rounded-md bg-teal-500/15 px-2 py-0.5 text-[11px] font-semibold text-teal-300">
                         {materialTypeLabel(item.material_type)}
                       </span>
+                      {subjectLabel ? (
+                        <span className="rounded-md bg-sky-500/15 px-2 py-0.5 text-[11px] font-semibold text-sky-300">
+                          {subjectLabel}
+                        </span>
+                      ) : null}
                     </div>
                     <p className="mt-1 truncate text-xs text-slate-500">
                       {stageName(item.stage_id)} · {gradeName(item.grade_id)} ·{" "}
@@ -400,6 +461,7 @@ export function MaterialsManager() {
                     ...f,
                     stage_id: e.target.value,
                     grade_id: "",
+                    subject_id: "",
                   }))
                 }
                 className={selectClass}
@@ -422,7 +484,11 @@ export function MaterialsManager() {
                 required
                 disabled={!form.stage_id}
                 onChange={(e) =>
-                  setForm((f) => ({ ...f, grade_id: e.target.value }))
+                  setForm((f) => ({
+                    ...f,
+                    grade_id: e.target.value,
+                    subject_id: "",
+                  }))
                 }
                 className={`${selectClass} disabled:opacity-40`}
               >
@@ -437,8 +503,34 @@ export function MaterialsManager() {
           </div>
 
           <label className="block space-y-1.5">
-            <span className="text-sm font-medium">نوع المادة</span>
+            <span className="text-sm font-medium">المادة الدراسية</span>
             <select
+              value={form.subject_id}
+              required
+              disabled={!form.stage_id || !form.grade_id}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, subject_id: e.target.value }))
+              }
+              className={`${selectClass} disabled:opacity-40`}
+            >
+              <option value="">اختر المادة الدراسية</option>
+              {formSubjects.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name_ar}
+                  {s.name_en ? ` / ${s.name_en}` : ""}
+                </option>
+              ))}
+            </select>
+            {form.stage_id && form.grade_id && formSubjects.length === 0 ? (
+              <p className="text-xs text-amber-300/90">
+                لا توجد مواد دراسية لهذا الصف بعد — أضف مادة من قسم «إدارة المواد
+                الدراسية» أعلاه.
+              </p>
+            ) : null}
+          </label>
+
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium">نوع المادة</span>            <select
               value={form.material_type}
               onChange={(e) =>
                 setForm((f) => ({

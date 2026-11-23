@@ -26,6 +26,7 @@ import {
   togglePlaylistActive,
   updatePlaylist,
 } from "@/app/admin/playlists/actions";
+import { getSubjects } from "@/app/admin/subjects/actions";
 import {
   MATERIAL_TYPE_OPTIONS,
   isValidYoutubeUrl,
@@ -37,6 +38,7 @@ import type {
   AcademicGrade,
   AcademicStage,
   MaterialType,
+  Subject,
   VideoPlaylist,
 } from "@/lib/types";
 import { Modal } from "@/components/ui/modal";
@@ -54,6 +56,7 @@ const emptyForm = {
   cover_image_url: "",
   stage_id: "",
   grade_id: "",
+  subject_id: "",
   is_active: true,
 };
 
@@ -64,6 +67,8 @@ export function PlaylistsManager() {
   const [items, setItems] = useState<VideoPlaylist[]>([]);
   const [stages, setStages] = useState<AcademicStage[]>([]);
   const [grades, setGrades] = useState<AcademicGrade[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [filterSubjectId, setFilterSubjectId] = useState("");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -80,12 +85,26 @@ export function PlaylistsManager() {
     [grades, form.stage_id]
   );
 
+  const formSubjects = useMemo(
+    () =>
+      subjects.filter(
+        (s) => s.stage === form.stage_id && s.grade === form.grade_id,
+      ),
+    [subjects, form.stage_id, form.grade_id],
+  );
+
+  const visibleItems = useMemo(() => {
+    if (!filterSubjectId) return items;
+    return items.filter((i) => i.subject_id === filterSubjectId);
+  }, [items, filterSubjectId]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [tree, list] = await Promise.all([
+      const [tree, list, subs] = await Promise.all([
         getAcademicTree(),
         getPlaylists(),
+        getSubjects(),
       ]);
       if (tree.success && tree.data) {
         setStages(tree.data.stages);
@@ -97,6 +116,9 @@ export function PlaylistsManager() {
         setItems(list.data);
       } else if (!list.success) {
         error(list.error);
+      }
+      if (subs.success && subs.data) {
+        setSubjects(subs.data);
       }
     } catch (err) {
       console.error("[playlists-manager] load:", err);
@@ -127,6 +149,7 @@ export function PlaylistsManager() {
       cover_image_url: item.cover_image_url ?? "",
       stage_id: item.stage_id ?? "",
       grade_id: item.grade_id ?? "",
+      subject_id: item.subject_id ?? "",
       is_active: item.is_active,
     });
     setFormError(null);
@@ -175,6 +198,10 @@ export function PlaylistsManager() {
     }
     if (!form.stage_id || !form.grade_id) {
       setFormError("اختر المرحلة والصف");
+      return;
+    }
+    if (!form.subject_id) {
+      setFormError("اختر المادة الدراسية");
       return;
     }
 
@@ -255,6 +282,9 @@ export function PlaylistsManager() {
   function gradeName(id: string | null) {
     return grades.find((g) => g.id === id)?.name ?? "—";
   }
+  function subjectName(id: string | null) {
+    return subjects.find((s) => s.id === id)?.name_ar ?? null;
+  }
 
   if (loading) {
     return (
@@ -274,7 +304,7 @@ export function PlaylistsManager() {
           </div>
           <h2 className="text-2xl font-extrabold text-white">قوائم التشغيل</h2>
           <p className="mt-1 text-sm text-slate-400">
-            رابط يوتيوب + نوع المادة + اسم الوحدة يدوياً مع ربط المرحلة والصف
+            رابط يوتيوب مع ربط المرحلة والصف والمادة الدراسية
           </p>
         </div>
         <button
@@ -288,14 +318,35 @@ export function PlaylistsManager() {
       </header>
 
       <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900/90 to-slate-950/90 p-4 shadow-2xl shadow-black/40 sm:p-6">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-base font-bold text-white">قوائم الفيديو</h3>
+          <label className="block w-full max-w-xs space-y-1">
+            <span className="text-xs text-slate-400">تصفية حسب المادة</span>
+            <select
+              value={filterSubjectId}
+              onChange={(e) => setFilterSubjectId(e.target.value)}
+              className={selectClass}
+            >
+              <option value="">كل المواد الدراسية</option>
+              {subjects.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name_ar}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <div className="space-y-2">
-          {items.length === 0 ? (
+          {visibleItems.length === 0 ? (
             <div className="rounded-xl border border-dashed border-white/15 px-4 py-10 text-center text-sm text-slate-500">
-              لا توجد قوائم بعد — أضف أول قائمة تشغيل
+              {items.length === 0
+                ? "لا توجد قوائم بعد — أضف أول قائمة تشغيل"
+                : "لا توجد نتائج لهذه المادة الدراسية"}
             </div>
           ) : (
-            items.map((item) => {
+            visibleItems.map((item) => {
               const href = safeExternalHref(item.playlist_url);
+              const subjectLabel = subjectName(item.subject_id);
               return (
                 <article
                   key={item.id}
@@ -322,6 +373,11 @@ export function PlaylistsManager() {
                       <span className="rounded-md bg-teal-500/15 px-2 py-0.5 text-[11px] font-semibold text-teal-300">
                         {materialTypeLabel(item.material_type)}
                       </span>
+                      {subjectLabel ? (
+                        <span className="rounded-md bg-sky-500/15 px-2 py-0.5 text-[11px] font-semibold text-sky-300">
+                          {subjectLabel}
+                        </span>
+                      ) : null}
                     </div>
                     <p className="mt-1 truncate text-xs text-slate-500">
                       {stageName(item.stage_id)} · {gradeName(item.grade_id)} ·{" "}
@@ -497,6 +553,7 @@ export function PlaylistsManager() {
                     ...f,
                     stage_id: e.target.value,
                     grade_id: "",
+                    subject_id: "",
                   }))
                 }
                 className={selectClass}
@@ -519,7 +576,11 @@ export function PlaylistsManager() {
                 required
                 disabled={!form.stage_id}
                 onChange={(e) =>
-                  setForm((f) => ({ ...f, grade_id: e.target.value }))
+                  setForm((f) => ({
+                    ...f,
+                    grade_id: e.target.value,
+                    subject_id: "",
+                  }))
                 }
                 className={`${selectClass} disabled:opacity-40`}
               >
@@ -532,6 +593,33 @@ export function PlaylistsManager() {
               </select>
             </label>
           </div>
+
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium">المادة الدراسية</span>
+            <select
+              value={form.subject_id}
+              required
+              disabled={!form.stage_id || !form.grade_id}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, subject_id: e.target.value }))
+              }
+              className={`${selectClass} disabled:opacity-40`}
+            >
+              <option value="">اختر المادة الدراسية</option>
+              {formSubjects.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name_ar}
+                  {s.name_en ? ` / ${s.name_en}` : ""}
+                </option>
+              ))}
+            </select>
+            {form.stage_id && form.grade_id && formSubjects.length === 0 ? (
+              <p className="text-xs text-amber-300/90">
+                لا توجد مواد دراسية لهذا الصف بعد — أضفها من صفحة المواد التعليمية
+                أولاً.
+              </p>
+            ) : null}
+          </label>
 
           <div className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-3 dark:border-slate-700">
             <span className="text-sm">مفعّل على الموقع</span>

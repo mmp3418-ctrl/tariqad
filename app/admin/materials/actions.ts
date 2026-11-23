@@ -34,6 +34,7 @@ function normalizeMaterial(row: Record<string, unknown>): EducationalMaterial {
     file_url,
     stage_id: row.stage_id ? String(row.stage_id) : null,
     grade_id: row.grade_id ? String(row.grade_id) : null,
+    subject_id: row.subject_id ? String(row.subject_id) : null,
     is_active: row.is_active !== false,
     sort_order: Number(row.sort_order ?? 0),
     created_at: row.created_at ? String(row.created_at) : undefined,
@@ -89,6 +90,7 @@ export type MaterialInput = {
   file_url: string;
   stage_id: string;
   grade_id: string;
+  subject_id: string;
   is_active: boolean;
 };
 
@@ -102,6 +104,7 @@ function buildPayload(input: MaterialInput) {
     file_url,
     stage_id: toUuidOrNull(input.stage_id),
     grade_id: toUuidOrNull(input.grade_id),
+    subject_id: toUuidOrNull(input.subject_id),
     is_active: input.is_active !== false,
     updated_at: new Date().toISOString(),
   };
@@ -147,6 +150,18 @@ async function persistMaterial(
   });
 
   let { data, error } = await run(payload);
+
+  // Soft-retry if subject_id column not yet migrated
+  if (
+    error &&
+    /subject_id/i.test(error.message) &&
+    isMissingColumnError(error.message, "subject_id")
+  ) {
+    const { subject_id: _omit, ...withoutSubject } = payload;
+    const retry = await run(withoutSubject);
+    data = retry.data;
+    error = retry.error;
+  }
 
   // Legacy fallbacks if remote table still uses older column names
   if (
@@ -215,6 +230,12 @@ export async function createMaterial(
         error: "يرجى اختيار المرحلة والصف قبل الحفظ.",
       };
     }
+    if (!toUuidOrNull(input.subject_id)) {
+      return {
+        success: false,
+        error: "يرجى اختيار المادة الدراسية قبل الحفظ.",
+      };
+    }
 
     return await persistMaterial("insert", input);
   } catch (err) {
@@ -247,6 +268,12 @@ export async function updateMaterial(
       return {
         success: false,
         error: "يرجى اختيار المرحلة والصف قبل الحفظ.",
+      };
+    }
+    if (!toUuidOrNull(input.subject_id)) {
+      return {
+        success: false,
+        error: "يرجى اختيار المادة الدراسية قبل الحفظ.",
       };
     }
 
