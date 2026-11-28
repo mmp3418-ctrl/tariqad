@@ -3,23 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { arabicDbError, requireUuid, toUuidOrNull } from "@/lib/ids";
 import { supabase } from "@/lib/supabase";
+import { logSupabaseError } from "@/lib/supabase-log";
 import type { ActionResult, Subject } from "@/lib/types";
-
-type PgErrorLike = {
-  message?: string;
-  details?: string;
-  hint?: string;
-  code?: string;
-};
-
-function logPgError(scope: string, error: PgErrorLike) {
-  console.error(`[subjects] ${scope}:`, {
-    message: error.message,
-    details: error.details,
-    hint: error.hint,
-    code: error.code,
-  });
-}
 
 /**
  * Live schema uses stage_id / grade_id (canonical).
@@ -90,7 +75,7 @@ export async function getSubjects(): Promise<ActionResult<Subject[]>> {
       .order("name_ar", { ascending: true });
 
     if (error) {
-      logPgError("getSubjects", error);
+      logSupabaseError("subjects.getSubjects", error);
       return { success: false, error: arabicDbError(error.message) };
     }
 
@@ -149,7 +134,7 @@ export async function createSubject(
         isMissingCol(error.message, "grade_id") ||
         isMissingCol(error.message, "name"))
     ) {
-      logPgError("createSubject primary failed — retry legacy columns", error);
+      logSupabaseError("subjects.createSubject primary", error);
       const legacy = buildLegacySubjectBody({
         name_ar,
         name_en,
@@ -166,7 +151,7 @@ export async function createSubject(
     }
 
     if (error) {
-      logPgError("createSubject", error);
+      logSupabaseError("subjects.createSubject", error);
       return { success: false, error: arabicDbError(error.message) };
     }
 
@@ -223,7 +208,7 @@ export async function updateSubject(
         isMissingCol(error.message, "grade_id") ||
         isMissingCol(error.message, "name"))
     ) {
-      logPgError("updateSubject primary failed — retry legacy columns", error);
+      logSupabaseError("subjects.updateSubject primary", error);
       const legacy = buildLegacySubjectBody({
         name_ar,
         name_en,
@@ -241,7 +226,7 @@ export async function updateSubject(
     }
 
     if (error) {
-      logPgError("updateSubject", error);
+      logSupabaseError("subjects.updateSubject", error);
       return { success: false, error: arabicDbError(error.message) };
     }
 
@@ -272,7 +257,7 @@ export async function deleteSubject(id: string): Promise<ActionResult> {
       .eq("id", checked.id);
 
     if (error) {
-      logPgError("deleteSubject", error);
+      logSupabaseError("subjects.deleteSubject", error);
       return { success: false, error: arabicDbError(error.message) };
     }
 

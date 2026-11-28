@@ -55,16 +55,18 @@ export interface HomeContent {
 
 /**
  * Row from public.subjects — course subject per stage/grade.
- * Canonical DB columns: stage_id / grade_id (legacy aliases: stage / grade).
- * App-facing `stage` / `grade` hold those UUIDs after normalization.
+ * DB types: id/stage_id/grade_id are uuid (serialized as string in JS).
+ * Canonical columns: stage_id / grade_id (legacy aliases: stage / grade).
+ * App-facing `stage` / `grade` hold those UUID strings after normalization.
  */
 export interface Subject {
+  /** uuid */
   id: string;
   name_ar: string;
   name_en: string | null;
-  /** academic_stages.id (from stage_id or legacy stage) */
+  /** uuid — academic_stages.id (from stage_id or legacy stage) */
   stage: string;
-  /** academic_grades.id (from grade_id or legacy grade) */
+  /** uuid — academic_grades.id (from grade_id or legacy grade) */
   grade: string;
   created_at?: string;
   updated_at?: string;
@@ -79,6 +81,7 @@ export type MaterialType =
   | "مفردات";
 
 export interface AcademicStage {
+  /** uuid */
   id: string;
   name: string;
   sort_order: number;
@@ -88,7 +91,9 @@ export interface AcademicStage {
 }
 
 export interface AcademicGrade {
+  /** uuid */
   id: string;
+  /** uuid → academic_stages.id */
   stage_id: string;
   name: string;
   sort_order: number;
@@ -98,7 +103,9 @@ export interface AcademicGrade {
 }
 
 export interface AcademicUnit {
+  /** uuid */
   id: string;
+  /** uuid → academic_grades.id */
   grade_id: string;
   name: string;
   sort_order: number;
@@ -114,15 +121,18 @@ export interface AcademicTree {
 }
 
 export interface EducationalMaterial {
+  /** uuid */
   id: string;
   title: string;
   unit_name: string;
   material_type: MaterialType;
   /** Canonical DB column — public Storage URL */
   file_url: string;
+  /** uuid → academic_stages.id */
   stage_id: string | null;
+  /** uuid → academic_grades.id */
   grade_id: string | null;
-  /** public.subjects.id */
+  /** uuid → public.subjects.id */
   subject_id: string | null;
   is_active: boolean;
   sort_order: number;
@@ -131,6 +141,7 @@ export interface EducationalMaterial {
 }
 
 export interface VideoPlaylist {
+  /** uuid */
   id: string;
   title: string;
   /** Canonical DB column for the YouTube playlist link */
@@ -139,9 +150,11 @@ export interface VideoPlaylist {
   material_type: MaterialType;
   /** Optional cover image (Storage / external URL) */
   cover_image_url: string | null;
+  /** uuid → academic_stages.id */
   stage_id: string | null;
+  /** uuid → academic_grades.id */
   grade_id: string | null;
-  /** public.subjects.id */
+  /** uuid → public.subjects.id */
   subject_id: string | null;
   is_active: boolean;
   sort_order: number;
@@ -165,11 +178,14 @@ export interface TeacherTutorial {
 
 /** مساحة المعلم — مرجع المعلمين */
 export interface TeacherReference {
+  /** uuid */
   id: string;
   title: string;
   description: string | null;
   file_url: string;
+  /** uuid → academic_stages.id (never send non-UUID text) */
   stage_id: string | null;
+  /** uuid → academic_grades.id */
   grade_id: string | null;
   is_active: boolean;
   sort_order: number;

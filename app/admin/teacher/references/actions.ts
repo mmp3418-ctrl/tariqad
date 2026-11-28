@@ -8,6 +8,7 @@ import {
   toUuidOrNull,
 } from "@/lib/ids";
 import { supabase } from "@/lib/supabase";
+import { logSupabaseError } from "@/lib/supabase-log";
 import type { ActionResult, TeacherReference } from "@/lib/types";
 
 const PATH = "/admin/teacher/references";
@@ -101,6 +102,7 @@ async function persist(
   }
 
   if (result.error) {
+    logSupabaseError(`references.persist.${mode}`, result.error, { id });
     return { success: false, error: arabicDbError(result.error.message) };
   }
   revalidatePath(PATH);
@@ -120,7 +122,10 @@ export async function getReferences(): Promise<
     .select("*")
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: false });
-  if (error) return { success: false, error: arabicDbError(error.message) };
+  if (error) {
+    logSupabaseError("references.getReferences", error);
+    return { success: false, error: arabicDbError(error.message) };
+  }
   return {
     success: true,
     data: (data ?? []).map((row) => normalize(row as Record<string, unknown>)),
@@ -168,6 +173,9 @@ export async function toggleReferenceActive(id: string, is_active: boolean) {
   }
 
   if (result.error) {
+    logSupabaseError("references.toggleReferenceActive", result.error, {
+      id: checked.id,
+    });
     return { success: false as const, error: arabicDbError(result.error.message) };
   }
   revalidatePath(PATH);
@@ -185,7 +193,10 @@ export async function deleteReference(id: string) {
     .from("teacher_references")
     .delete()
     .eq("id", checked.id);
-  if (error) return { success: false as const, error: arabicDbError(error.message) };
+  if (error) {
+    logSupabaseError("references.deleteReference", error, { id: checked.id });
+    return { success: false as const, error: arabicDbError(error.message) };
+  }
   revalidatePath(PATH);
   return { success: true as const, message: "تم حذف المرجع" };
 }

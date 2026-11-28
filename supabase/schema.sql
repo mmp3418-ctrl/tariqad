@@ -346,7 +346,7 @@ alter table public.educational_materials add column if not exists pdf_url text;
 alter table public.educational_materials add column if not exists stage_id uuid;
 alter table public.educational_materials add column if not exists grade_id uuid;
 alter table public.educational_materials add column if not exists unit_id uuid;
-alter table public.educational_materials add column if not exists subject_id uuid references public.subjects(id) on delete set null;
+alter table public.educational_materials add column if not exists subject_id uuid;
 alter table public.educational_materials add column if not exists is_active boolean not null default true;
 alter table public.educational_materials add column if not exists sort_order integer not null default 0;
 alter table public.educational_materials add column if not exists created_at timestamptz not null default now();
@@ -380,7 +380,7 @@ alter table public.video_playlists add column if not exists youtube_url text;
 alter table public.video_playlists add column if not exists stage_id uuid;
 alter table public.video_playlists add column if not exists grade_id uuid;
 alter table public.video_playlists add column if not exists unit_id uuid;
-alter table public.video_playlists add column if not exists subject_id uuid references public.subjects(id) on delete set null;
+alter table public.video_playlists add column if not exists subject_id uuid;
 alter table public.video_playlists add column if not exists is_active boolean not null default true;
 alter table public.video_playlists add column if not exists sort_order integer not null default 0;
 alter table public.video_playlists add column if not exists created_at timestamptz not null default now();
@@ -685,45 +685,162 @@ alter table public.question_bank
   check (correct_index >= 0);
 
 -- Foreign keys → academic_stages / academic_grades
-alter table public.teacher_timetables drop constraint if exists teacher_timetables_stage_id_fkey;
-alter table public.teacher_timetables
-  add constraint teacher_timetables_stage_id_fkey
-  foreign key (stage_id) references public.academic_stages(id) on delete set null;
+-- Live DBs may still have TEXT stage_id/grade_id — coerce to UUID first (ERROR 42804).
+create extension if not exists "pgcrypto";
 
-alter table public.teacher_timetables drop constraint if exists teacher_timetables_grade_id_fkey;
-alter table public.teacher_timetables
-  add constraint teacher_timetables_grade_id_fkey
-  foreign key (grade_id) references public.academic_grades(id) on delete set null;
+create or replace function public._tariq_is_uuid_text(val text)
+returns boolean
+language sql
+immutable
+as $$
+  select val is not null
+    and btrim(val) <> ''
+    and btrim(val) ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+$$;
 
-alter table public.teacher_tutorials drop constraint if exists teacher_tutorials_stage_id_fkey;
-alter table public.teacher_tutorials
-  add constraint teacher_tutorials_stage_id_fkey
-  foreign key (stage_id) references public.academic_stages(id) on delete set null;
+create or replace function public._tariq_ensure_uuid_column(p_table text, p_column text)
+returns void
+language plpgsql
+as $$
+declare
+  col_udt text;
+  fk record;
+  has_default boolean;
+begin
+  select c.udt_name into col_udt
+  from information_schema.columns c
+  where c.table_schema = 'public'
+    and c.table_name = p_table
+    and c.column_name = p_column;
 
-alter table public.teacher_tutorials drop constraint if exists teacher_tutorials_grade_id_fkey;
-alter table public.teacher_tutorials
-  add constraint teacher_tutorials_grade_id_fkey
-  foreign key (grade_id) references public.academic_grades(id) on delete set null;
+  if col_udt is null then
+    execute format('alter table public.%I add column %I uuid', p_table, p_column);
+    return;
+  end if;
+  if col_udt = 'uuid' then
+    return;
+  end if;
 
-alter table public.teacher_references drop constraint if exists teacher_references_stage_id_fkey;
-alter table public.teacher_references
-  add constraint teacher_references_stage_id_fkey
-  foreign key (stage_id) references public.academic_stages(id) on delete set null;
+  for fk in
+    select con.conname
+    from pg_constraint con
+    join pg_class rel on rel.oid = con.conrelid
+    join pg_namespace nsp on nsp.oid = rel.relnamespace
+    where nsp.nspname = 'public'
+      and rel.relname = p_table
+      and con.contype = 'f'
+      and exists (
+        select 1
+        from unnest(con.conkey) with ordinality as cols(attnum, ord)
+        join pg_attribute att
+          on att.attrelid = con.conrelid
+         and att.attnum = cols.attnum
+        where att.attname = p_column
+      )
+  loop
+    execute format('alter table public.%I drop constraint if exists %I', p_table, fk.conname);
+  end loop;
 
-alter table public.teacher_references drop constraint if exists teacher_references_grade_id_fkey;
-alter table public.teacher_references
-  add constraint teacher_references_grade_id_fkey
-  foreign key (grade_id) references public.academic_grades(id) on delete set null;
+  -- '' defaults are invalid for uuid and block ALTER TYPE
+  select (a.atthasdef and not a.attisdropped)
+    into has_default
+  from pg_attribute a
+  join pg_class rel on rel.oid = a.attrelid
+  join pg_namespace nsp on nsp.oid = rel.relnamespace
+  where nsp.nspname = 'public'
+    and rel.relname = p_table
+    and a.attname = p_column;
 
-alter table public.question_bank drop constraint if exists question_bank_stage_id_fkey;
-alter table public.question_bank
-  add constraint question_bank_stage_id_fkey
-  foreign key (stage_id) references public.academic_stages(id) on delete set null;
+  if coalesce(has_default, false) then
+    execute format('alter table public.%I alter column %I drop default', p_table, p_column);
+  end if;
 
-alter table public.question_bank drop constraint if exists question_bank_grade_id_fkey;
-alter table public.question_bank
-  add constraint question_bank_grade_id_fkey
-  foreign key (grade_id) references public.academic_grades(id) on delete set null;
+  begin
+    execute format('alter table public.%I alter column %I drop not null', p_table, p_column);
+  exception
+    when others then
+      null;
+  end;
+
+  execute format(
+    'update public.%I set %I = null where %I is not null and not public._tariq_is_uuid_text(%I::text)',
+    p_table, p_column, p_column, p_column
+  );
+  execute format(
+    'alter table public.%I alter column %I type uuid using (
+       case
+         when %I is null or btrim(%I::text) = '''' then null
+         when public._tariq_is_uuid_text(%I::text) then btrim(%I::text)::uuid
+         else null
+       end
+     )',
+    p_table, p_column, p_column, p_column, p_column, p_column
+  );
+end;
+$$;
+
+create or replace function public._tariq_add_fk(
+  p_table text,
+  p_constraint text,
+  p_column text,
+  p_ref_table text,
+  p_on_delete text default 'set null'
+) returns void
+language plpgsql
+as $$
+declare
+  col_udt text;
+  ref_udt text;
+begin
+  select c.udt_name into col_udt
+  from information_schema.columns c
+  where c.table_schema = 'public' and c.table_name = p_table and c.column_name = p_column;
+  select c.udt_name into ref_udt
+  from information_schema.columns c
+  where c.table_schema = 'public' and c.table_name = p_ref_table and c.column_name = 'id';
+
+  if col_udt is distinct from 'uuid' or ref_udt is distinct from 'uuid' then
+    raise notice 'skip FK %.% → %.id (types: % / %)', p_table, p_column, p_ref_table, col_udt, ref_udt;
+    return;
+  end if;
+
+  execute format('alter table public.%I drop constraint if exists %I', p_table, p_constraint);
+  execute format(
+    'update public.%I t set %I = null
+     where t.%I is not null
+       and not exists (select 1 from public.%I r where r.id = t.%I)',
+    p_table, p_column, p_column, p_ref_table, p_column
+  );
+  execute format(
+    'alter table public.%I add constraint %I foreign key (%I) references public.%I(id) on delete %s',
+    p_table, p_constraint, p_column, p_ref_table, p_on_delete
+  );
+exception
+  when duplicate_object then null;
+  when others then
+    raise notice 'skip FK % on %.%: %', p_constraint, p_table, p_column, sqlerrm;
+end;
+$$;
+
+select public._tariq_ensure_uuid_column('teacher_timetables', 'stage_id');
+select public._tariq_ensure_uuid_column('teacher_timetables', 'grade_id');
+select public._tariq_add_fk('teacher_timetables', 'teacher_timetables_stage_id_fkey', 'stage_id', 'academic_stages', 'set null');
+select public._tariq_add_fk('teacher_timetables', 'teacher_timetables_grade_id_fkey', 'grade_id', 'academic_grades', 'set null');
+
+select public._tariq_ensure_uuid_column('teacher_tutorials', 'stage_id');
+select public._tariq_ensure_uuid_column('teacher_tutorials', 'grade_id');
+select public._tariq_add_fk('teacher_tutorials', 'teacher_tutorials_stage_id_fkey', 'stage_id', 'academic_stages', 'set null');
+select public._tariq_add_fk('teacher_tutorials', 'teacher_tutorials_grade_id_fkey', 'grade_id', 'academic_grades', 'set null');
+
+select public._tariq_ensure_uuid_column('teacher_references', 'stage_id');
+select public._tariq_ensure_uuid_column('teacher_references', 'grade_id');
+select public._tariq_add_fk('teacher_references', 'teacher_references_stage_id_fkey', 'stage_id', 'academic_stages', 'set null');
+select public._tariq_add_fk('teacher_references', 'teacher_references_grade_id_fkey', 'grade_id', 'academic_grades', 'set null');
+
+select public._tariq_ensure_uuid_column('question_bank', 'stage_id');
+select public._tariq_ensure_uuid_column('question_bank', 'grade_id');
+select public._tariq_add_fk('question_bank', 'question_bank_stage_id_fkey', 'stage_id', 'academic_stages', 'set null');
+select public._tariq_add_fk('question_bank', 'question_bank_grade_id_fkey', 'grade_id', 'academic_grades', 'set null');
 
 create index if not exists teacher_timetables_sort_idx
   on public.teacher_timetables (sort_order asc, created_at desc);
@@ -896,8 +1013,36 @@ alter table public.subjects add column if not exists name_en text not null defau
 alter table public.subjects add column if not exists name text;
 
 -- Link educational materials + playlists to subjects
-alter table public.educational_materials add column if not exists subject_id uuid references public.subjects(id) on delete set null;
-alter table public.video_playlists add column if not exists subject_id uuid references public.subjects(id) on delete set null;
+alter table public.educational_materials add column if not exists subject_id uuid;
+alter table public.video_playlists add column if not exists subject_id uuid;
+
+-- Coerce legacy TEXT ids → UUID before attaching FKs (avoids ERROR 42804)
+select public._tariq_ensure_uuid_column('academic_grades', 'stage_id');
+select public._tariq_ensure_uuid_column('subjects', 'stage_id');
+select public._tariq_ensure_uuid_column('subjects', 'grade_id');
+select public._tariq_ensure_uuid_column('educational_materials', 'stage_id');
+select public._tariq_ensure_uuid_column('educational_materials', 'grade_id');
+select public._tariq_ensure_uuid_column('educational_materials', 'unit_id');
+select public._tariq_ensure_uuid_column('educational_materials', 'subject_id');
+select public._tariq_ensure_uuid_column('video_playlists', 'stage_id');
+select public._tariq_ensure_uuid_column('video_playlists', 'grade_id');
+select public._tariq_ensure_uuid_column('video_playlists', 'unit_id');
+select public._tariq_ensure_uuid_column('video_playlists', 'subject_id');
+
+-- grades.stage_id is typically NOT NULL — delete orphans instead of nulling
+delete from public.academic_grades g
+where g.stage_id is null
+   or not exists (select 1 from public.academic_stages s where s.id = g.stage_id);
+
+select public._tariq_add_fk('academic_grades', 'academic_grades_stage_id_fkey', 'stage_id', 'academic_stages', 'cascade');
+select public._tariq_add_fk('subjects', 'subjects_stage_id_fkey', 'stage_id', 'academic_stages', 'set null');
+select public._tariq_add_fk('subjects', 'subjects_grade_id_fkey', 'grade_id', 'academic_grades', 'cascade');
+select public._tariq_add_fk('educational_materials', 'educational_materials_stage_id_fkey', 'stage_id', 'academic_stages', 'set null');
+select public._tariq_add_fk('educational_materials', 'educational_materials_grade_id_fkey', 'grade_id', 'academic_grades', 'set null');
+select public._tariq_add_fk('educational_materials', 'educational_materials_subject_id_fkey', 'subject_id', 'subjects', 'set null');
+select public._tariq_add_fk('video_playlists', 'video_playlists_stage_id_fkey', 'stage_id', 'academic_stages', 'set null');
+select public._tariq_add_fk('video_playlists', 'video_playlists_grade_id_fkey', 'grade_id', 'academic_grades', 'set null');
+select public._tariq_add_fk('video_playlists', 'video_playlists_subject_id_fkey', 'subject_id', 'subjects', 'set null');
 
 create index if not exists educational_materials_subject_idx
   on public.educational_materials (subject_id);
@@ -908,3 +1053,7 @@ create index if not exists video_playlists_subject_idx
 insert into storage.buckets (id, name, public)
 values ('materials', 'materials', true)
 on conflict (id) do update set public = true;
+
+drop function if exists public._tariq_add_fk(text, text, text, text, text);
+drop function if exists public._tariq_ensure_uuid_column(text, text);
+drop function if exists public._tariq_is_uuid_text(text);

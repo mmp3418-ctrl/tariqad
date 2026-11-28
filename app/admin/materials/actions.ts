@@ -9,6 +9,7 @@ import {
   toUuidOrNull,
 } from "@/lib/ids";
 import { supabase } from "@/lib/supabase";
+import { logSupabaseError } from "@/lib/supabase-log";
 import type {
   ActionResult,
   EducationalMaterial,
@@ -65,7 +66,7 @@ export async function getMaterials(): Promise<
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("[materials] getMaterials:", error.message, error);
+      logSupabaseError("materials.getMaterials", error);
       return { success: false, error: mapDbError(error.message) };
     }
 
@@ -188,12 +189,7 @@ async function persistMaterial(
   }
 
   if (error) {
-    console.error("[materials] persistMaterial:", error.message, {
-      error,
-      mode,
-      id,
-      payload,
-    });
+    logSupabaseError("materials.persistMaterial", error, { mode, id });
     return { success: false, error: mapDbError(error.message) };
   }
 
@@ -313,7 +309,9 @@ export async function toggleMaterialActive(
     }
 
     if (result.error) {
-      console.error("[materials] toggleMaterialActive:", result.error.message);
+      logSupabaseError("materials.toggleMaterialActive", result.error, {
+        id: checked.id,
+      });
       return {
         success: false,
         error: arabicDbError(mapDbError(result.error.message)),
@@ -341,7 +339,7 @@ export async function deleteMaterial(id: string): Promise<ActionResult> {
       .delete()
       .eq("id", checked.id);
     if (error) {
-      console.error("[materials] deleteMaterial:", error.message, { error, id: checked.id });
+      logSupabaseError("materials.deleteMaterial", error, { id: checked.id });
       return { success: false, error: arabicDbError(mapDbError(error.message)) };
     }
     revalidatePath("/admin/materials");

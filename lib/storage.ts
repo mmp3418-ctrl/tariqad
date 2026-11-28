@@ -3,6 +3,7 @@ import {
   MATERIALS_BUCKET,
   MATERIALS_BUCKET_FALLBACKS,
 } from "@/lib/academic";
+import { logSupabaseError } from "@/lib/supabase-log";
 import type { ActionResult } from "@/lib/types";
 
 /**
@@ -78,26 +79,35 @@ function publicUrlFor(bucket: string, objectPath: string): string {
   );
 }
 
+type StorageErrLike = {
+  message?: string;
+  name?: string;
+  statusCode?: string | number;
+  error?: string;
+  details?: string;
+  code?: string;
+  hint?: string;
+};
+
 function logStorageError(
   scope: string,
   bucket: string,
   path: string,
-  uploadError: {
-    message?: string;
-    name?: string;
-    statusCode?: string | number;
-    error?: string;
-  },
+  uploadError: StorageErrLike,
 ) {
-  console.error(`[storage] ${scope}:`, {
-    bucket,
-    path,
+  logSupabaseError(`storage.${scope}`, {
     message: uploadError.message,
+    details: uploadError.details ?? uploadError.error,
+    code:
+      uploadError.code != null
+        ? String(uploadError.code)
+        : uploadError.statusCode != null
+          ? String(uploadError.statusCode)
+          : undefined,
+    hint: uploadError.hint,
     name: uploadError.name,
     statusCode: uploadError.statusCode,
-    error: uploadError.error,
-    details: uploadError,
-  });
+  }, { bucket, path });
 }
 
 /**

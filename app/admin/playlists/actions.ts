@@ -9,6 +9,7 @@ import {
   toUuidOrNull,
 } from "@/lib/ids";
 import { supabase } from "@/lib/supabase";
+import { logSupabaseError } from "@/lib/supabase-log";
 import type {
   ActionResult,
   MaterialType,
@@ -51,8 +52,8 @@ export async function getPlaylists(): Promise<ActionResult<VideoPlaylist[]>> {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("[playlists] getPlaylists:", error.message, error);
-      return { success: false, error: error.message };
+      logSupabaseError("playlists.getPlaylists", error);
+      return { success: false, error: arabicDbError(error.message) };
     }
 
     return {
@@ -155,8 +156,8 @@ async function persistPlaylist(
   }
 
   if (error) {
-    console.error(`[playlists] ${mode}:`, error.message, { error, id, base });
-    return { success: false, error: error.message };
+    logSupabaseError(`playlists.${mode}`, error, { id });
+    return { success: false, error: arabicDbError(error.message) };
   }
 
   revalidatePath("/admin/playlists");

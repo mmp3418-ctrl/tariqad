@@ -7,8 +7,9 @@ export function isUuid(value: unknown): value is string {
 }
 
 /**
- * Convert form / query values to a UUID or null.
- * Empty strings, "1", and other non-UUIDs become null (never sent to uuid columns).
+ * Convert form / query values to a UUID string or null.
+ * All FK columns (stage_id, grade_id, subject_id, …) are uuid in Postgres —
+ * empty strings, "1", and other non-UUIDs become null (never sent to uuid cols).
  */
 export function toUuidOrNull(value: unknown): string | null {
   if (value == null) return null;
