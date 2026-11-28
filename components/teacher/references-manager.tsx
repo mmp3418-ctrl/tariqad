@@ -58,10 +58,28 @@ export function ReferencesManager() {
   }, [error]);
   useEffect(() => { void load(); }, [load]);
   async function onFile(file: File | null) {
-    if (!file) return; setUploading(true);
-    const result = await uploadMaterialPdf(file); setUploading(false);
-    if (result.success && result.data) { setForm((f) => ({ ...f, file_url: result.data!.publicUrl })); setFileName(file.name); success(result.message ?? "تم رفع ملف PDF"); }
-    else if (!result.success) { setFormError(result.error); error(result.error); }
+    if (!file) return;
+    setFormError(null);
+    setUploading(true);
+    try {
+      const result = await uploadMaterialPdf(file);
+      if (result.success && result.data) {
+        setForm((f) => ({ ...f, file_url: result.data!.publicUrl }));
+        setFileName(file.name);
+        setFormError(null);
+        success(result.message ?? "تم رفع ملف PDF");
+      } else if (!result.success) {
+        setFormError(result.error);
+        error(result.error);
+      }
+    } catch (err) {
+      console.error("[references-manager] upload:", err);
+      const msg = "تعذّر رفع الملف حالياً، يرجى المحاولة لاحقاً.";
+      setFormError(msg);
+      error(msg);
+    } finally {
+      setUploading(false);
+    }
   }
   function save(e: FormEvent) {
     e.preventDefault();

@@ -5,16 +5,81 @@ import { arabicDbError, requireUuid, toUuidOrNull } from "@/lib/ids";
 import { supabase } from "@/lib/supabase";
 import type { ActionResult, Subject } from "@/lib/types";
 
+type PgErrorLike = {
+  message?: string;
+  details?: string;
+  hint?: string;
+  code?: string;
+};
+
+function logPgError(scope: string, error: PgErrorLike) {
+  console.error(`[subjects] ${scope}:`, {
+    message: error.message,
+    details: error.details,
+    hint: error.hint,
+    code: error.code,
+  });
+}
+
+/**
+ * Live schema uses stage_id / grade_id (canonical).
+ * Older drafts used stage / grade — normalize both when reading.
+ */
 function normalizeSubject(row: Record<string, unknown>): Subject {
+  const stage = String(row.stage_id ?? row.stage ?? "").trim();
+  const grade = String(row.grade_id ?? row.grade ?? "").trim();
+  const nameEn = String(row.name_en ?? "").trim();
   return {
     id: String(row.id),
-    name_ar: String(row.name_ar ?? "").trim(),
-    name_en: String(row.name_en ?? "").trim() || null,
-    stage: String(row.stage ?? ""),
-    grade: String(row.grade ?? ""),
+    name_ar: String(row.name_ar ?? row.name ?? "").trim(),
+    name_en: nameEn || null,
+    stage,
+    grade,
     created_at: row.created_at ? String(row.created_at) : undefined,
     updated_at: row.updated_at ? String(row.updated_at) : undefined,
   };
+}
+
+/** Build insert/update body for the live column names. */
+function buildSubjectBody(input: {
+  name_ar: string;
+  name_en: string | null;
+  stage: string;
+  grade: string;
+}) {
+  // name_en is NOT NULL with default '' on many deployments — never send null.
+  return {
+    name_ar: input.name_ar,
+    name_en: input.name_en ?? "",
+    name: input.name_ar,
+    stage_id: input.stage,
+    grade_id: input.grade,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+/** Legacy body if stage_id/grade_id columns are missing. */
+function buildLegacySubjectBody(input: {
+  name_ar: string;
+  name_en: string | null;
+  stage: string;
+  grade: string;
+}) {
+  return {
+    name_ar: input.name_ar,
+    name_en: input.name_en ?? "",
+    name: input.name_ar,
+    stage: input.stage,
+    grade: input.grade,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function isMissingCol(message: string, column: string): boolean {
+  return (
+    new RegExp(column, "i").test(message) &&
+    /(column|schema cache|does not exist)/i.test(message)
+  );
 }
 
 export async function getSubjects(): Promise<ActionResult<Subject[]>> {
@@ -25,7 +90,7 @@ export async function getSubjects(): Promise<ActionResult<Subject[]>> {
       .order("name_ar", { ascending: true });
 
     if (error) {
-      console.error("[subjects] getSubjects:", error.message);
+      logPgError("getSubjects", error);
       return { success: false, error: arabicDbError(error.message) };
     }
 
@@ -70,20 +135,38 @@ export async function createSubject(
       };
     }
 
-    const { data, error } = await supabase
+    const primary = buildSubjectBody({ name_ar, name_en, stage, grade });
+    let { data, error } = await supabase
       .from("subjects")
-      .insert({
+      .insert(primary)
+      .select("*")
+      .single();
+
+    // Fallback: live table may still use stage/grade column names
+    if (
+      error &&
+      (isMissingCol(error.message, "stage_id") ||
+        isMissingCol(error.message, "grade_id") ||
+        isMissingCol(error.message, "name"))
+    ) {
+      logPgError("createSubject primary failed — retry legacy columns", error);
+      const legacy = buildLegacySubjectBody({
         name_ar,
         name_en,
         stage,
         grade,
-        updated_at: new Date().toISOString(),
-      })
-      .select("*")
-      .single();
+      });
+      const retry = await supabase
+        .from("subjects")
+        .insert(legacy)
+        .select("*")
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
-      console.error("[subjects] createSubject:", error.message);
+      logPgError("createSubject", error);
       return { success: false, error: arabicDbError(error.message) };
     }
 
@@ -126,21 +209,39 @@ export async function updateSubject(
       };
     }
 
-    const { data, error } = await supabase
+    const primary = buildSubjectBody({ name_ar, name_en, stage, grade });
+    let { data, error } = await supabase
       .from("subjects")
-      .update({
-        name_ar,
-        name_en,
-        stage,
-        grade,
-        updated_at: new Date().toISOString(),
-      })
+      .update(primary)
       .eq("id", checked.id)
       .select("*")
       .single();
 
+    if (
+      error &&
+      (isMissingCol(error.message, "stage_id") ||
+        isMissingCol(error.message, "grade_id") ||
+        isMissingCol(error.message, "name"))
+    ) {
+      logPgError("updateSubject primary failed — retry legacy columns", error);
+      const legacy = buildLegacySubjectBody({
+        name_ar,
+        name_en,
+        stage,
+        grade,
+      });
+      const retry = await supabase
+        .from("subjects")
+        .update(legacy)
+        .eq("id", checked.id)
+        .select("*")
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
+
     if (error) {
-      console.error("[subjects] updateSubject:", error.message);
+      logPgError("updateSubject", error);
       return { success: false, error: arabicDbError(error.message) };
     }
 
@@ -171,7 +272,7 @@ export async function deleteSubject(id: string): Promise<ActionResult> {
       .eq("id", checked.id);
 
     if (error) {
-      console.error("[subjects] deleteSubject:", error.message);
+      logPgError("deleteSubject", error);
       return { success: false, error: arabicDbError(error.message) };
     }
 

@@ -55,15 +55,16 @@ export interface HomeContent {
 
 /**
  * Row from public.subjects — course subject per stage/grade.
- * DB columns: stage / grade are UUIDs referencing academic_stages / academic_grades.
+ * Canonical DB columns: stage_id / grade_id (legacy aliases: stage / grade).
+ * App-facing `stage` / `grade` hold those UUIDs after normalization.
  */
 export interface Subject {
   id: string;
   name_ar: string;
   name_en: string | null;
-  /** academic_stages.id */
+  /** academic_stages.id (from stage_id or legacy stage) */
   stage: string;
-  /** academic_grades.id */
+  /** academic_grades.id (from grade_id or legacy grade) */
   grade: string;
   created_at?: string;
   updated_at?: string;

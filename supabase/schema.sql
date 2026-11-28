@@ -420,23 +420,23 @@ on conflict (id) do update set public = true;
 drop policy if exists "Public read pdfs" on storage.objects;
 create policy "Public read pdfs"
   on storage.objects for select
-  using (bucket_id in ('pdfs', 'uploads'));
+  using (bucket_id in ('pdfs', 'uploads', 'materials'));
 
 drop policy if exists "Public upload pdfs" on storage.objects;
 create policy "Public upload pdfs"
   on storage.objects for insert
-  with check (bucket_id in ('pdfs', 'uploads'));
+  with check (bucket_id in ('pdfs', 'uploads', 'materials'));
 
 drop policy if exists "Public update pdfs" on storage.objects;
 create policy "Public update pdfs"
   on storage.objects for update
-  using (bucket_id in ('pdfs', 'uploads'))
-  with check (bucket_id in ('pdfs', 'uploads'));
+  using (bucket_id in ('pdfs', 'uploads', 'materials'))
+  with check (bucket_id in ('pdfs', 'uploads', 'materials'));
 
 drop policy if exists "Public delete pdfs" on storage.objects;
 create policy "Public delete pdfs"
   on storage.objects for delete
-  using (bucket_id in ('pdfs', 'uploads'));
+  using (bucket_id in ('pdfs', 'uploads', 'materials'));
 
 -- Legacy policies for older materials bucket (safe if unused)
 drop policy if exists "Public read materials" on storage.objects;
@@ -887,32 +887,13 @@ create policy "Public delete branding"
   using (bucket_id in ('branding', 'site-assets', 'pdfs', 'uploads'));
 
 -- ---------------------------------------------------------------------------
--- subjects: course subjects per academic stage + grade
--- Columns: id, name_ar, name_en, stage (stage uuid), grade (grade uuid)
+-- subjects hardening: ensure stage_id / grade_id exist (canonical columns)
 -- ---------------------------------------------------------------------------
-create table if not exists public.subjects (
-  id uuid primary key default gen_random_uuid(),
-  name_ar text not null,
-  name_en text,
-  stage uuid not null references public.academic_stages(id) on delete cascade,
-  grade uuid not null references public.academic_grades(id) on delete cascade,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
+alter table public.subjects add column if not exists stage_id uuid;
+alter table public.subjects add column if not exists grade_id uuid;
 alter table public.subjects add column if not exists name_ar text;
-alter table public.subjects add column if not exists name_en text;
-alter table public.subjects add column if not exists stage uuid;
-alter table public.subjects add column if not exists grade uuid;
-alter table public.subjects add column if not exists created_at timestamptz not null default now();
-alter table public.subjects add column if not exists updated_at timestamptz not null default now();
-
-alter table public.subjects enable row level security;
-drop policy if exists "Allow all subjects" on public.subjects;
-create policy "Allow all subjects" on public.subjects for all using (true) with check (true);
-
-create index if not exists subjects_stage_grade_idx
-  on public.subjects (stage, grade, name_ar);
+alter table public.subjects add column if not exists name_en text not null default '';
+alter table public.subjects add column if not exists name text;
 
 -- Link educational materials + playlists to subjects
 alter table public.educational_materials add column if not exists subject_id uuid references public.subjects(id) on delete set null;
@@ -922,3 +903,8 @@ create index if not exists educational_materials_subject_idx
   on public.educational_materials (subject_id);
 create index if not exists video_playlists_subject_idx
   on public.video_playlists (subject_id);
+
+-- Ensure materials bucket exists as tertiary fallback
+insert into storage.buckets (id, name, public)
+values ('materials', 'materials', true)
+on conflict (id) do update set public = true;
