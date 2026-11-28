@@ -19,7 +19,7 @@ import {
 import type { AcademicGrade, AcademicStage, Subject } from "@/lib/types";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
-import { arabicDbError } from "@/lib/ids";
+import { subjectDbError } from "@/lib/subjects";
 
 const field =
   "w-full rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2.5 text-sm text-slate-100 outline-none focus:border-teal-600";
@@ -101,7 +101,10 @@ export function SubjectsPanel({ onSubjectsChange }: SubjectsPanelProps) {
         setSubjects(list.data);
         onSubjectsChange?.(list.data);
       } else if (!list.success) {
-        error(arabicDbError(list.error));
+        error(subjectDbError(list.error));
+      }
+      if (!tree.success) {
+        error(tree.error || "تعذّر تحميل المراحل والصفوف.");
       }
     } catch (err) {
       console.error("[subjects-panel] load:", err);

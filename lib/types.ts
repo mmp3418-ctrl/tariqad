@@ -55,18 +55,19 @@ export interface HomeContent {
 
 /**
  * Row from public.subjects — course subject per stage/grade.
- * DB types: id/stage_id/grade_id are uuid (serialized as string in JS).
- * Canonical columns: stage_id / grade_id (legacy aliases: stage / grade).
- * App-facing `stage` / `grade` hold those UUID strings after normalization.
+ * Live DB has BOTH:
+ *   - canonical uuid: stage_id, grade_id
+ *   - legacy text NOT NULL: stage, grade (same uuid strings)
+ * App-facing `stage` / `grade` are those UUID strings after normalization.
  */
 export interface Subject {
   /** uuid */
   id: string;
   name_ar: string;
   name_en: string | null;
-  /** uuid — academic_stages.id (from stage_id or legacy stage) */
+  /** uuid string — academic_stages.id */
   stage: string;
-  /** uuid — academic_grades.id (from grade_id or legacy grade) */
+  /** uuid string — academic_grades.id */
   grade: string;
   created_at?: string;
   updated_at?: string;

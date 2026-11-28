@@ -225,6 +225,60 @@ alter table public.subjects add column if not exists updated_at timestamptz not 
 select public._tariq_ensure_uuid_column('public.subjects'::regclass, 'stage_id');
 select public._tariq_ensure_uuid_column('public.subjects'::regclass, 'grade_id');
 
+-- Legacy text columns still present on some live DBs (NOT NULL "stage"/"grade").
+-- App writes BOTH pairs; keep legacy columns in sync and relax NOT NULL so
+-- inserts that only set stage_id/grade_id no longer fail with 23502.
+alter table public.subjects add column if not exists stage text;
+alter table public.subjects add column if not exists grade text;
+
+update public.subjects
+set stage = coalesce(nullif(btrim(stage), ''), stage_id::text)
+where stage_id is not null
+  and (stage is null or btrim(stage) = '');
+
+update public.subjects
+set grade = coalesce(nullif(btrim(grade), ''), grade_id::text)
+where grade_id is not null
+  and (grade is null or btrim(grade) = '');
+
+-- Backfill uuid FKs from legacy text when they hold UUID strings
+do $$
+begin
+  update public.subjects
+  set stage_id = stage::uuid
+  where stage_id is null
+    and stage is not null
+    and btrim(stage) ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+
+  update public.subjects
+  set grade_id = grade::uuid
+  where grade_id is null
+    and grade is not null
+    and btrim(grade) ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+exception
+  when others then
+    raise notice 'subjects legacy backfill skipped: %', sqlerrm;
+end $$;
+
+-- Relax legacy NOT NULL so uuid-only writes never fail with 23502
+do $$
+begin
+  alter table public.subjects alter column stage drop not null;
+exception
+  when undefined_column then null;
+  when others then
+    raise notice 'subjects.stage drop not null: %', sqlerrm;
+end $$;
+
+do $$
+begin
+  alter table public.subjects alter column grade drop not null;
+exception
+  when undefined_column then null;
+  when others then
+    raise notice 'subjects.grade drop not null: %', sqlerrm;
+end $$;
+
 update public.subjects set name_en = coalesce(name_en, '') where name_en is null;
 alter table public.subjects alter column name_en set default '';
 
